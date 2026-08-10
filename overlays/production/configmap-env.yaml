@@ -3,9 +3,8 @@ kind: ConfigMap
 metadata:
   name: fantasy-league-config
   namespace: default
-spec:
-  # TODO: Replace with league info
-  ESPN_LEAGUE_ID: "12345678"
-  ESPN_TEAM_ID: "1"
+data:
+  ESPN_LEAGUE_ID: "1248158344"
+  ESPN_TEAM_ID: "8"
   CURRENT_YEAR: "2026"
   SPORT_TYPE: "nfl"

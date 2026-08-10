@@ -18,10 +18,12 @@ spec:
           - name: worker
             image: yourregistry/fantasy-browser-worker:latest # TODO: Replace with custom image bundling Chromium
             imagePullPolicy: IfNotPresent
+            envFrom:
+              - configMapRef:
+                  name: fantasy-league-config
             env:
               - name: AMQP_URL
-                value: "amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//"
-              # TODO: Set K8s secrets or integrated vault/secret manager
+                value: "amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//"
               - name: ESPN_S2
                 valueFrom:
                   secretKeyRef:
@@ -50,9 +52,9 @@ spec:
       metadata:
         queueName: lineup_updates
         queueLength: "1" # Spawns 1 job pod per message in the queue
-        host: amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//
+        host: amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//
     - type: rabbitmq
       metadata:
         queueName: waiver_actions
         queueLength: "1"
-        host: amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//
+        host: amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//

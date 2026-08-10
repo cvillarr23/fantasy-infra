@@ -2,13 +2,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
-secretGenerator:
-  - name: database-credentials
-    literals:
-      - postgres-password=change-this-in-production-securely
-  - name: espn-session-secrets
-    literals:
-      - espn_s2=placeholder-extract-from-browser-cookies
-      - swid=placeholder-extract-from-browser-cookies
-      - groq_api_key=placeholder-free-tier-token
-# TODO: Add ConfigMap mappings for persistent variables (LEAGUE_ID, TEAM_ID)
+  - configmap-env.yaml
+  - externalsecrets.yaml

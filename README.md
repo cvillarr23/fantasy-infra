@@ -8,21 +8,37 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
     *   `databases/`: Manifests for low-memory PostgreSQL/TimescaleDB, Redis, and RabbitMQ.
     *   `core-pipeline/`: Deployment states for the FastAPI Engine and Weekly CronJobs.
     *   `browser-worker/`: KEDA ScaledJob criteria definitions for Playwright containers.
-    *   `telemetry/`: Provisioned dashboards and config for existing Grafana instance connection
 *   `overlays/`: Environmental delta configurations.
-    *   `production/`: Active operational values, sync targets, and persistent credentials.
+    *   `production/`: Active operational values, sync targets, and `ExternalSecret`s.
     *   `draft-day/`: CPU burst and memory caching patches applied specifically during the live draft window.
+
+Grafana dashboards/datasource for this pipeline live in `homelab-deployment/apps/telemetry/` (that repo's Grafana only provisions dashboards it finds listed in its own Kustomize root) rather than here — see [homelab-deployment#1](https://github.com/cvillarr23/homelab-deployment/issues/1) for the tracked follow-up to make that self-service from repos like this one.
 
 ## Cluster Pre-requisites
 
-Your Kubernetes node must have the following system resources and cluster operators installed prior to applying these configurations:
-1.  **KEDA (Kubernetes Event-driven Autoscaling)**: Installed in your cluster to scale Playwright pods via message metrics.
-2.  **StorageClass Configured**: A default local-path or hostpath storage provider to satisfy database PersistentVolumeClaims (PVC).
+This repo deploys onto the [`homelab-deployment`](https://github.com/cvillarr23/homelab-deployment) cluster and relies on infrastructure already provisioned there:
+1.  **KEDA (Kubernetes Event-driven Autoscaling)**: scales Playwright pods via message metrics.
+2.  **StorageClass Configured**: a default local-path or hostpath storage provider to satisfy database PersistentVolumeClaims (PVC).
+3.  **OpenBao + External Secrets Operator**: this repo's `Secret`s are materialized via `ExternalSecret` from the shared `openbao` `ClusterSecretStore` — no cleartext credentials are committed here. See `overlays/production/externalsecrets.yaml`.
 
-## Quickstart Deployment
+## Deployment
 
-To spin up the base automation services on your local node, run the following:
+This repo is registered as an Argo CD `Application` in `homelab-deployment` (`argo-controllers/fantasy-infra.yaml`), pointed at `overlays/production` here. Argo CD syncs automatically on every push — there is no manual `kubectl apply` step for day-to-day changes, consistent with the rest of that cluster.
+
+Before the first sync, populate the secrets this repo expects in OpenBao:
 
 ```bash
-kubectl apply -k overlays/production/
+bao kv put secret/fantasy/postgres postgres-password=<your-choice>
+bao kv put secret/fantasy/espn espn_s2=<cookie-value> swid=<cookie-value>
+bao kv put secret/fantasy/groq groq_api_key=<key>   # only if the pipeline calls Groq
 ```
+
+To validate manifests locally without a live cluster:
+
+```bash
+kubectl kustomize overlays/production/
+kubectl kustomize overlays/draft-day/
+```
+
+## Project Tracking
+Engineering tickets for this repo live as [GitHub Issues](https://github.com/cvillarr23/fantasy-infra/issues) and are tracked on the [Fantasy Manager project board](https://github.com/users/cvillarr23/projects/2), alongside `fantasy-browser-worker` and `fantasy-core-pipeline`.
