@@ -37,9 +37,15 @@ spec:
               name: management
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: "guest"
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-user
             - name: RABBITMQ_DEFAULT_PASS
-              value: "guest"
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-password
             # Force Erlang runtime to page messages to disk early to save cluster memory
             - name: RABBITMQ_VM_MEMORY_HIGH_WATERMARK_RELATIVE
               value: "0.4"

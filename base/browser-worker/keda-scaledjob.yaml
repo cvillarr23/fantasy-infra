@@ -23,7 +23,10 @@ spec:
                   name: fantasy-league-config
             env:
               - name: AMQP_URL
-                value: "amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//"
+                valueFrom:
+                  secretKeyRef:
+                    name: rabbitmq-credentials
+                    key: amqp-url
               - name: ESPN_S2
                 valueFrom:
                   secretKeyRef:
@@ -52,9 +55,11 @@ spec:
       metadata:
         queueName: lineup_updates
         queueLength: "1" # Spawns 1 job pod per message in the queue
-        host: amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//
+      authenticationRef:
+        name: rabbitmq-trigger-auth
     - type: rabbitmq
       metadata:
         queueName: waiver_actions
         queueLength: "1"
-        host: amqp://guest:guest@fantasy-broker.default.svc.cluster.local:5672//
+      authenticationRef:
+        name: rabbitmq-trigger-auth
