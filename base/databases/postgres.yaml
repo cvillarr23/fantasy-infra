@@ -49,6 +49,11 @@ spec:
               value: "fantasy_football"
             - name: POSTGRES_USER
               value: "bot_admin"
+            - name: PGDATA
+              # initdb refuses to run against a non-empty mount root (this
+              # cluster's storage provisioner leaves a lost+found dir on
+              # fresh volumes) -- a subdirectory sidesteps that.
+              value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
