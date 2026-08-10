@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantasy-cache
+  labels:
+    app: fantasy-cache
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: fantasy-cache
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-cache
+  template:
+    metadata:
+      labels:
+        app: fantasy-cache
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server"]
+          args: [
+            "--maxmemory", "128mb",
+            "--maxmemory-policy", "allkeys-lru",
+            "--protected-mode", "no"
+          ]
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

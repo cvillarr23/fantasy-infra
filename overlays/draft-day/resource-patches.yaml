@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-core-pipeline
+spec:
+  template:
+    spec:
+      containers:
+        - name: gateway
+          # Bumps resource allocation ceilings specifically for the live draft clock math
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1500Mi"
+              cpu: "3000m" # Bursts up to 3 cores of your i7-7700K to solve matrices instantly
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fantasy-db
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgres
+          # Increases connection parameters so simultaneous draft sync lookups never lock out
+          args:
+            - "-c"
+            - "shared_buffers=256MB" # Double buffer allocations
+            - "-c"
+            - "work_mem=32MB"
+            - "-c"
+            - "maintenance_work_mem=64MB"
+            - "-c"
+            - "effective_cache_size=512MB"
+            - "-c"
+            - "max_connections=50" # Scale up concurrency thresholds

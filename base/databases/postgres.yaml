@@ -30,6 +30,17 @@ spec:
       containers:
         - name: postgres
           image: timescale/timescaledb:latest-pg15
+          args:
+            - "-c"
+            - "shared_buffers=128MB"
+            - "-c"
+            - "work_mem=16MB"
+            - "-c"
+            - "maintenance_work_mem=32MB"
+            - "-c"
+            - "effective_cache_size=256MB"
+            - "-c"
+            - "max_connections=20"
           ports:
             - containerPort: 5432
               name: postgres
@@ -61,4 +72,3 @@ spec:
         resources:
           requests:
             storage: 10Gi
-

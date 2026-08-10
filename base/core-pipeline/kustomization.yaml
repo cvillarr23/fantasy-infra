@@ -1,3 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# TODO: Add fastapi-deployment.yaml and weekly-cronjob.yaml resources
+resources:
+  - fastapi-deployment.yaml
+  - fastapi-service.yaml
+

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-grafana-datasource
+  labels:
+    grafana_datasource: "1"
+spec:
+  database-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: FantasyFootballDB
+        type: postgres
+        access: proxy
+        url: fantasy-db.databases.svc.cluster.local:5432
+        user: bot_admin
+        database: fantasy_football
+        jsonData:
+          sslmode: "disable"
+          timescaledb: true # Enables specialized hypertable time-series aggregations
+        secureJsonData:
+          password: "change-this-in-production-securely" # Links directly to your database-credentials configuration
+        isDefault: false
+        editable: false

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-core-pipeline
+  labels:
+    app: fantasy-core-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-core-pipeline
+  template:
+    metadata:
+      labels:
+        app: fantasy-core-pipeline
+    spec:
+      containers:
+        - name: gateway
+          image: yourregistry/fantasy-core-pipeline:latest # TODO: Replace with local container registry path
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            # Database Topology Mapping
+            - name: DB_HOST
+              value: "fantasy-db.databases.svc.cluster.local"
+            - name: DB_NAME
+              value: "fantasy_football"
+            - name: DB_USER
+              value: "bot_admin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: AMQP_URL
+              value: "amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//"
+            - name: REDIS_HOST
+              value: "fantasy-cache.databases.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"

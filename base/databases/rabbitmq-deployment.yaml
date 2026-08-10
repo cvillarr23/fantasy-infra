@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantasy-broker
+  labels:
+    app: fantasy-broker
+spec:
+  ports:
+    - port: 5672
+      name: amqp
+    - port: 15672
+      name: management
+  selector:
+    app: fantasy-broker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-broker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-broker
+  template:
+    metadata:
+      labels:
+        app: fantasy-broker
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3-management-alpine
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: "guest"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "guest"
+            # Force Erlang runtime to page messages to disk early to save cluster memory
+            - name: RABBITMQ_VM_MEMORY_HIGH_WATERMARK_RELATIVE
+              value: "0.4"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"

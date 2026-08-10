@@ -1,0 +1,58 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: fantasy-browser-worker-scaler
+  namespace: default
+spec:
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    backoffLimit: 2
+    template:
+      metadata:
+        labels:
+          app: fantasy-browser-worker
+      spec:
+        restartPolicy: OnFailure
+        containers:
+          - name: worker
+            image: yourregistry/fantasy-browser-worker:latest # TODO: Replace with custom image bundling Chromium
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: AMQP_URL
+                value: "amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//"
+              # TODO: Set K8s secrets or integrated vault/secret manager
+              - name: ESPN_S2
+                valueFrom:
+                  secretKeyRef:
+                    name: espn-session-secrets
+                    key: espn_s2
+              - name: SWID
+                valueFrom:
+                  secretKeyRef:
+                    name: espn-session-secrets
+                    key: swid
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "1200Mi" # Hard ceiling preventing Chromium memory bloat from stalling the node
+                cpu: "1000m"
+
+  # KEDA Polling and Scaling parameters
+  pollingInterval: 10 # Checks the RabbitMQ queue every 10 seconds
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: lineup_updates
+        queueLength: "1" # Spawns 1 job pod per message in the queue
+        host: amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//
+    - type: rabbitmq
+      metadata:
+        queueName: waiver_actions
+        queueLength: "1"
+        host: amqp://guest:guest@fantasy-broker.databases.svc.cluster.local:5672//

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-fantasy-vorp-board
+  labels:
+    grafana_dashboard: "1"
+spec:
+  fantasy-vorp-board.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "table",
+          "title": "Dynamic VORP Leaderboard (Free Agents)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "id": 1,
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+              "rawSql": "SELECT name, position, team, injury_status, updated_at FROM players WHERE status = 'Free Agent' ORDER BY updated_at DESC LIMIT 10;",
+              "format": "table"
+            }
+          ]
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["fantasy-football", "automation"],
+      "title": "Fantasy Pipeline Strategy Center",
+      "uid": "fantasy-pipeline-01",
+      "version": 1
+    }

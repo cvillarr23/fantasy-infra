@@ -8,7 +8,7 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
     *   `databases/`: Manifests for low-memory PostgreSQL/TimescaleDB, Redis, and RabbitMQ.
     *   `core-pipeline/`: Deployment states for the FastAPI Engine and Weekly CronJobs.
     *   `browser-worker/`: KEDA ScaledJob criteria definitions for Playwright containers.
-    *   `grafana/`: Analytics layout metrics configurations.
+    *   `telemetry/`: Provisioned dashboards and config for existing Grafana instance connection
 *   `overlays/`: Environmental delta configurations.
     *   `production/`: Active operational values, sync targets, and persistent credentials.
     *   `draft-day/`: CPU burst and memory caching patches applied specifically during the live draft window.
