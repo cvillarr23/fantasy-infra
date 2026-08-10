@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - databases/kustomization.yaml
+  - core-pipeline/kustomization.yaml
+  - browser-worker/kustomization.yaml
+  - grafana/kustomization.yaml
