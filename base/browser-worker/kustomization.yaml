@@ -3,5 +3,4 @@ kind: Kustomization
 resources:
   - keda-scaledjob.yaml
   - trigger-auth.yaml
-  - espn-session-refresh-serviceaccount.yaml
-  - espn-session-refresh-cronjob.yaml
+  - espn-session-healthcheck-cronjob.yaml
