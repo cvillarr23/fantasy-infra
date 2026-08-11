@@ -14,9 +14,11 @@ spec:
       labels:
         app: fantasy-core-pipeline
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: gateway
-          image: yourregistry/fantasy-core-pipeline:latest # TODO: Replace with local container registry path
+          image: ghcr.io/cvillarr23/fantasy-core-pipeline:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
