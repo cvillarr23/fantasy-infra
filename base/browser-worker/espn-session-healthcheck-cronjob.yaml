@@ -1,0 +1,57 @@
+# fantasy-browser-worker issue #7: periodically confirms the stored espn_s2/SWID cookies still
+# authenticate, and fails loudly if they don't — so a human finds out and re-extracts them by
+# hand, rather than the pipeline silently failing ESPN auth with no warning (possibly on draft
+# day). Uses the same read-only cookie injection every other bot already gets via
+# espn-session-secrets — no dedicated ServiceAccount/OpenBao role needed.
+#
+# Originally planned as a fully automated re-login + cookie refresh instead of just a check, but
+# that turned out not to be viable: ESPN's login is gated by invisible reCAPTCHA Enterprise,
+# specifically designed to block automated submissions. See the linked PR for details.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: espn-session-healthcheck
+  namespace: default
+spec:
+  schedule: "0 6 * * 1" # 06:00 UTC every Monday — frequent enough to catch a dead session well before a Sunday draft/matchup
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-browser-worker
+            component: espn-session-healthcheck
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: healthcheck
+              image: ghcr.io/cvillarr23/fantasy-browser-worker:latest
+              imagePullPolicy: Always
+              command: ["node", "src/bots/check_espn_session.js"]
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
+              env:
+                - name: ESPN_S2
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: espn_s2
+                - name: SWID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: swid
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1200Mi"
+                  cpu: "1000m"
