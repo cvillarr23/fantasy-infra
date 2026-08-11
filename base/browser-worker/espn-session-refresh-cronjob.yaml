@@ -1,0 +1,46 @@
+# WORKER-07 (fantasy-browser-worker issue #7): periodically logs into ESPN with a stored
+# username/password and re-extracts fresh espn_s2/SWID session cookies into OpenBao, so
+# espn-session-secrets (externalsecrets.yaml) never goes stale without a human noticing.
+#
+# Runs under its own ServiceAccount (espn-session-refresh-serviceaccount.yaml) bound to a
+# write-scoped OpenBao role, distinct from ESO's read-only eso-reader role — see
+# homelab-deployment's scripts/openbao-init-espn-refresher.sh for how that binding gets created
+# (imperative, one-time, same convention as the rest of this cluster's OpenBao setup).
+#
+# One-time setup still needed before this can succeed:
+#   bao kv put secret/fantasy/espn-login username=<espn-username> password=<espn-password>
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: espn-session-refresh
+  namespace: default
+spec:
+  schedule: "0 6 1 * *" # 06:00 UTC on the 1st of each month — cookies last ~a year in practice, this is a wide margin
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-browser-worker
+            component: espn-session-refresh
+        spec:
+          restartPolicy: Never
+          serviceAccountName: espn-session-refresh
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: refresh
+              image: ghcr.io/cvillarr23/fantasy-browser-worker:latest
+              imagePullPolicy: Always
+              command: ["node", "src/bots/refresh_espn_session.js"]
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1200Mi"
+                  cpu: "1000m"
