@@ -3,4 +3,6 @@ kind: Kustomization
 resources:
   - fastapi-deployment.yaml
   - fastapi-service.yaml
+  - weekly-cronjob.yaml
+  - rapid-status-syncer-cronjob.yaml
 
