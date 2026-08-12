@@ -29,6 +29,21 @@ spec:
                   secretKeyRef:
                     name: rabbitmq-credentials
                     key: amqp-url
+              # Writes execution_log rows on transaction completion (INFRA-06), read by
+              # Grafana's worker execution health panel. Same DB_* names and bot_admin
+              # credential fastapi-deployment.yaml already uses -- the worker is inside
+              # the same trust boundary as core-pipeline, not the read-only Grafana path.
+              - name: DB_HOST
+                value: "fantasy-db.default.svc.cluster.local"
+              - name: DB_NAME
+                value: "fantasy_football"
+              - name: DB_USER
+                value: "bot_admin"
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: database-credentials
+                    key: postgres-password
               - name: ESPN_S2
                 valueFrom:
                   secretKeyRef:
