@@ -5,7 +5,7 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
 ## Repository Layout
 
 *   `base/`: Core infrastructure configurations agnostic of operational scope.
-    *   `databases/`: Manifests for low-memory PostgreSQL/TimescaleDB, Redis, and RabbitMQ.
+    *   `databases/`: Manifests for low-memory PostgreSQL/TimescaleDB, Redis, and RabbitMQ. RabbitMQ pre-declares its own queue topology (`lineup_updates`, `waiver_actions`) via a mounted `definitions.json` so the queues exist before any producer/consumer connects — required for the `browser-worker` KEDA triggers below to stay healthy.
     *   `core-pipeline/`: Deployment states for the FastAPI Engine and Weekly CronJobs.
     *   `browser-worker/`: KEDA ScaledJob criteria definitions for Playwright containers.
 *   `overlays/`: Environmental delta configurations.
@@ -38,6 +38,29 @@ To validate manifests locally without a live cluster:
 ```bash
 kubectl kustomize overlays/production/
 kubectl kustomize overlays/draft-day/
+```
+
+## Architecture
+Cross-repo architecture and reference docs for the whole platform live in [`fantasy-core-pipeline`'s `ARCHITECTURE.md`](https://github.com/cvillarr23/fantasy-core-pipeline/blob/main/ARCHITECTURE.md).
+
+This repo's own layout:
+
+```mermaid
+flowchart TD
+    argocd["Argo CD\n(homelab-deployment)"] -->|syncs overlays/production| base
+
+    subgraph base["base/"]
+        databases["databases/\nPostgres · TimescaleDB · Redis · RabbitMQ"]
+        corek8s["core-pipeline/\nFastAPI + CronJobs"]
+        workerk8s["browser-worker/\nKEDA ScaledJobs"]
+    end
+
+    openbao["OpenBao + External\nSecrets Operator"] -.injects.-> base
+    keda["KEDA"] -.scales.-> workerk8s
+    databases <--> corek8s
+    corek8s -->|lineup_updates, waiver_actions| workerk8s
+
+    draftday["overlays/draft-day/\nCPU burst + memory caching patches"] -.applied over.-> base
 ```
 
 ## Project Tracking
