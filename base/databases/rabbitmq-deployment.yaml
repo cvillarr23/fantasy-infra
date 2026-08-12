@@ -25,6 +25,9 @@ metadata:
 data:
   definitions.json: |
     {
+      "vhosts": [
+        {"name": "/"}
+      ],
       "queues": [
         {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
