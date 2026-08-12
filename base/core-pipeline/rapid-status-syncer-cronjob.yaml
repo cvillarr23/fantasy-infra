@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-rapid-status-syncer
+  namespace: default
+spec:
+  schedule: "*/10 * * * 4,0,1" # every 10 minutes, all day Thu/Sun/Mon (America/Chicago local time below)
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: rapid-status-syncer
+        spec:
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: ingestor
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:latest
+              imagePullPolicy: Always
+              command: ["python", "-m", "src.ingestion.sync_players"]
+              env:
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                - name: AMQP_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: rabbitmq-credentials
+                      key: amqp-url
+                - name: REDIS_HOST
+                  value: "fantasy-cache.default.svc.cluster.local"
+                - name: REDIS_PORT
+                  value: "6379"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
