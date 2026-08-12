@@ -1,19 +1,22 @@
 # One-shot provisioning for the read-only `grafana_reader` Postgres role (INFRA-06),
 # consumed by homelab-deployment's Grafana FantasyFootballDB datasource. Kept as a Job
 # rather than a persistent pod to stay resource-neutral -- it runs to completion and exits.
-# Re-running (e.g. after a re-sync) is safe: the DO block below is idempotent.
+# Re-running (e.g. after a re-sync) is safe: idempotent via \gexec + unconditional ALTER below.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-readonly-role-sql
 data:
   init-readonly-role.sql: |
-    DO $$
-    BEGIN
-        CREATE ROLE grafana_reader LOGIN PASSWORD :'readonly_password';
-    EXCEPTION WHEN duplicate_object THEN
-        ALTER ROLE grafana_reader LOGIN PASSWORD :'readonly_password';
-    END $$;
+    -- psql's :'var' interpolation is NOT applied inside a dollar-quoted ($$...$$) block
+    -- (deliberately, since plpgsql bodies use ':=' for assignment) -- a DO block wrapping
+    -- this would silently send the literal text ":'readonly_password'" to the server
+    -- instead of substituting it. \gexec stays outside any dollar-quoting instead.
+    SELECT 'CREATE ROLE grafana_reader LOGIN PASSWORD ' || quote_literal(:'readonly_password')
+    WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'grafana_reader')
+    \gexec
+
+    ALTER ROLE grafana_reader LOGIN PASSWORD :'readonly_password';
 
     GRANT CONNECT ON DATABASE fantasy_football TO grafana_reader;
     GRANT USAGE ON SCHEMA public TO grafana_reader;
