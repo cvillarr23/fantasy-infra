@@ -13,6 +13,26 @@ spec:
   selector:
     app: fantasy-broker
 ---
+# Pre-declares the queues KEDA's rabbitmq ScaledJob triggers depend on
+# (base/browser-worker/keda-scaledjob.yaml). The KEDA rabbitmq scaler errors out
+# (rather than reporting zero messages) when a queue doesn't exist yet, and with the
+# worker running as a scale-to-zero job there's no permanent consumer around to declare
+# them itself — so the broker has to own its own topology from boot.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-broker-definitions
+data:
+  definitions.json: |
+    {
+      "queues": [
+        {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+      ]
+    }
+  load_definitions.conf: |
+    management.load_definitions = /etc/rabbitmq/definitions.json
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,3 +76,14 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "1000m"
+          volumeMounts:
+            - name: broker-definitions
+              mountPath: /etc/rabbitmq/definitions.json
+              subPath: definitions.json
+            - name: broker-definitions
+              mountPath: /etc/rabbitmq/conf.d/20-load_definitions.conf
+              subPath: load_definitions.conf
+      volumes:
+        - name: broker-definitions
+          configMap:
+            name: fantasy-broker-definitions

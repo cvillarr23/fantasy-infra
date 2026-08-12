@@ -56,12 +56,14 @@ spec:
     - type: rabbitmq
       metadata:
         queueName: lineup_updates
-        queueLength: "1" # Spawns 1 job pod per message in the queue
+        mode: QueueLength # queueLength is deprecated in favor of mode + value
+        value: "1" # Spawns 1 job pod per message in the queue
       authenticationRef:
         name: rabbitmq-trigger-auth
     - type: rabbitmq
       metadata:
         queueName: waiver_actions
-        queueLength: "1"
+        mode: QueueLength
+        value: "1"
       authenticationRef:
         name: rabbitmq-trigger-auth
