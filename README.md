@@ -12,7 +12,7 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
     *   `production/`: Active operational values, sync targets, and `ExternalSecret`s.
     *   `draft-day/`: CPU burst and memory caching patches applied specifically during the live draft window.
 
-Grafana dashboards/datasource for this pipeline live in `homelab-deployment/apps/telemetry/` (that repo's Grafana only provisions dashboards it finds listed in its own Kustomize root) rather than here — see [homelab-deployment#1](https://github.com/cvillarr23/homelab-deployment/issues/1) for the tracked follow-up to make that self-service from repos like this one.
+Grafana dashboards/datasource for this pipeline live in `homelab-deployment/apps/telemetry/` (that repo's Grafana only provisions dashboards it finds listed in its own Kustomize root) rather than here — see [homelab-deployment#1](https://github.com/cvillarr23/homelab-deployment/issues/1) for the tracked follow-up to make that self-service from repos like this one. This repo's side of that wiring (INFRA-06) is the read-only `grafana_reader` Postgres role, provisioned by a one-shot `Job` in `base/databases/postgres-readonly-role-job.yaml` — Grafana's datasource authenticates as that role, never `bot_admin`.
 
 ## Cluster Pre-requisites
 
@@ -30,6 +30,7 @@ Before the first sync, populate the secrets this repo expects in OpenBao:
 
 ```bash
 bao kv put secret/fantasy/postgres postgres-password=<your-choice>
+bao kv put secret/fantasy/postgres-readonly readonly-password=<your-choice>  # grafana_reader role
 bao kv put secret/fantasy/espn espn_s2=<cookie-value> swid=<cookie-value>
 bao kv put secret/fantasy/groq groq_api_key=<key>   # only if the pipeline calls Groq
 ```
