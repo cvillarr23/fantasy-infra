@@ -18,12 +18,28 @@ spec:
 # (rather than reporting zero messages) when a queue doesn't exist yet, and with the
 # worker running as a scale-to-zero job there's no permanent consumer around to declare
 # them itself — so the broker has to own its own topology from boot.
+#
+# definitions.template.json deliberately has NO "users"/"permissions" section - it's a
+# static, committed file with no credentials in it. RABBITMQ_DEFAULT_USER/PASS do NOT
+# create that user: this image's docker-entrypoint.sh has no logic that translates those
+# env vars into rabbitmq.conf at all (confirmed against the running image - there is no
+# `default_user`/`default_pass` in the generated /etc/rabbitmq/conf.d/10-defaults.conf).
+# Worse, once `management.load_definitions` is used, RabbitMQ skips its own normal
+# auto-creation of the `guest` user - so without this render step the broker boots with
+# ZERO users and refuses every connection (this is exactly what caused an outage: see
+# fantasy-core-pipeline's CLAUDE.md and its `/v1/health` 403 ACCESS_REFUSED symptom).
+# render-definitions.py runs as an initContainer on every boot, reading the *current*
+# rabbitmq-credentials secret and merging a freshly-computed password hash into the
+# static queue template before the real definitions.json (in the rendered-definitions
+# emptyDir) is loaded - so the broker's user always matches whatever OpenBao/External
+# Secrets Operator currently has, even after a secret rotation, with no committed
+# cleartext or hash in git.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fantasy-broker-definitions
 data:
-  definitions.json: |
+  definitions.template.json: |
     {
       "vhosts": [
         {"name": "/"}
@@ -35,6 +51,44 @@ data:
     }
   load_definitions.conf: |
     management.load_definitions = /etc/rabbitmq/definitions.json
+  render-definitions.py: |
+    import base64
+    import hashlib
+    import json
+    import os
+    import secrets
+
+    TEMPLATE_PATH = "/template/definitions.template.json"
+    OUTPUT_PATH = "/rendered/definitions.json"
+
+    user = os.environ["RABBITMQ_DEFAULT_USER"]
+    password = os.environ["RABBITMQ_DEFAULT_PASS"]
+
+    # RabbitMQ's default hashing algorithm (rabbit_password_hashing_sha256):
+    # base64(salt(4 random bytes) + sha256(salt + password)). A fresh random salt each
+    # boot is fine - RabbitMQ only needs *a* valid hash of the current password at
+    # import time, not a stable one across restarts.
+    salt = secrets.token_bytes(4)
+    digest = hashlib.sha256(salt + password.encode("utf-8")).digest()
+    password_hash = base64.b64encode(salt + digest).decode("ascii")
+
+    with open(TEMPLATE_PATH) as f:
+        definitions = json.load(f)
+
+    definitions["users"] = [
+        {
+            "name": user,
+            "password_hash": password_hash,
+            "hashing_algorithm": "rabbit_password_hashing_sha256",
+            "tags": ["administrator"],
+        }
+    ]
+    definitions["permissions"] = [
+        {"user": user, "vhost": "/", "configure": ".*", "write": ".*", "read": ".*"}
+    ]
+
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(definitions, f)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -50,6 +104,30 @@ spec:
       labels:
         app: fantasy-broker
     spec:
+      initContainers:
+        - name: render-definitions
+          image: python:3.12-alpine
+          command: ["python3", "/scripts/render-definitions.py"]
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-user
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-password
+          volumeMounts:
+            - name: broker-definitions
+              mountPath: /scripts/render-definitions.py
+              subPath: render-definitions.py
+            - name: broker-definitions
+              mountPath: /template/definitions.template.json
+              subPath: definitions.template.json
+            - name: rendered-definitions
+              mountPath: /rendered
       containers:
         - name: rabbitmq
           image: rabbitmq:3-management-alpine
@@ -59,6 +137,9 @@ spec:
             - containerPort: 15672
               name: management
           env:
+            # Not consumed by this image's entrypoint (see the ConfigMap comment above) -
+            # kept only so `kubectl describe` still shows which credentials this broker
+            # is meant to authenticate, without duplicating them a third time.
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
                 secretKeyRef:
@@ -80,7 +161,7 @@ spec:
               memory: "512Mi"
               cpu: "1000m"
           volumeMounts:
-            - name: broker-definitions
+            - name: rendered-definitions
               mountPath: /etc/rabbitmq/definitions.json
               subPath: definitions.json
             - name: broker-definitions
@@ -90,3 +171,5 @@ spec:
         - name: broker-definitions
           configMap:
             name: fantasy-broker-definitions
+        - name: rendered-definitions
+          emptyDir: {}
