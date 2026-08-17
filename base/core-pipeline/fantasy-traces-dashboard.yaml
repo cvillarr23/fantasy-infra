@@ -35,6 +35,7 @@ data:
           "datasource": { "type": "tempo", "uid": "tempo" },
           "targets": [
             {
+              "refId": "A",
               "datasource": { "type": "tempo", "uid": "tempo" },
               "queryType": "traceqlSearch",
               "filters": [
@@ -42,7 +43,7 @@ data:
                   "id": "service-name",
                   "tag": "service.name",
                   "operator": "=~",
-                  "value": [".+"],
+                  "value": ["fastapi-gateway|ingestion-sync-players|ingestion-metrics-extractor|browser-worker"],
                   "valueType": "string",
                   "scope": "resource"
                 }
