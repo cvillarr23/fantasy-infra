@@ -5,4 +5,5 @@ resources:
   - fastapi-service.yaml
   - weekly-cronjob.yaml
   - rapid-status-syncer-cronjob.yaml
+  - fantasy-traces-dashboard.yaml
 

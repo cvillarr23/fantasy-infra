@@ -1,0 +1,64 @@
+# Self-registers a Grafana dashboard via homelab-deployment's dashboard-sidecar
+# discovery mechanism (grafana_dashboard: "1" label, default namespace) -- no
+# PR to homelab-deployment needed. See "Registering a Grafana dashboard from
+# another repo" in homelab-deployment/README.md.
+#
+# Placeholder trace search view for INFRA-10 (fantasy-infra#23): panels will
+# show empty until fantasy-core-pipeline/fantasy-browser-worker actually
+# export spans (CORE-12/WORKER-09) using the OTEL_SERVICE_NAME values wired
+# in fastapi-deployment.yaml, rapid-status-syncer-cronjob.yaml,
+# weekly-cronjob.yaml, and keda-scaledjob.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-traces-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+data:
+  fantasy-traces.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "traces",
+          "title": "Fantasy Services - Recent Traces",
+          "description": "All spans exported by fastapi-gateway, ingestion-sync-players, ingestion-metrics-extractor, and browser-worker. Empty until CORE-12/WORKER-09 land.",
+          "gridPos": { "h": 16, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [
+            {
+              "datasource": { "type": "tempo", "uid": "tempo" },
+              "queryType": "traceqlSearch",
+              "filters": [
+                {
+                  "id": "service-name",
+                  "tag": "service.name",
+                  "operator": "=~",
+                  "value": [".+"],
+                  "valueType": "string",
+                  "scope": "resource"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "tracing"],
+      "templating": { "list": [] },
+      "time": { "from": "now-6h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Services - Traces",
+      "uid": "fantasy-traces",
+      "version": 1,
+      "weekStart": ""
+    }
