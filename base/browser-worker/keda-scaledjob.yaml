@@ -54,6 +54,15 @@ spec:
                   secretKeyRef:
                     name: espn-session-secrets
                     key: swid
+              # OTLP export target for homelab-deployment's shared Tempo instance
+              # (homelab-deployment#5/#6) -- endpoint + service name only, actual
+              # span emission (and RabbitMQ trace-context propagation) is WORKER-09.
+              - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                value: "http://tempo.default.svc.cluster.local:4317"
+              - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                value: "grpc"
+              - name: OTEL_SERVICE_NAME
+                value: "browser-worker"
             resources:
               requests:
                 memory: "256Mi"

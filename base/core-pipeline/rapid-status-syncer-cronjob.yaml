@@ -47,6 +47,15 @@ spec:
                   value: "fantasy-cache.default.svc.cluster.local"
                 - name: REDIS_PORT
                   value: "6379"
+                # OTLP export target for homelab-deployment's shared Tempo instance
+                # (homelab-deployment#5/#6) -- endpoint + service name only, actual
+                # span emission is CORE-12.
+                - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                  value: "http://tempo.default.svc.cluster.local:4317"
+                - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                  value: "grpc"
+                - name: OTEL_SERVICE_NAME
+                  value: "ingestion-sync-players"
               resources:
                 requests:
                   memory: "256Mi"
