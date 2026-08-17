@@ -37,3 +37,13 @@ spec:
             - "effective_cache_size=512MB"
             - "-c"
             - "max_connections=50" # Scale up concurrency thresholds
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: fantasy-browser-worker-scaler
+spec:
+  # Freezes scale-down for the draft window: keeps the Playwright browser instance
+  # permanently open and logged into the ESPN draft room, removing container startup
+  # latency when it's your turn on the clock. Production stays scale-to-zero.
+  minReplicaCount: 1
