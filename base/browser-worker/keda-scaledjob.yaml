@@ -82,3 +82,10 @@ spec:
         value: "1"
       authenticationRef:
         name: rabbitmq-trigger-auth
+    - type: rabbitmq
+      metadata:
+        queueName: draft_targets
+        mode: QueueLength
+        value: "1"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
