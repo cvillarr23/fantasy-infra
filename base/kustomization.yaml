@@ -4,3 +4,4 @@ resources:
   - databases
   - core-pipeline
   - browser-worker
+  - ollama
