@@ -57,6 +57,10 @@ spec:
               # OTLP export target for homelab-deployment's shared Tempo instance
               # (homelab-deployment#5/#6) -- endpoint + service name only, actual
               # span emission (and RabbitMQ trace-context propagation) is WORKER-09.
+              # OTEL_EXPORTER_OTLP_ENDPOINT must be "http://", not "grpc://" -- the Node gRPC
+              # exporter's credential resolution keys off an http:// prefix specifically to pick
+              # plaintext channel credentials; anything else falls through to TLS credentials,
+              # which fails against Tempo's unencrypted in-cluster OTLP receiver.
               - name: OTEL_EXPORTER_OTLP_ENDPOINT
                 value: "http://tempo.default.svc.cluster.local:4317"
               - name: OTEL_EXPORTER_OTLP_PROTOCOL
