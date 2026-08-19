@@ -35,9 +35,14 @@ spec:
             - containerPort: 11434
               name: ollama-api
           readinessProbe:
-            httpGet:
-              path: /
-              port: 11434
+            # An httpGet against / would report Ready as soon as `ollama serve` starts --
+            # while the multi-minute `ollama pull` above is still running -- so
+            # llm_client.js's poll loop could see readyReplicas flip to 1 and issue its
+            # request against a model that doesn't exist yet. `ollama list` only shows
+            # models that have actually finished pulling, so this covers both server
+            # availability and pull completion.
+            exec:
+              command: ["/bin/sh", "-c", "ollama list | grep -q llama3.1:8b"]
             initialDelaySeconds: 5
             periodSeconds: 5
             # Generous failure budget -- the model pull above can legitimately take minutes on a

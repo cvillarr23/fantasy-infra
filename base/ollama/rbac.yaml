@@ -18,7 +18,11 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     resourceNames: ["ollama"]
-    verbs: ["get", "update"]
+    # llm_client.js's ensureOllamaScaledUp() actually calls replaceNamespacedDeploymentScale
+    # (a PUT, authorized by "update"), not a JSON-patch call -- "patch" is included anyway as
+    # cheap defense-in-depth against a future client-side switch to patchNamespacedDeploymentScale,
+    # which k8s authorizes as a separate verb from "update".
+    verbs: ["get", "update", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments/status"]
     resourceNames: ["ollama"]
