@@ -5,3 +5,4 @@ resources:
   - core-pipeline
   - browser-worker
   - ollama
+  - web-ui

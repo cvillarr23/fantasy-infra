@@ -1,0 +1,24 @@
+# Exposes the draft-day dashboard over the tailnet only, via tailscale-operator (see
+# homelab-deployment/apps/tailscale-operator/) - mirrors homelab-deployment's
+# apps/openbao/ingress.yaml and apps/homepage/tailscale-ingress.yaml exactly: no
+# NodePort/public exposure, no oauth2-proxy/Cloudflare needed, since the tailnet itself is
+# the auth boundary. Reachable from any device with the Tailscale app installed, including
+# while traveling internationally on draft day (the original rationale for this ticket,
+# CORE-11) - a VPN client works the same way a laptop would, no separate login flow.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fantasy-web-ui
+  namespace: default
+  annotations:
+    tailscale.com/hostname: fantasy-draft
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: fantasy-web-ui
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - fantasy-draft

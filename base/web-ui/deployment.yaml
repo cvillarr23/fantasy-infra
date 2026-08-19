@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-web-ui
+  labels:
+    app: fantasy-web-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-web-ui
+  template:
+    metadata:
+      labels:
+        app: fantasy-web-ui
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: web-ui
+          image: ghcr.io/cvillarr23/fantasy-web-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
