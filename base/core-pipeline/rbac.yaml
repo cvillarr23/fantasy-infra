@@ -1,0 +1,48 @@
+# Narrowly-scoped ServiceAccount + Role + RoleBinding so the fantasy-core-pipeline FastAPI
+# gateway pod can create/monitor the draft-sync Job via the Kubernetes API instead of requiring
+# manual `kubectl` access from the user (who will be traveling internationally on Sept 8, 2026).
+# Default namespace only, no broader cluster permissions -- not a general-purpose k8s-admin
+# credential. Same scoping convention as WORKER-12's ollama/rbac.yaml.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fantasy-core-pipeline
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: draft-sync-orchestrator
+  namespace: default
+rules:
+  # RBAC can't scope "create" by resourceNames -- the object doesn't exist yet at auth time --
+  # so job creation is unscoped and monitoring is scoped separately below.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    resourceNames: ["draft-sync"]
+    verbs: ["get"]
+  # Pod names under the Job are controller-generated, so they can't be scoped by resourceNames
+  # either; get/list/watch is left namespace-wide per the issue's stated scope.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fantasy-core-pipeline-draft-sync-orchestrator
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: fantasy-core-pipeline
+    namespace: default
+roleRef:
+  kind: Role
+  name: draft-sync-orchestrator
+  apiGroup: rbac.authorization.k8s.io

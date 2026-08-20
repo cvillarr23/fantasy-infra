@@ -6,4 +6,5 @@ resources:
   - weekly-cronjob.yaml
   - rapid-status-syncer-cronjob.yaml
   - fantasy-traces-dashboard.yaml
+  - rbac.yaml
 
