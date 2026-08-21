@@ -1,0 +1,99 @@
+# Backtest dashboard for CORE-15 (fantasy-core-pipeline#33). Uses the existing
+# read-only FantasyFootballDB datasource from INFRA-06.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-backtest-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+data:
+  fantasy-backtest.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "type": "row",
+          "title": "CORE-15 Backtest Results",
+          "id": 1,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "barchart",
+          "title": "Lineup Performance by Season",
+          "description": "Compares our lineup, optimal lineup, and naive baseline points per season.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 1 },
+          "id": 2,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT season::text AS season, our_lineup_points, optimal_lineup_points, naive_baseline_points FROM backtest_results ORDER BY season;"
+            }
+          ]
+        },
+        {
+          "type": "barchart",
+          "title": "Waiver Impact by Season",
+          "description": "Compares waiver solver points vs no-moves baseline.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+          "id": 3,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT season::text AS season, our_waiver_points, no_moves_points FROM backtest_results ORDER BY season;"
+            }
+          ]
+        },
+        {
+          "type": "barchart",
+          "title": "Draft Impact by Season",
+          "description": "Compares our draft strategy points vs pure ADP baseline.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+          "id": 4,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT season::text AS season, our_draft_points, pure_adp_draft_points FROM backtest_results ORDER BY season;"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Backtest Results (Raw)",
+          "description": "Latest backtest summary rows for troubleshooting/verification.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+          "id": 5,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT season::text AS season, our_lineup_points, optimal_lineup_points, naive_baseline_points, our_waiver_points, no_moves_points, our_draft_points, pure_adp_draft_points FROM backtest_results ORDER BY season DESC LIMIT 25;"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "backtest"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30d", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Backtest Results",
+      "uid": "fantasy-backtest-results",
+      "version": 1,
+      "weekStart": ""
+    }
