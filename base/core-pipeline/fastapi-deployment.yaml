@@ -19,7 +19,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: gateway
-          image: ghcr.io/cvillarr23/fantasy-core-pipeline:latest
+          image: ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
