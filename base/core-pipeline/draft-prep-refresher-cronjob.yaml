@@ -20,7 +20,7 @@ metadata:
   name: fantasy-draft-prep-refresher
   namespace: default
 spec:
-  schedule: "0 10 * * *" # 5:00/4:00 AM Central (DST-dependent), daily, well clear of the other two ingestion CronJobs' windows
+  schedule: "0 5 * * *" # 5:00 AM Central, daily (timeZone below makes this expression local, not UTC), well clear of the other two ingestion CronJobs' windows
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
