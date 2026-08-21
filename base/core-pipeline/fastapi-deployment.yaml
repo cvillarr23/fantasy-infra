@@ -49,6 +49,12 @@ spec:
               value: "fantasy-cache.default.svc.cluster.local"
             - name: REDIS_PORT
               value: "6379"
+            # fantasy-browser-worker's draft_sync.js image, used by POST /v1/draft/practice/sync-job
+            # (CORE-18, cvillarr23/fantasy-web-ui#9) to launch the practice-room sync Job - same
+            # image ref already hardcoded in base/browser-worker/keda-scaledjob.yaml and
+            # espn-session-healthcheck-cronjob.yaml.
+            - name: BROWSER_WORKER_IMAGE
+              value: "ghcr.io/cvillarr23/fantasy-browser-worker:latest"
             # OTLP export target for homelab-deployment's shared Tempo instance
             # (homelab-deployment#5/#6) -- endpoint + service name only, actual
             # span emission is CORE-12.
