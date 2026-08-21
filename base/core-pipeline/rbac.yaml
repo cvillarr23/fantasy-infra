@@ -28,13 +28,17 @@ rules:
   # already holds `bot_admin` DB and AMQP credentials with strictly greater blast radius than
   # "create another Job in this namespace." Revisit with a VAP once the cluster is confirmed
   # on 1.30+.
+  # get/list/delete have the same resourceNames problem as create above -- draft-sync Job
+  # names are dynamic (draft-sync-{league_id}-{timestamp}, or draft-sync-practice-... for
+  # CORE-18's practice-mode Jobs), so they can't be scoped to a fixed name either. The
+  # previous get-only rule below used resourceNames: ["draft-sync"], which never matched any
+  # Job this SA actually creates -- effectively a no-op that also left list/delete ungranted,
+  # so fantasy-core-pipeline's own Job-status polling (_job_state, used by /status, /stream,
+  # and /start's already-Active check) and CORE-18's new /stop teardown endpoint were both
+  # silently unauthorized. Unscoped for the same accepted-risk reasoning as create above.
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["create"]
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    resourceNames: ["draft-sync"]
-    verbs: ["get"]
+    verbs: ["create", "get", "list", "delete"]
   # Pod names under the Job are controller-generated, so they can't be scoped by resourceNames
   # either; get/list/watch is left namespace-wide per the issue's stated scope.
   - apiGroups: [""]
