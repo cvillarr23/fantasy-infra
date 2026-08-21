@@ -7,4 +7,5 @@ resources:
   - rapid-status-syncer-cronjob.yaml
   - draft-prep-refresher-cronjob.yaml
   - fantasy-traces-dashboard.yaml
+  - rbac.yaml
 
