@@ -1,0 +1,23 @@
+# Exposes the RabbitMQ management UI over the tailnet only, via tailscale-operator - same
+# pattern as base/web-ui/ingress.yaml and homelab-deployment's apps/openbao/ingress.yaml and
+# apps/homepage/tailscale-ingress.yaml: no NodePort/public exposure, the tailnet itself is
+# the auth boundary. This UI can inspect/purge queues and view message payloads, so keeping
+# it tailnet-only (not layering on oauth2-proxy/Cloudflare, matching the existing web-ui
+# ingress's stance) is a deliberate choice, not an oversight.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fantasy-broker
+  namespace: default
+  annotations:
+    tailscale.com/hostname: fantasy-broker
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: fantasy-broker
+      port:
+        number: 15672
+  tls:
+    - hosts:
+        - fantasy-broker

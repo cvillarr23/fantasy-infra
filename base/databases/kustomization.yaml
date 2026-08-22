@@ -4,4 +4,5 @@ resources:
   - postgres.yaml
   - redis-deployment.yaml
   - rabbitmq-deployment.yaml
+  - rabbitmq-ingress.yaml
   - postgres-readonly-role-job.yaml
