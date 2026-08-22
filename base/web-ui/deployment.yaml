@@ -18,7 +18,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: web-ui
-          image: ghcr.io/cvillarr23/fantasy-web-ui:8159e7d6e345fd79e4c6952fde8d8d93817935b9
+          image: ghcr.io/cvillarr23/fantasy-web-ui:7af08a219100f3c301ad3def45ae1bbf303fe282
           imagePullPolicy: Always
           ports:
             - containerPort: 80
