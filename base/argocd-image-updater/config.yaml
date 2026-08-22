@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-config
+  namespace: argocd
+data:
+  # Registry configuration for GHCR (GitHub Container Registry)
+  # Credentials are pulled from a secret mounted at /home/argocd/.docker/config.json
+  registries.conf: |
+    registries:
+    - name: ghcr
+      prefix: ghcr.io
+      api_url: https://ghcr.io
+      ping: yes
+      credentials: secret:argocd-image-updater/ghcr-pull-secret#.dockerconfigjson
+
+  # Image updater policies: what to update and how
+  # This policy allows updating image tags for annotations like argocd-image-updater.argoproj.io/image-list
+  policy.update_strategy: |
+    # Default strategy is "semver" if not specified
+    default:
+      policy: semver
+      
+    # Digest-only strategy for strict pin control
+    digest:
+      policy: digest
+

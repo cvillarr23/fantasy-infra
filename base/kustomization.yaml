@@ -6,3 +6,4 @@ resources:
   - browser-worker
   - ollama
   - web-ui
+  - argocd-image-updater

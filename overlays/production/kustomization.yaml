@@ -4,3 +4,4 @@ resources:
   - ../../base
   - configmap-env.yaml
   - externalsecrets.yaml
+  - argocd-image-updater-externalsecret.yaml

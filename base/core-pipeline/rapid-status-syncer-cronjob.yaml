@@ -3,6 +3,11 @@ kind: CronJob
 metadata:
   name: fantasy-rapid-status-syncer
   namespace: default
+  annotations:
+    # Image Updater annotations for managing container image digests
+    argocd-image-updater.argoproj.io/image-list: ingestor=ghcr.io/cvillarr23/fantasy-core-pipeline
+    argocd-image-updater.argoproj.io/ingestor.update-strategy: digest
+    argocd-image-updater.argoproj.io/ingestor.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   schedule: "*/10 * * * 4,0,1" # every 10 minutes, all day Thu/Sun/Mon (America/Chicago local time below)
   timeZone: "America/Chicago"

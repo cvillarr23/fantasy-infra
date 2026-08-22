@@ -3,6 +3,11 @@ kind: ScaledJob
 metadata:
   name: fantasy-browser-worker-scaler
   namespace: default
+  annotations:
+    # Image Updater annotations for managing container image digests
+    argocd-image-updater.argoproj.io/image-list: worker=ghcr.io/cvillarr23/fantasy-browser-worker
+    argocd-image-updater.argoproj.io/worker.update-strategy: digest
+    argocd-image-updater.argoproj.io/worker.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   jobTargetRef:
     parallelism: 1
