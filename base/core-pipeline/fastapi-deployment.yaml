@@ -55,6 +55,11 @@ spec:
             # espn-session-healthcheck-cronjob.yaml.
             - name: BROWSER_WORKER_IMAGE
               value: "ghcr.io/cvillarr23/fantasy-browser-worker:03fb658c4b0ff0cfe677e51091253eaf671e1801"
+            # fantasy-core-pipeline's draft_matrix.py image, used by POST /v1/draft/start for both live
+            # and practice drafts (CORE-18) to launch the recommendation listener Job - same image ref
+            # as the current gateway container itself.
+            - name: DRAFT_SYNC_IMAGE
+              value: "ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db"
             # OTLP export target for homelab-deployment's shared Tempo instance
             # (homelab-deployment#5/#6) -- endpoint + service name only, actual
             # span emission is CORE-12.
