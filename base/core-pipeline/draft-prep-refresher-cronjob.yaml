@@ -43,7 +43,7 @@ spec:
           # yesterday's projections.
           initContainers:
             - name: sync-projections
-              image: ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:9ab602ef70268b9956a1bbdf9fa2709d4842a3bb
               imagePullPolicy: Always
               command: ["python", "-m", "src.ingestion.sync_projections", "--season", "2026", "--week", "1"]
               env:
@@ -67,7 +67,7 @@ spec:
                   cpu: "500m"
           containers:
             - name: vorp-matrix
-              image: ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:9ab602ef70268b9956a1bbdf9fa2709d4842a3bb
               imagePullPolicy: Always
               command: ["python", "-m", "src.optimization.vorp_matrix", "--season", "2026", "--week", "1"]
               env:
