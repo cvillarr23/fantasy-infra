@@ -19,7 +19,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: gateway
-          image: ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db
+          image: ghcr.io/cvillarr23/fantasy-core-pipeline:073aad9a8b4db94f8fdf7da23bcfc8d29e9d06e6
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -54,12 +54,13 @@ spec:
             # image ref already hardcoded in base/browser-worker/keda-scaledjob.yaml and
             # espn-session-healthcheck-cronjob.yaml.
             - name: BROWSER_WORKER_IMAGE
-              value: "ghcr.io/cvillarr23/fantasy-browser-worker:03fb658c4b0ff0cfe677e51091253eaf671e1801"
+              value: "ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31"
             # fantasy-core-pipeline's draft_matrix.py image, used by POST /v1/draft/start for both live
             # and practice drafts (CORE-18) to launch the recommendation listener Job - same image ref
             # as the current gateway container itself.
             - name: DRAFT_SYNC_IMAGE
-              value: "ghcr.io/cvillarr23/fantasy-core-pipeline:6f5df7b38835088572e3edf0e1191a5b563610db"
+              value: "ghcr.io/cvillarr23/fantasy-core-pipeline:073aad9a8b4db94f8fdf7da23bcfc8d29e9d06e6"
+
             # OTLP export target for homelab-deployment's shared Tempo instance
             # (homelab-deployment#5/#6) -- endpoint + service name only, actual
             # span emission is CORE-12.
