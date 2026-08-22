@@ -31,7 +31,7 @@ spec:
             - name: ghcr-pull-secret
           containers:
             - name: healthcheck
-              image: ghcr.io/cvillarr23/fantasy-browser-worker:03fb658c4b0ff0cfe677e51091253eaf671e1801
+              image: ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31
               imagePullPolicy: Always
               command: ["node", "src/bots/check_espn_session.js"]
               envFrom:
