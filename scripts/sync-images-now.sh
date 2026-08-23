@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Forces an immediate image rollout instead of waiting out Argo CD Image Updater's
-# 2-minute poll. Runs a real (non-dry-run) update cycle in the existing updater pod,
-# then waits for Argo to reconcile whatever it wrote back to git.
+# configured poll interval (--interval on the updater Deployment). Runs a real (non-dry-run)
+# update cycle in the existing updater pod, then waits for Argo to reconcile whatever it
+# wrote back to git.
 #
 # The one-shot reuses the pod's mounted registries.conf and git SSH credentials, and
 # leaves the long-running loop untouched.
@@ -38,9 +39,15 @@ echo "==> Waiting up to ${WAIT_SECS}s for $APP to reconcile"
 # Comparing against remote HEAD, not just Synced/Healthy: the updater has just pushed a
 # commit, and Argo still reports Synced/Healthy against the *previous* revision until it
 # refreshes. Waiting on status alone returns instantly and reports success for the old code.
-expected="$(git ls-remote https://github.com/cvillarr23/fantasy-infra.git main 2>/dev/null | cut -f1 || true)"
-if [[ -z "$expected" ]]; then
-  echo "WARNING: could not resolve remote HEAD; falling back to status-only wait." >&2
+expected=""
+if command -v git >/dev/null 2>&1; then
+  expected="$(git ls-remote https://github.com/cvillarr23/fantasy-infra.git main 2>/dev/null | cut -f1 || true)"
+  if [[ -z "$expected" ]]; then
+    echo "WARNING: could not resolve remote HEAD; falling back to status-only wait." >&2
+  fi
+else
+  echo "WARNING: git is not installed, so the target revision is unknown; falling back to a" >&2
+  echo "         status-only wait, which can report success against the previous revision." >&2
 fi
 echo "Target revision ${expected:0:8}"
 
