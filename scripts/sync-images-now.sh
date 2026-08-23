@@ -19,16 +19,26 @@ fi
 echo "==> Running a one-shot image update cycle"
 # --health-port=0 --metrics-port=0 are required: the long-running process in this pod
 # already holds those ports, and a one-shot that tries to bind them dies on startup.
+#
+# The output is captured rather than piped so the updater's exit status is preserved;
+# piping through grep would hand back grep's status and hide a failed exec.
+updater_log="$(mktemp)"
+trap 'rm -f "$updater_log"' EXIT
+updater_rc=0
 kubectl exec -n "$ARGOCD_NS" deployment/argocd-image-updater -- \
-  argocd-image-updater run --once --health-port=0 --metrics-port=0 2>&1 |
-  grep -vE 'operation_name=|git config|Trace args|informer' || true
+  argocd-image-updater run --once --health-port=0 --metrics-port=0 >"$updater_log" 2>&1 || updater_rc=$?
+grep -vE 'operation_name=|git config|Trace args|informer' "$updater_log" || true
+if ((updater_rc != 0)); then
+  echo "ERROR: the image update cycle failed (exit $updater_rc); see the output above." >&2
+  exit "$updater_rc"
+fi
 
 echo
 echo "==> Waiting up to ${WAIT_SECS}s for $APP to reconcile"
 # Comparing against remote HEAD, not just Synced/Healthy: the updater has just pushed a
 # commit, and Argo still reports Synced/Healthy against the *previous* revision until it
 # refreshes. Waiting on status alone returns instantly and reports success for the old code.
-expected="$(git ls-remote https://github.com/cvillarr23/fantasy-infra.git main | cut -f1)"
+expected="$(git ls-remote https://github.com/cvillarr23/fantasy-infra.git main 2>/dev/null | cut -f1 || true)"
 if [[ -z "$expected" ]]; then
   echo "WARNING: could not resolve remote HEAD; falling back to status-only wait." >&2
 fi
@@ -40,6 +50,7 @@ kubectl patch application "$APP" -n "$ARGOCD_NS" --type merge \
 
 deadline=$((SECONDS + WAIT_SECS))
 while ((SECONDS < deadline)); do
+  sync="" health="" revision=""
   read -r sync health revision < <(
     kubectl get application "$APP" -n "$ARGOCD_NS" \
       -o jsonpath='{.status.sync.status} {.status.health.status} {.status.sync.revision}' 2>/dev/null
