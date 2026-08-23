@@ -28,6 +28,15 @@ rules:
       - get
       - list
       - watch
+  # Required for Image Updater's configmap informer in argocd namespace
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
   # Grants permissions to emit Events for audit trail
   - apiGroups:
       - ""
@@ -49,4 +58,3 @@ subjects:
   - kind: ServiceAccount
     name: argocd-image-updater
     namespace: argocd
-
