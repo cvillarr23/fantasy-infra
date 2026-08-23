@@ -12,11 +12,11 @@ data:
       prefix: ghcr.io
       api_url: https://ghcr.io
       ping: yes
-      credentials: secret:argocd-image-updater/ghcr-pull-secret#.dockerconfigjson
+      credentials: secret:argocd/ghcr-pull-secret#.dockerconfigjson
 
   # Descriptive git commit title/body for write-back commits.
   # Source-commit titles from app repos are not available here; include app + image deltas instead.
-  git.commit-message-template: |
+  commit.template: |
     chore(images): update {{ .AppName }} images [argocd-image-updater]
 
     {{- range .AppChanges }}
