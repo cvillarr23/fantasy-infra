@@ -47,7 +47,12 @@ spec:
             - name: config
               mountPath: /etc/argocd/image-updater
             - name: git-creds
-              mountPath: /home/argocd/.ssh
+              mountPath: /home/argocd/.ssh/id_rsa
+              subPath: id_rsa
+              readOnly: true
+            - name: git-creds
+              mountPath: /home/argocd/.ssh/id_rsa.pub
+              subPath: id_rsa.pub
               readOnly: true
             - name: ssh-config
               mountPath: /home/argocd/.ssh/config
@@ -92,4 +97,3 @@ spec:
           configMap:
             name: argocd-image-updater-ssh-config
             defaultMode: 0644
-
