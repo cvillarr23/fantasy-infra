@@ -4,11 +4,6 @@ metadata:
   name: fantasy-web-ui
   labels:
     app: fantasy-web-ui
-  annotations:
-    # Image Updater annotations for managing container image digests
-    argocd-image-updater.argoproj.io/image-list: web-ui=ghcr.io/cvillarr23/fantasy-web-ui
-    argocd-image-updater.argoproj.io/web-ui.update-strategy: digest
-    argocd-image-updater.argoproj.io/web-ui.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   replicas: 1
   selector:

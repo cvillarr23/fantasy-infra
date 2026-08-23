@@ -14,14 +14,11 @@ data:
       ping: yes
       credentials: secret:argocd-image-updater/ghcr-pull-secret#.dockerconfigjson
 
-  # Image updater policies: what to update and how
-  # This policy allows updating image tags for annotations like argocd-image-updater.argoproj.io/image-list
-  policy.update_strategy: |
-    # Default strategy is "semver" if not specified
-    default:
-      policy: semver
-      
-    # Digest-only strategy for strict pin control
-    digest:
-      policy: digest
+  # Descriptive git commit title/body for write-back commits.
+  # Source-commit titles from app repos are not available here; include app + image deltas instead.
+  git.commit-message-template: |
+    chore(images): update {{ .AppName }} images [argocd-image-updater]
 
+    {{- range .AppChanges }}
+    - {{ . }}
+    {{- end }}

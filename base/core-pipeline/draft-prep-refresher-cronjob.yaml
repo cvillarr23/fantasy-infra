@@ -19,13 +19,6 @@ kind: CronJob
 metadata:
   name: fantasy-draft-prep-refresher
   namespace: default
-  annotations:
-    # Image Updater annotations for managing container image digests
-    argocd-image-updater.argoproj.io/image-list: sync-projections=ghcr.io/cvillarr23/fantasy-core-pipeline,vorp-matrix=ghcr.io/cvillarr23/fantasy-core-pipeline
-    argocd-image-updater.argoproj.io/sync-projections.update-strategy: digest
-    argocd-image-updater.argoproj.io/sync-projections.allow-tags: regexp:^[a-f0-9]{40}$
-    argocd-image-updater.argoproj.io/vorp-matrix.update-strategy: digest
-    argocd-image-updater.argoproj.io/vorp-matrix.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   schedule: "0 5 * * *" # 5:00 AM Central, daily (timeZone below makes this expression local, not UTC), well clear of the other two ingestion CronJobs' windows
   timeZone: "America/Chicago"

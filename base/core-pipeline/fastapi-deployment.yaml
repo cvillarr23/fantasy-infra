@@ -4,15 +4,6 @@ metadata:
   name: fantasy-core-pipeline
   labels:
     app: fantasy-core-pipeline
-  annotations:
-    # Image Updater annotations for managing container image digests
-    argocd-image-updater.argoproj.io/image-list: gateway=ghcr.io/cvillarr23/fantasy-core-pipeline
-    argocd-image-updater.argoproj.io/gateway.update-strategy: digest
-    argocd-image-updater.argoproj.io/gateway.allow-tags: regexp:^[a-f0-9]{40}$
-    # Annotations to track BROWSER_WORKER_IMAGE and DRAFT_SYNC_IMAGE env vars
-    argocd-image-updater.argoproj.io/image-list.browser-worker-image: ghcr.io/cvillarr23/fantasy-browser-worker
-    argocd-image-updater.argoproj.io/browser-worker-image.update-strategy: digest
-    argocd-image-updater.argoproj.io/browser-worker-image.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   replicas: 1
   selector:

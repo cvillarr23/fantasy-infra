@@ -12,11 +12,6 @@ kind: CronJob
 metadata:
   name: espn-session-healthcheck
   namespace: default
-  annotations:
-    # Image Updater annotations for managing container image digests
-    argocd-image-updater.argoproj.io/image-list: healthcheck=ghcr.io/cvillarr23/fantasy-browser-worker
-    argocd-image-updater.argoproj.io/healthcheck.update-strategy: digest
-    argocd-image-updater.argoproj.io/healthcheck.allow-tags: regexp:^[a-f0-9]{40}$
 spec:
   schedule: "0 6 * * 1" # 06:00 UTC every Monday — frequent enough to catch a dead session well before a Sunday draft/matchup
   concurrencyPolicy: Forbid
