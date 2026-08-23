@@ -21,6 +21,11 @@ spec:
           command:
             - argocd-image-updater
             - run
+            # Default is 2m. Nothing here is registry-expensive - three images, a HEAD
+            # request each - and the lag between a merged fix and a running pod was long
+            # enough during draft-day debugging to be mistaken for "the fix didn't work".
+            - --interval
+            - 30s
           env:
             # Write-back configuration: commits digests directly to git
             - name: ARGOCD_IMAGE_UPDATER_KUSTOMIZE_V5
