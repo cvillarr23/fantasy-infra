@@ -40,7 +40,36 @@ To validate manifests locally without a live cluster:
 ```bash
 kubectl kustomize overlays/production/
 kubectl kustomize overlays/draft-day/
+scripts/preflight-draft-sync-env
 ```
+
+The preflight renders both overlays and verifies that the gateway's draft Job image,
+Secret, ConfigMap, and Job-management RBAC are present and complete.
+
+### Draft sync rollout
+
+After merging, let Argo CD auto-sync or trigger it, then restart the gateway so it
+uses the new child-Job env references:
+
+```bash
+argocd app sync fantasy-infra --force
+kubectl rollout restart deployment/fantasy-core-pipeline -n default
+kubectl rollout status deployment/fantasy-core-pipeline -n default
+```
+
+Port-forward `service/fantasy-core-pipeline` and exercise the practice flow:
+
+```bash
+kubectl port-forward service/fantasy-core-pipeline 8000:8000 -n default
+curl -i -X POST http://localhost:8000/v1/draft/practice/sync-job
+curl -i -X POST http://localhost:8000/v1/draft/start
+curl -i -N http://localhost:8000/v1/draft/stream
+```
+
+Supply the request body/query parameters required by the target league. The two
+POST requests should return a 2xx response with Job/start status rather than a
+missing env configuration error; the stream should return `200` with
+`Content-Type: text/event-stream`.
 
 ## Architecture
 Cross-repo architecture and reference docs for the whole platform live in [`fantasy-core-pipeline`'s `ARCHITECTURE.md`](https://github.com/cvillarr23/fantasy-core-pipeline/blob/main/ARCHITECTURE.md).

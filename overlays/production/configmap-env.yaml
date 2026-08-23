@@ -8,3 +8,8 @@ data:
   ESPN_TEAM_ID: "8"
   CURRENT_YEAR: "2026"
   SPORT_TYPE: "nfl"
+  DB_HOST: "fantasy-db.default.svc.cluster.local"
+  DB_NAME: "fantasy_football"
+  DB_USER: "bot_admin"
+  REDIS_HOST: "fantasy-cache.default.svc.cluster.local"
+  REDIS_PORT: "6379"

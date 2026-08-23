@@ -1,0 +1,81 @@
+#!/usr/bin/env ruby
+
+require "open3"
+require "yaml"
+
+OVERLAYS = %w[production draft-day].freeze
+REQUIRED_REFS = %w[DRAFT_SYNC_IMAGE DRAFT_SYNC_ENV_SECRET DRAFT_SYNC_ENV_CONFIGMAP].freeze
+CONFIG_KEYS = %w[
+  ESPN_LEAGUE_ID ESPN_TEAM_ID CURRENT_YEAR SPORT_TYPE
+  DB_HOST DB_NAME DB_USER REDIS_HOST REDIS_PORT
+].freeze
+SECRET_KEYS = %w[DB_PASSWORD ESPN_S2 SWID GROQ_API_KEY].freeze
+
+def abort_with(message)
+  warn "preflight: #{message}"
+  exit 1
+end
+
+OVERLAYS.each do |overlay|
+  rendered, status = Open3.capture2e("kubectl", "kustomize", "overlays/#{overlay}")
+  abort_with("#{overlay} failed to render:\n#{rendered}") unless status.success?
+
+  documents = YAML.load_stream(rendered).compact
+  deployment = documents.find do |document|
+    document["kind"] == "Deployment" &&
+      document.dig("metadata", "name") == "fantasy-core-pipeline"
+  end
+  abort_with("#{overlay} is missing the fantasy-core-pipeline Deployment") unless deployment
+
+  container = deployment.dig("spec", "template", "spec", "containers")&.find do |item|
+    item["name"] == "gateway"
+  end
+  env = Array(container&.fetch("env", nil)).to_h { |item| [item["name"], item["value"]] }
+  REQUIRED_REFS.each do |name|
+    abort_with("#{overlay} gateway is missing a non-empty #{name}") if env[name].to_s.empty?
+  end
+
+  config_map = documents.find do |document|
+    document["kind"] == "ConfigMap" &&
+      document.dig("metadata", "name") == env["DRAFT_SYNC_ENV_CONFIGMAP"]
+  end
+  abort_with("#{overlay} does not render ConfigMap #{env['DRAFT_SYNC_ENV_CONFIGMAP']}") unless config_map
+  missing_config = CONFIG_KEYS - config_map.fetch("data", {}).keys
+  abort_with("#{overlay} ConfigMap is missing: #{missing_config.join(', ')}") unless missing_config.empty?
+
+  secret = documents.find do |document|
+    (document["kind"] == "Secret" &&
+      document.dig("metadata", "name") == env["DRAFT_SYNC_ENV_SECRET"]) ||
+      (document["kind"] == "ExternalSecret" &&
+        document.dig("spec", "target", "name") == env["DRAFT_SYNC_ENV_SECRET"])
+  end
+  abort_with("#{overlay} does not render Secret source #{env['DRAFT_SYNC_ENV_SECRET']}") unless secret
+  secret_keys =
+    if secret["kind"] == "Secret"
+      secret.fetch("data", {}).keys + secret.fetch("stringData", {}).keys
+    else
+      Array(secret.dig("spec", "data")).filter_map { |item| item["secretKey"] } +
+        secret.dig("spec", "target", "template", "data").to_h.keys
+    end
+  missing_secret = SECRET_KEYS - secret_keys
+  abort_with("#{overlay} Secret source is missing: #{missing_secret.join(', ')}") unless missing_secret.empty?
+
+  service_account = deployment.dig("spec", "template", "spec", "serviceAccountName")
+  role = documents.find do |document|
+    document["kind"] == "Role" &&
+      Array(document["rules"]).any? do |rule|
+        Array(rule["resources"]).include?("jobs") &&
+          (%w[create get list delete] - Array(rule["verbs"])).empty?
+      end
+  end
+  binding = documents.find do |document|
+    document["kind"] == "RoleBinding" &&
+      Array(document["subjects"]).any? do |subject|
+        subject["kind"] == "ServiceAccount" && subject["name"] == service_account
+      end &&
+      document.dig("roleRef", "name") == role&.dig("metadata", "name")
+  end
+  abort_with("#{overlay} lacks Job create/get/list/delete RBAC for #{service_account}") unless role && binding
+
+  puts "#{overlay}: draft sync env and RBAC preflight passed"
+end
