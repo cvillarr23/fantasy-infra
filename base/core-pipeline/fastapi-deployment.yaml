@@ -49,6 +49,13 @@ spec:
               value: "fantasy-cache.default.svc.cluster.local"
             - name: REDIS_PORT
               value: "6379"
+            # draft_matrix.py POSTs its chosen pick to /v1/trigger/draft-pick on this URL.
+            # Set explicitly because the module default (fantasy-api.core.svc.cluster.local)
+            # names a Service/namespace that does not exist in this cluster, which would make
+            # every auto-draft publish fail once the listener Job is otherwise healthy.
+            # core-pipeline propagates this value into the draft-sync Job it spawns.
+            - name: CORE_API_BASE_URL
+              value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
             # fantasy-browser-worker's draft_sync.js image, used by POST /v1/draft/practice/sync-job
             # (CORE-18, cvillarr23/fantasy-web-ui#9) to launch the practice-room sync Job - same
             # image ref already hardcoded in base/browser-worker/keda-scaledjob.yaml and
@@ -61,6 +68,9 @@ spec:
             - name: DRAFT_SYNC_IMAGE
               value: "ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940"
             # ConfigMap/Secret names that core-pipeline passes through when it spawns draft-sync jobs.
+            # These carry ESPN session + league config only; the spawned Job's database/cache
+            # settings are set explicitly by core-pipeline from this Deployment's own env, since
+            # envFrom cannot rename database-credentials' postgres-password key to DB_PASSWORD.
             - name: DRAFT_SYNC_ENV_CONFIGMAP
               value: "fantasy-league-config"
             - name: DRAFT_SYNC_ENV_SECRET
