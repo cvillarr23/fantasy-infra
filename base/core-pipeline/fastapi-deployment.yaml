@@ -60,6 +60,11 @@ spec:
             # as the current gateway container itself.
             - name: DRAFT_SYNC_IMAGE
               value: "ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940"
+            # ConfigMap/Secret names that core-pipeline passes through when it spawns draft-sync jobs.
+            - name: DRAFT_SYNC_ENV_CONFIGMAP
+              value: "fantasy-league-config"
+            - name: DRAFT_SYNC_ENV_SECRET
+              value: "espn-session-secrets"
 
             # OTLP export target for homelab-deployment's shared Tempo instance
             # (homelab-deployment#5/#6) -- endpoint + service name only, actual
