@@ -12,3 +12,35 @@ images:
   digest: sha256:a42a3c3d9d7af7b840190386f7d67fbb7c36dfe6ba2c2b9725eb0b372f62c5dc
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:f31de9b02689885fdc4d1d781991008aee15c98219f92fec66628edf5bcff380
+
+# DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
+# draft Jobs at runtime. They are plain env strings, so neither the `images:` transformer above
+# nor Argo CD Image Updater's git write-back can see them: a release digest-pins every real
+# `image:` field while these two silently stay on whatever SHA was last hardcoded.
+#
+# Not theoretical - this stranded the spawned draft Jobs several commits behind the Deployment,
+# so merged fixes looked deployed while the Jobs kept running the old code.
+#
+# Sourcing each value from an already-transformed `image:` field keeps them digest-pinned and
+# updated by the same mechanism, with no second place to remember to bump.
+replacements:
+- source:
+    kind: Deployment
+    name: fantasy-core-pipeline
+    fieldPath: spec.template.spec.containers.[name=gateway].image
+  targets:
+  - select:
+      kind: Deployment
+      name: fantasy-core-pipeline
+    fieldPaths:
+    - spec.template.spec.containers.[name=gateway].env.[name=DRAFT_SYNC_IMAGE].value
+- source:
+    kind: ScaledJob
+    name: fantasy-browser-worker-scaler
+    fieldPath: spec.jobTargetRef.template.spec.containers.[name=worker].image
+  targets:
+  - select:
+      kind: Deployment
+      name: fantasy-core-pipeline
+    fieldPaths:
+    - spec.template.spec.containers.[name=gateway].env.[name=BROWSER_WORKER_IMAGE].value
