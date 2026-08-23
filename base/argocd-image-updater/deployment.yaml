@@ -45,7 +45,7 @@ spec:
               name: metrics
           volumeMounts:
             - name: config
-              mountPath: /etc/argocd/image-updater
+              mountPath: /app/config
             - name: git-creds
               mountPath: /home/argocd/.ssh/id_rsa
               subPath: id_rsa
