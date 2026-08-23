@@ -40,7 +40,45 @@ To validate manifests locally without a live cluster:
 ```bash
 kubectl kustomize overlays/production/
 kubectl kustomize overlays/draft-day/
+./scripts/preflight-draft-sync-env.sh
 ```
+
+## Draft Sync Rollout + Smoke Test Runbook
+
+Use this checklist in the PR for any draft-sync env wiring or listener-job changes.
+
+1. **Apply/sync latest manifests**
+   ```bash
+   # GitOps default: wait for ArgoCD auto-sync, or force immediately:
+   argocd app sync fantasy-infra --force
+
+   # Optional local/manual equivalent:
+   kubectl apply -k overlays/production/
+   ```
+
+2. **Restart and confirm `fantasy-core-pipeline` rollout**
+   ```bash
+   kubectl rollout restart deployment/fantasy-core-pipeline -n default
+   kubectl rollout status deployment/fantasy-core-pipeline -n default
+   kubectl get pods -n default -l app=fantasy-core-pipeline
+   ```
+
+3. **Smoke test practice sync + draft listener flows**
+   ```bash
+   kubectl port-forward svc/fantasy-core-pipeline 8000:8000 -n default
+   ```
+   In a second terminal, run:
+   ```bash
+   # Practice sync Job creation endpoint
+   curl -i -X POST http://localhost:8000/v1/draft/practice/sync-job
+
+   # Draft listener start endpoint
+   curl -i -X POST http://localhost:8000/v1/draft/start
+
+   # Stream endpoint returns active job/state updates after start
+   curl -i http://localhost:8000/v1/draft/stream
+   ```
+   Confirm each endpoint returns expected success/status responses (not missing-env errors) and that corresponding draft-sync Jobs are created/updated in-cluster.
 
 ## Architecture
 Cross-repo architecture and reference docs for the whole platform live in [`fantasy-core-pipeline`'s `ARCHITECTURE.md`](https://github.com/cvillarr23/fantasy-core-pipeline/blob/main/ARCHITECTURE.md).
