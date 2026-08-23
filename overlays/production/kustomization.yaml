@@ -1,7 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../base
-  - configmap-env.yaml
-  - externalsecrets.yaml
-  - argocd-image-updater-externalsecret.yaml
+- ../../base
+- configmap-env.yaml
+- externalsecrets.yaml
+- argocd-image-updater-externalsecret.yaml
+images:
+- name: ghcr.io/cvillarr23/fantasy-web-ui
+  digest: sha256:60d525fdd4fd1b3446c3d904d54ee69d9eeda59926c33da4cea97e0c26e83b8e
+- name: ghcr.io/cvillarr23/fantasy-core-pipeline
+  digest: sha256:00e2df5304788da9f0e4ec0046c37cab1db1bff3327578ee4488a61341402041
+- name: ghcr.io/cvillarr23/fantasy-browser-worker
+  digest: sha256:73700f7fa4015916a53122a5487f178f07210c28f67c61ca49fcdfe5d4ec58de
