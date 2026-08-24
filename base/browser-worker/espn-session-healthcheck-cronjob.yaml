@@ -38,6 +38,22 @@ spec:
                 - configMapRef:
                     name: fantasy-league-config
               env:
+                # Same fantasy-db credentials the browser-worker ScaledJob uses
+                # (keda-scaledjob.yaml). Without these, src/db/execution_log.js's pg Pool falls
+                # back to libpq defaults and dials localhost:5432 inside the pod, so every run
+                # logged "ECONNREFUSED ::1:5432" and wrote no execution_log row -- leaving
+                # Grafana's worker execution health panel blind to this CronJob entirely.
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
                 - name: ESPN_S2
                   valueFrom:
                     secretKeyRef:
