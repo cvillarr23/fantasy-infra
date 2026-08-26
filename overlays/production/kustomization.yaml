@@ -7,7 +7,7 @@ resources:
 - argocd-image-updater-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
-  digest: sha256:443b7501e63a9607a5588f2ba42b77c52f5a2253b0df3d97379c5ee3639b5f2e
+  digest: sha256:304f4670fa27d69704bc2c19b616c99a28c5a6de391e7aada9e8fcb54e3225e3
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
   digest: sha256:3ca74a9c5c39b09be062e9649c468ea3d29a3e889db8c566e2b92f0fc9404955
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
