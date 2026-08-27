@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-stale-draft-job-sweeper
+  namespace: default
+spec:
+  schedule: "*/15 * * * *" # every 15 minutes (America/Chicago local time below)
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: stale-draft-job-sweeper
+        spec:
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: sweeper
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+              imagePullPolicy: Always
+              command: ["python", "-m", "src.ops.sweep_stale_draft_jobs"]
+              env:
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                - name: AMQP_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: rabbitmq-credentials
+                      key: amqp-url
+                - name: REDIS_HOST
+                  value: "fantasy-cache.default.svc.cluster.local"
+                - name: REDIS_PORT
+                  value: "6379"
+                # OTLP export target for homelab-deployment's shared Tempo instance
+                # (homelab-deployment#5/#6) -- endpoint + service name only, actual
+                # span emission is CORE-12.
+                - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                  value: "http://tempo.default.svc.cluster.local:4317"
+                - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                  value: "grpc"
+                - name: OTEL_SERVICE_NAME
+                  value: "ops-sweep-stale-draft-jobs"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
