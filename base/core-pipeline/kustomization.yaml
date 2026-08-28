@@ -9,4 +9,5 @@ resources:
   - stale-draft-job-sweeper-cronjob.yaml
   - draft-prep-refresher-cronjob.yaml
   - fantasy-traces-dashboard.yaml
+  - fantasy-draft-pipeline-dashboard.yaml
   - rbac.yaml

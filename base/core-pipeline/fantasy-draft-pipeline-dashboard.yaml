@@ -1,0 +1,78 @@
+# Self-registers a Grafana dashboard via homelab-deployment's dashboard-sidecar
+# discovery mechanism (grafana_dashboard: "1" label, default namespace) -- no
+# PR to homelab-deployment needed. See "Registering a Grafana dashboard from
+# another repo" in homelab-deployment/README.md. Pattern copied from
+# fantasy-traces-dashboard.yaml.
+#
+# Issue #108 follow-up: makes hold_and_publish's confirmed-rejection retry path (see
+# draft_matrix.py's PICK_REJECTION_GRACE_SECONDS) queryable from a dashboard instead of
+# the ad-hoc multi-repo Loki log archaeology this bug's original investigation required.
+# Both panels key off structured log lines already emitted by the per-league listener Job
+# pods (pod name pattern draft-sync-practice-{leagueId}-{ts}-{suffix}).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-draft-pipeline-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+data:
+  fantasy-draft-pipeline.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Confirmed ESPN pick rejections vs. unmatched rejection messages",
+          "description": "Confirmed rejection = hold_and_publish caught a rejection matching the pick it just published and advanced to the next-best candidate. Did not match = a rejection arrived on draft_pick_rejected:{league_id} but didn't match the pick currently held (stale message, or a sign the match condition is broken again).",
+          "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({pod=~\"draft-sync-practice-.*\"} |= \"Confirmed rejection\" [$__interval]))",
+              "legendFormat": "Confirmed rejection (retried)"
+            },
+            {
+              "refId": "B",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({pod=~\"draft-sync-practice-.*\"} |= \"did not match currently-held pick\" [$__interval]))",
+              "legendFormat": "Rejection received but did not match"
+            }
+          ]
+        },
+        {
+          "type": "logs",
+          "title": "Draft pick rejection log lines",
+          "description": "Raw log lines for both events above, across every active/recent per-league listener Job pod.",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 9 },
+          "id": 2,
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{pod=~\"draft-sync-practice-.*\"} |~ \"Confirmed rejection|did not match currently-held pick\""
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "draft"],
+      "templating": { "list": [] },
+      "time": { "from": "now-6h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Draft Pipeline - Pick Rejections",
+      "uid": "fantasy-draft-pipeline",
+      "version": 1,
+      "weekStart": ""
+    }
