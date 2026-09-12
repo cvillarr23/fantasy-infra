@@ -6,6 +6,7 @@ resources:
   - fastapi-service.yaml
   - weekly-cronjob.yaml
   - rapid-status-syncer-cronjob.yaml
+  - fantasy-rumor-syncer-cronjob.yaml
   - stale-draft-job-sweeper-cronjob.yaml
   - draft-prep-refresher-cronjob.yaml
   - fantasy-traces-dashboard.yaml
