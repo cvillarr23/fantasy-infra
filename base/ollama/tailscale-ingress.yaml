@@ -1,0 +1,22 @@
+# Exposes Ollama's API over the tailnet only, via tailscale-operator - same pattern as
+# base/databases/rabbitmq-ingress.yaml and homelab-deployment's apps/openbao/ingress.yaml: no
+# NodePort/public exposure, the tailnet itself is the auth boundary. Needed so the roo-coder
+# (Token Guard) MCP server, running as a local process on dev laptops outside the cluster, can
+# reach this Deployment's existing Service (service.yaml) without a kubeconfig.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ollama
+  namespace: default
+  annotations:
+    tailscale.com/hostname: ollama
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: ollama
+      port:
+        number: 11434
+  tls:
+    - hosts:
+        - ollama

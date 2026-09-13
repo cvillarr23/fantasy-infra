@@ -28,9 +28,16 @@ spec:
           # adds to the already-long first-request latency llm_client.js's
           # OLLAMA_SCALE_UP_TIMEOUT_MS budgets for). Matches llm_client.js's
           # DEFAULT_PROVIDER_PRIORITY model tag exactly so no cross-repo config change is needed.
+          #
+          # llama3.2:3b-instruct-q8_0 and nomic-embed-text are pulled in a backgrounded
+          # subshell, deliberately NOT gating the readiness probe below: those two models are
+          # only used by the separate roo-coder/Token Guard MCP tool (reached over Tailscale,
+          # see tailscale-ingress.yaml in this directory), not by llm_client.js's scale-up poll
+          # loop. Gating readiness on all three pulls would slow every fantasy-pipeline cold
+          # start waiting on models the fantasy pipeline itself never uses.
           command: ["/bin/sh", "-c"]
           args:
-            - "ollama serve & sleep 5 && ollama pull llama3.1:8b && wait"
+            - "ollama serve & sleep 5 && ollama pull llama3.1:8b && (ollama pull llama3.2:3b-instruct-q8_0 && ollama pull nomic-embed-text &) && wait"
           ports:
             - containerPort: 11434
               name: ollama-api
@@ -58,5 +65,11 @@ spec:
               # while planning WORKER-12's follow-up. Correct this (and add nvidia.com/gpu
               # requests/limits) if the node actually has one; CPU inference on an 8B model will
               # be noticeably slower than the cloud tiers this is a fallback for.
+              #
+              # NOT bumped for the two new models added above: this limit was sized for one
+              # resident 8B model, but under Ollama's default keep_alive, all three models can
+              # end up resident at once (~5-6GB for llama3.1:8b + a few GB more for the two
+              # small Token Guard models). Revisit this against the node's actual free budget
+              # before it's hit in practice -- flagging rather than guessing at a new number.
               memory: "8Gi" # generous headroom above the ~5-6GB an 8B quantized model needs
               cpu: "4000m"
