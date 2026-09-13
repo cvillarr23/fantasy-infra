@@ -1,10 +1,12 @@
 # Scaled to 0 replicas at rest -- an idle Deployment costs nothing, but a loaded 8B model
 # resident in RAM 24/7 would permanently eat into the homelab node's budget for a tier that, by
 # design, only ever fires once both free-tier cloud providers (WORKER-12) are already exhausted.
-# fantasy-browser-worker's llm_client.js scales this to 1 on demand via the RBAC in rbac.yaml and
-# deliberately never scales it back down -- confirmed acceptable given the node's ~16GB of
-# headroom (32GB total, ~16GB normally in use) comfortably covers an 8B quantized model's
-# ~5-6GB resident footprint alongside everything else already running.
+# On-demand scale-up (and, symmetrically, scale-down after 1h idle) is now handled by the KEDA
+# HTTP Add-on interceptor rather than a manual RBAC-based call from llm_client.js -- see
+# http-scaled-object.yaml. `replicas: 0` here is just the resting state KEDA scales from/to;
+# it does not fight KEDA the way it briefly would have fought the old manual scale-up (Argo's
+# existing ignoreDifferences on /spec/replicas already covers "something other than git manages
+# this field," regardless of what that something is).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

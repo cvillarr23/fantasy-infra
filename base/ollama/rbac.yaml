@@ -1,43 +1,11 @@
-# Narrowly-scoped ServiceAccount + Role + RoleBinding so a fantasy-browser-worker pod can scale
-# the ollama Deployment 0->1 on demand (WORKER-12's llm_client.js) via the k8s API instead of
-# needing a standing pod or manual kubectl access -- same "default namespace only, no broader
-# cluster permissions" scoping already used for INFRA-09's FastAPI-gateway RBAC. Only the
-# `ollama` Deployment's scale/status subresources are reachable; nothing else in the cluster.
+# ServiceAccount used as pod identity for the fantasy-browser-worker ScaledJob (see
+# base/browser-worker/keda-scaledjob.yaml's serviceAccountName). It used to also carry a
+# narrowly-scoped Role/RoleBinding granting `deployments/scale` on `ollama`, for
+# llm_client.js's ensureOllamaScaledUp() to call the k8s API directly -- removed now that the
+# KEDA HTTP Add-on interceptor triggers Ollama's on-demand scale-up itself based on request
+# traffic (see http-scaled-object.yaml), so no pod needs that permission anymore.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: fantasy-browser-worker
   namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: ollama-scaler
-  namespace: default
-rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments/scale"]
-    resourceNames: ["ollama"]
-    # llm_client.js's ensureOllamaScaledUp() actually calls replaceNamespacedDeploymentScale
-    # (a PUT, authorized by "update"), not a JSON-patch call -- "patch" is included anyway as
-    # cheap defense-in-depth against a future client-side switch to patchNamespacedDeploymentScale,
-    # which k8s authorizes as a separate verb from "update".
-    verbs: ["get", "update", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments/status"]
-    resourceNames: ["ollama"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: fantasy-browser-worker-ollama-scaler
-  namespace: default
-subjects:
-  - kind: ServiceAccount
-    name: fantasy-browser-worker
-    namespace: default
-roleRef:
-  kind: Role
-  name: ollama-scaler
-  apiGroup: rbac.authorization.k8s.io
