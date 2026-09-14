@@ -8,6 +8,7 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
     *   `databases/`: Manifests for low-memory PostgreSQL/TimescaleDB, Redis, and RabbitMQ. RabbitMQ pre-declares its own queue topology (`lineup_updates`, `waiver_actions`) via a mounted `definitions.json` so the queues exist before any producer/consumer connects — required for the `browser-worker` KEDA triggers below to stay healthy.
     *   `core-pipeline/`: Deployment states for the FastAPI Engine and Weekly CronJobs.
     *   `browser-worker/`: KEDA ScaledJob criteria definitions for Playwright containers.
+    *   `ollama/`: Shared, scale-to-zero Ollama deployment — the last-resort LLM tier for `fantasy-browser-worker`'s `llm_client.js`, and the local-RAG generate/embed backend for the external `roo-coder` (Token Guard) MCP server. On-demand scale-up/down is handled by `homelab-deployment`'s KEDA HTTP Add-on interceptor (see the diagram below), not by either consumer directly. Reached from outside the cluster via `tailscale-ingress.yaml`.
 *   `overlays/`: Environmental delta configurations.
     *   `production/`: Active operational values, sync targets, and `ExternalSecret`s.
     *   `draft-day/`: CPU burst and memory caching patches applied specifically during the live draft window.
@@ -102,6 +103,36 @@ flowchart TD
 
     draftday["overlays/draft-day/\nCPU burst + memory caching patches"] -.applied over.-> base
 ```
+
+### Shared Ollama tier: scale-to-zero via KEDA HTTP Add-on
+
+`base/ollama/` is deliberately consumer-agnostic — both in-cluster and Tailscale-only consumers
+reach it through the same interceptor by setting the same `Host` header, and neither ever calls
+the Kubernetes API to scale it directly:
+
+```mermaid
+flowchart TD
+    worker["fantasy-browser-worker\nllm_client.js\n(last-resort LLM tier)"]
+    tokenguard["roo-coder / Token Guard\nMCP server (external)"]
+
+    worker -->|"Host: ollama.default.svc.cluster.local"| interceptor
+    tokenguard -->|via Tailscale ingress,\nsame Host header| interceptor
+
+    subgraph interceptor["KEDA HTTP Add-on interceptor\n(homelab-deployment)"]
+        proxy["proxy Service"]
+    end
+
+    interceptor -->|"HTTPScaledObject:\nqueues request, scales 0-to-1"| ollama["ollama Deployment\n(replicas: min 1 during\nrollout window, see below)"]
+    ollama -->|/root/.ollama\npersisted models| pvc[("PVC\n20Gi RWO")]
+
+    rbac["rbac.yaml: ollama-scaler Role\n(kept, unused by new code --\ntransition-window safety net\nfor the OLD worker image)"] -.->|"direct scale,\nbypasses interceptor"| ollama
+```
+
+The `min: 1` on the `HTTPScaledObject` and the otherwise-unused `ollama-scaler` Role in
+`rbac.yaml` both exist for the same reason: until `fantasy-browser-worker`'s interceptor-routing
+image is confirmed rolled out, an old worker pod could still be scaling Ollama directly via RBAC,
+invisible to KEDA's traffic-based scaling. Both are meant to come out together once that rollout
+is confirmed.
 
 ## Project Tracking
 Engineering tickets for this repo live as [GitHub Issues](https://github.com/cvillarr23/fantasy-infra/issues) and are tracked on the [Fantasy Manager project board](https://github.com/users/cvillarr23/projects/2), alongside `fantasy-browser-worker` and `fantasy-core-pipeline`.
