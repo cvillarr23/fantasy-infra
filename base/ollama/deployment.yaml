@@ -37,10 +37,13 @@ spec:
           # scale-up from 0 (KEDA's scaledownPeriod, or a pod reschedule) reuses the cache
           # instead of redownloading several GB of models on every cold start.
           #
-          # llama3.1:8b is NOT retry-wrapped here: a failed pull makes this script exit non-zero
-          # (via `&&` short-circuiting before `wait`), which exits the container and lets k8s's
-          # normal restart-backoff retry the whole thing -- the same implicit retry behavior
-          # this had before Token Guard's models were added.
+          # llama3.1:8b is NOT retry-wrapped here: it runs in the foreground and `exit 1`s on
+          # failure, which exits the container and lets k8s's normal restart-backoff retry the
+          # whole thing -- the same implicit retry behavior this had before Token Guard's models
+          # were added. It must stay in the foreground and out of the `(...) &` group below --
+          # backgrounding it too would let the script reach `wait` (which then blocks forever on
+          # the long-lived `ollama serve` process) regardless of whether the pull succeeded,
+          # silently losing the exit-and-restart signal.
           #
           # llama3.2:3b-instruct-q8_0 and nomic-embed-text ARE explicitly retry-wrapped (bounded,
           # 5 attempts with linear backoff): they run in a backgrounded subshell whose failure
@@ -56,7 +59,8 @@ spec:
             - |
               ollama serve &
               sleep 5
-              ollama pull llama3.1:8b && (
+              ollama pull llama3.1:8b || exit 1
+              (
                 i=0
                 until ollama pull llama3.2:3b-instruct-q8_0; do
                   i=$((i + 1))
