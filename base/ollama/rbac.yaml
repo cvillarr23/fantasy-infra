@@ -1,8 +1,14 @@
-# Narrowly-scoped ServiceAccount + Role + RoleBinding so a fantasy-browser-worker pod can scale
-# the ollama Deployment 0->1 on demand (WORKER-12's llm_client.js) via the k8s API instead of
-# needing a standing pod or manual kubectl access -- same "default namespace only, no broader
-# cluster permissions" scoping already used for INFRA-09's FastAPI-gateway RBAC. Only the
-# `ollama` Deployment's scale/status subresources are reachable; nothing else in the cluster.
+# ServiceAccount used as pod identity for the fantasy-browser-worker ScaledJob (see
+# base/browser-worker/keda-scaledjob.yaml's serviceAccountName).
+#
+# The Role/RoleBinding below granting `deployments/scale` on `ollama` is no longer used by new
+# code -- the KEDA HTTP Add-on interceptor triggers Ollama's on-demand scale-up itself now (see
+# http-scaled-object.yaml), so llm_client.js's ensureOllamaScaledUp() was removed. Deliberately
+# KEPT rather than removed, though: the old worker image (which still calls it) may still be
+# running during the window between this PR merging and the companion fantasy-browser-worker
+# image rollout landing, and removing this out from under it would turn a routine deploy into an
+# outage for that tier (Forbidden instead of a clean scale-up). Safe, low-cost to leave in place
+# once both are fully rolled out; revisit removing it then if desired.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -18,10 +24,6 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     resourceNames: ["ollama"]
-    # llm_client.js's ensureOllamaScaledUp() actually calls replaceNamespacedDeploymentScale
-    # (a PUT, authorized by "update"), not a JSON-patch call -- "patch" is included anyway as
-    # cheap defense-in-depth against a future client-side switch to patchNamespacedDeploymentScale,
-    # which k8s authorizes as a separate verb from "update".
     verbs: ["get", "update", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments/status"]
