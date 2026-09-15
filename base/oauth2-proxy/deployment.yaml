@@ -1,0 +1,95 @@
+# Gates fantasy-web-ui (and, through its own nginx same-origin proxy, the
+# /v1/* API) behind a Google OIDC login before any request reaches the pod
+# (CORE-29). Runs in reverse-proxy mode (--upstream) fronting the *single*
+# fantasy-web-ui Service - both the SPA and /v1/* pass through this one auth
+# gate, since fantasy-web-ui's own nginx.conf already same-origin-proxies
+# /v1/* internally. There is deliberately no separate ingress rule for
+# /v1/* to misconfigure, unlike the classic nginx-ingress annotation
+# pitfall - this cluster has no ingress-nginx controller at all (see
+# base/web-ui/ingress.yaml's tailscale IngressClass), so oauth2-proxy sits
+# in front as its own reverse proxy instead.
+#
+# The Tailscale ingress in base/web-ui/ (fantasy-draft.<tailnet>.ts.net)
+# stays untouched as a separate, additive access path - tailnet membership
+# is already its own auth boundary, same treatment homelab-deployment
+# already gives openbao/argocd (public gated host + separate tailnet-only
+# host for the same Service).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  labels:
+    app: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=google
+            - --http-address=0.0.0.0:4180
+            - --upstream=http://fantasy-web-ui.default.svc.cluster.local:80
+            - --email-domain=gmail.com
+            - --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails-list
+            - --redirect-url=https://draft.roo-net.cc/oauth2/callback
+            - --cookie-domain=draft.roo-net.cc
+            - --cookie-secure=true
+            # Trusts X-Forwarded-Proto from nginx-proxy-manager, which terminates TLS in
+            # front of this pod - without this, oauth2-proxy builds http:// redirect URIs
+            # and the OAuth callback breaks.
+            - --reverse-proxy=true
+          ports:
+            - containerPort: 4180
+              name: http
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-credentials
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-credentials
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-credentials
+                  key: cookie-secret
+          volumeMounts:
+            - name: authenticated-emails
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+      volumes:
+        - name: authenticated-emails
+          configMap:
+            name: oauth2-proxy-authenticated-emails

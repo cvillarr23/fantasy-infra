@@ -1,0 +1,20 @@
+# NodePort (not ClusterIP) so homelab-deployment's nginx-proxy-manager can
+# forward draft.roo-net.cc's public traffic straight to this Service's node
+# port, same "Adding a new exposed service" pattern every other roo-net.cc
+# host uses (see homelab-deployment/README.md) - CORE-29.
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  labels:
+    app: oauth2-proxy
+spec:
+  type: NodePort
+  ports:
+    - port: 4180
+      targetPort: 4180
+      nodePort: 30292
+      protocol: TCP
+      name: http
+  selector:
+    app: oauth2-proxy

@@ -1,0 +1,13 @@
+# oauth2-proxy's --authenticated-emails-file allow-list (CORE-29). Not
+# sensitive - just an email address - so a plain ConfigMap, not a Secret.
+# --email-domain alone would let any @gmail.com account through; this file
+# is what actually scopes login to this one account, same principle as
+# fantasy-core-pipeline's MCP_GOOGLE_ALLOWED_EMAIL and homelab-deployment's
+# scripts/openbao-oidc-setup.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-authenticated-emails
+data:
+  authenticated-emails-list: |
+    cvillarr23@gmail.com
