@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-lineup-trigger
+  namespace: default
+spec:
+  schedule: "0 11 * * 0" # Sunday 11:00 AM America/Chicago - ahead of typical 1pm ET early-slate kickoff
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: lineup-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: lineup-trigger
+              image: curlimages/curl:8.10.1
+              command:
+                - curl
+                - -sf
+                - --max-time
+                - "30"
+                - -X
+                - POST
+                - http://fantasy-core-pipeline.default.svc.cluster.local:8000/v1/trigger/lineup
+              resources:
+                requests:
+                  memory: "32Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "100m"
