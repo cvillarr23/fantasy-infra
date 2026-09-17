@@ -51,9 +51,9 @@ spec:
                 # (homelab-deployment#5/#6) -- endpoint + service name only, actual
                 # span emission is CORE-12.
                 - name: OTEL_EXPORTER_OTLP_ENDPOINT
-                  value: "http://tempo.default.svc.cluster.local:4317"
+                  value: "http://tempo.default.svc.cluster.local:4318"
                 - name: OTEL_EXPORTER_OTLP_PROTOCOL
-                  value: "grpc"
+                  value: "http/protobuf"
                 - name: OTEL_SERVICE_NAME
                   value: "ingestion-sync-players"
               resources:
