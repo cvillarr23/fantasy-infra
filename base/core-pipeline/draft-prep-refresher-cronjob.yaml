@@ -9,17 +9,16 @@
 # CronJob crashes outright pre-season on its own default --year/--week resolution. This
 # CronJob avoids that entirely by always passing explicit --season/--week.
 #
-# Scope note: hardcodes season=2026/week=1 deliberately - matches the same draft-day
-# convention DRAFT_SYNC_WEEK uses in src/api/draft.py (a draft has no real "current week").
-# This CronJob should be suspended (set spec.suspend: true) once the 2026-09-08 draft is
-# over - after that, real season-long weekly_stats refresh needs actual per-week
-# season/week values, which this manifest does not compute.
+# Scope note: hardcodes season=2026/week=1 deliberately, matching src/api/draft.py's
+# DRAFT_SYNC_WEEK convention (a draft has no real "current week").
+# Suspended 2026-09-17: draft is over, and this manifest doesn't compute real per-week values.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fantasy-draft-prep-refresher
   namespace: default
 spec:
+  suspend: true
   schedule: "0 5 * * *" # 5:00 AM Central, daily (timeZone below makes this expression local, not UTC), well clear of the other two ingestion CronJobs' windows
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
