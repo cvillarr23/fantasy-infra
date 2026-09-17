@@ -10,6 +10,7 @@ resources:
   - stale-draft-job-sweeper-cronjob.yaml
   - draft-prep-refresher-cronjob.yaml
   - lineup-optimizer-cronjob.yaml
+  - weekly-waiver-cronjob.yaml
   - fantasy-traces-dashboard.yaml
   - fantasy-draft-pipeline-dashboard.yaml
   - fantasy-bot-decisions-dashboard.yaml

@@ -1,0 +1,74 @@
+# Nothing previously triggered the live waiver evaluator on a recurring basis --
+# waiver_sniper.js's consumer side already works, but production had no automatic entry
+# point to publish a claim. Runs 30 min after fantasy-lineup-optimizer so VORP is current first.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-weekly-waiver-trigger
+  namespace: default
+spec:
+  schedule: "30 4 * * 2" # 5:30 AM Central, every Tuesday (America/Chicago local time below)
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: weekly-waiver-trigger
+        spec:
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: waiver-trigger
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+              imagePullPolicy: Always
+              command: ["/bin/sh", "-c"]
+              # waiver_evaluator.py's --week has no env-var fallback (unlike lineup_solver.py's
+              # --team-id/--season), so this reuses lineup_solver's already-tested
+              # resolve_default_week() rather than reimplementing its nflreadpy fallback here.
+              args:
+                - |
+                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
+                  python -m src.optimization.waiver_evaluator --team-id "$ESPN_TEAM_ID" --season "$CURRENT_YEAR" --week "$WEEK"
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
+              env:
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                # Real in-cluster service DNS -- waiver_evaluator.py's own CORE_API_BASE_URL
+                # default is stale (wrong namespace), so this must be set explicitly rather than
+                # relying on the code default.
+                - name: CORE_API_BASE_URL
+                  value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
+                # OTLP export target for homelab-deployment's shared Tempo instance
+                # (homelab-deployment#5/#6) -- endpoint + service name only, actual
+                # span emission is CORE-12.
+                - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                  value: "http://tempo.default.svc.cluster.local:4318"
+                - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                  value: "http/protobuf"
+                - name: OTEL_SERVICE_NAME
+                  value: "optimization-waiver-evaluator"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
