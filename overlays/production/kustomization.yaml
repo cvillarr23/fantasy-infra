@@ -9,9 +9,9 @@ images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
   digest: sha256:77ed6d7a06687cc02a6f7144bbb838b2043f48f2d08506149ae9d6e7dddeb516
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:55528c59a714b00886cb97885a736b7862f588ee6e3946839bb48cc224f2a817
+  digest: sha256:bb8d591bf5be4d013b930fb6ba20ea9c631c0e2176f53cbee3fb63df4f329858
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
-  digest: sha256:4eda268cb15df362ecc2bfcf2117a5d8044eb5b8d56955ddc6677df2d66fc5b5
+  digest: sha256:e2c8464dee78429c965a095c8dabecd5a35fb6aa32274ac82aea574feca51516
 # DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
 # draft Jobs at runtime. They are plain env strings, so neither the `images:` transformer above
 # nor Argo CD Image Updater's git write-back can see them: a release digest-pins every real
