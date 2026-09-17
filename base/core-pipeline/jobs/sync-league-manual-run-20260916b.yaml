@@ -1,0 +1,64 @@
+# Second one-off manual run of sync_league, this time to backfill the new league_teams
+# table (real ESPN team names) introduced alongside the matchup-view feature
+# (fantasy-core-pipeline#127) - same rationale as sync-league-manual-run.yaml (nothing
+# schedules sync_league anywhere in this cluster), just re-run against the new image tag
+# since that PR added the team-name sync logic.
+#
+# Apply once with `kubectl apply -f`, then `kubectl delete job/sync-league-manual-20260916b`
+# when done.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sync-league-manual-20260916b
+  namespace: default
+  labels:
+    app: fantasy-core-pipeline
+    component: sync-league-manual
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: fantasy-core-pipeline
+        component: sync-league-manual
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: sync-league
+          image: ghcr.io/cvillarr23/fantasy-core-pipeline:sha-03689850788f368f2c2fdfd72f1194f3aa000ee1
+          imagePullPolicy: Always
+          command: ["python", "-m", "src.ingestion.sync_league", "--season", "2026"]
+          envFrom:
+            - configMapRef:
+                name: fantasy-league-config
+          env:
+            - name: DB_HOST
+              value: "fantasy-db.default.svc.cluster.local"
+            - name: DB_NAME
+              value: "fantasy_football"
+            - name: DB_USER
+              value: "bot_admin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: ESPN_SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

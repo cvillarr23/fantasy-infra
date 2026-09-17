@@ -49,7 +49,17 @@ spec:
               value: "fantasy-cache.default.svc.cluster.local"
             - name: REDIS_PORT
               value: "6379"
-            # draft_matrix.py POSTs its chosen pick to /v1/trigger/draft-pick on this URL.
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: ESPN_SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+          # draft_matrix.py POSTs its chosen pick to /v1/trigger/draft-pick on this URL.
             # Set explicitly because the module default (fantasy-api.core.svc.cluster.local)
             # names a Service/namespace that does not exist in this cluster, which would make
             # every auto-draft publish fail once the listener Job is otherwise healthy.
