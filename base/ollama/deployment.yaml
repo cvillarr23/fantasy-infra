@@ -28,6 +28,12 @@ spec:
       labels:
         app: ollama
     spec:
+      # Opts this pod into the nvidia runtime registered in containerd by
+      # homelab-deployment's scripts/gpu-node-setup.sh. Every other pod on
+      # this shared single node keeps using plain runc -- only this
+      # Deployment references the RuntimeClass, since it's the only
+      # workload here that needs GPU access.
+      runtimeClassName: nvidia
       containers:
         - name: ollama
           image: ollama/ollama:latest
@@ -45,7 +51,7 @@ spec:
           # the long-lived `ollama serve` process) regardless of whether the pull succeeded,
           # silently losing the exit-and-restart signal.
           #
-          # llama3.2:3b-instruct-q8_0 and nomic-embed-text ARE explicitly retry-wrapped (bounded,
+          # qwen2.5-coder:7b and nomic-embed-text ARE explicitly retry-wrapped (bounded,
           # 5 attempts with linear backoff): they run in a backgrounded subshell whose failure
           # would otherwise be silently swallowed forever with no retry and no visible signal,
           # since they don't gate the readiness probe below and can't trigger a container
@@ -53,7 +59,10 @@ spec:
           # either way: those two models are only used by the separate roo-coder/Token Guard MCP
           # tool (reached over Tailscale, see tailscale-ingress.yaml), not by llm_client.js's
           # scale-up poll loop -- gating readiness on all three pulls would slow every
-          # fantasy-pipeline cold start waiting on models it never uses.
+          # fantasy-pipeline cold start waiting on models it never uses. qwen2.5-coder:7b (not a
+          # llama model, unlike the other two) was picked specifically for Token Guard's
+          # context-condensing role -- it's coding-adjacent, unlike fantasy-infra's own
+          # general-text llama3.1:8b fallback below, which stays as-is.
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -62,10 +71,10 @@ spec:
               ollama pull llama3.1:8b || exit 1
               (
                 i=0
-                until ollama pull llama3.2:3b-instruct-q8_0; do
+                until ollama pull qwen2.5-coder:7b; do
                   i=$((i + 1))
                   if [ "$i" -ge 5 ]; then
-                    echo "giving up pulling llama3.2:3b-instruct-q8_0 after $i attempts" >&2
+                    echo "giving up pulling qwen2.5-coder:7b after $i attempts" >&2
                     break
                   fi
                   sleep $((i * 5))
@@ -105,19 +114,34 @@ spec:
               # than one did.
               memory: "1Gi"
               cpu: "500m"
+              # nvidia.com/gpu is an extended resource -- request and limit must be equal (it
+              # isn't overcommittable). "1" claims the whole card: the RTX 2070 Super isn't
+              # MIG-capable, and homelab-deployment's apps/nvidia-device-plugin/ exposes it as
+              # one allocatable unit anyway. See runtimeClassName above -- both are required
+              # together for this pod to actually get GPU access.
+              nvidia.com/gpu: "1"
             limits:
-              # CPU-only inference assumed -- no evidence of a GPU on this homelab node found
-              # while planning WORKER-12's follow-up. Correct this (and add nvidia.com/gpu
-              # requests/limits) if the node actually has one; CPU inference on an 8B model will
-              # be noticeably slower than the cloud tiers this is a fallback for.
+              # GPU-backed: the node has an RTX 2070 Super (8GB VRAM) installed. See
+              # homelab-deployment's scripts/gpu-node-setup.sh (host driver +
+              # nvidia-container-toolkit + containerd wiring) and apps/nvidia-device-plugin/
+              # (device plugin + RuntimeClass) for how nvidia.com/gpu and runtimeClassName above
+              # become schedulable. Memory/CPU limits below are still real ceilings for the
+              # model-load/tokenization/CPU-offload-fallback path -- they are not made redundant
+              # by the GPU request, and are left unchanged from the CPU-only sizing below since
+              # actual usage under GPU offload hasn't been observed yet.
               #
-              # Bumped 8Gi -> 12Gi for the two new models added alongside llama3.1:8b: under
-              # Ollama's default keep_alive, all three can end up resident at once (~5-6GB for
-              # llama3.1:8b + ~3.5GB for llama3.2:3b-instruct-q8_0 + ~300MB for nomic-embed-text,
-              # roughly 9-10GB total). 12Gi leaves real margin without exceeding the node's
-              # documented ~16GB of free headroom (32GB total, ~16GB normally in use elsewhere).
+              # Sized for three resident models under Ollama's default keep_alive (~5-6GB for
+              # llama3.1:8b + ~4.7GB for qwen2.5-coder:7b + ~300MB for nomic-embed-text, roughly
+              # 10-11GB total if all three end up resident on the CPU/host-RAM side at once).
+              # 12Gi leaves real margin without exceeding the node's documented ~16GB of free
+              # headroom (32GB total, ~16GB normally in use elsewhere). Note the two "foreground"
+              # models (llama3.1:8b, qwen2.5-coder:7b) together exceed the GPU's 8GB VRAM, so
+              # Ollama will swap between them on demand rather than keeping both resident in VRAM
+              # simultaneously -- accepted as-is for this low-traffic homelab; revisit only if
+              # real contention shows up in practice.
               memory: "12Gi"
               cpu: "4000m"
+              nvidia.com/gpu: "1"
           volumeMounts:
             - name: ollama-models
               mountPath: /root/.ollama
