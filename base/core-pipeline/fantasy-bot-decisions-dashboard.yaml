@@ -1,0 +1,89 @@
+# Bot decision audit trail dashboard for CORE-17 (fantasy-core-pipeline#35). The issue
+# text says to reuse "CORE-14's dashboard pattern" (fantasy-core-pipeline#31, LLM
+# Provider/Model A/B Performance Dashboard), but CORE-14 is still open/unimplemented -
+# no such dashboard exists yet. This instead follows fantasy-backtest-dashboard.yaml's
+# pattern (same ConfigMap shape, same read-only FantasyFootballDB datasource from
+# INFRA-06), since that's the closest actual precedent: a ledger table with a browsable
+# Grafana panel on top of it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-bot-decisions-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+data:
+  fantasy-bot-decisions.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "type": "row",
+          "title": "CORE-17 Bot Decision Audit Trail",
+          "id": 1,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "barchart",
+          "title": "Decisions by Bot (last 7 days)",
+          "description": "How many lineup/waiver/draft-pick decisions each bot recorded, most recent week.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+          "id": 2,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT bot_name, COUNT(*) AS decisions FROM bot_decisions WHERE decided_at > now() - interval '7 days' GROUP BY bot_name ORDER BY bot_name;"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Decision Volume Over Time",
+          "description": "Hourly decision counts per bot, last 30 days.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+          "id": 3,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "time_series",
+              "rawSql": "SELECT date_trunc('hour', decided_at) AS time, bot_name, COUNT(*) AS decisions FROM bot_decisions WHERE decided_at > now() - interval '30 days' GROUP BY 1, bot_name ORDER BY 1;"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Recent Decisions (Raw)",
+          "description": "The 50 most recent bot decisions with their justification - the browsable 'why did it do that' view.",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 9 },
+          "id": 4,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT tracking_id, bot_name, action, team_id, league_id, season, week, target_player_id, drop_player_id, inputs::text AS inputs, decided_at FROM bot_decisions ORDER BY decided_at DESC LIMIT 50;"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "bot-decisions"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30d", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Bot Decision Audit Trail",
+      "uid": "fantasy-bot-decisions",
+      "version": 1,
+      "weekStart": ""
+    }

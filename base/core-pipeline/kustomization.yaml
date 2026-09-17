@@ -12,4 +12,5 @@ resources:
   - lineup-optimizer-cronjob.yaml
   - fantasy-traces-dashboard.yaml
   - fantasy-draft-pipeline-dashboard.yaml
+  - fantasy-bot-decisions-dashboard.yaml
   - rbac.yaml
