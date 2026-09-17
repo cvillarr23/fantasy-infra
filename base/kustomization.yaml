@@ -4,7 +4,6 @@ resources:
   - databases
   - core-pipeline
   - browser-worker
-  - ollama
   - web-ui
   - oauth2-proxy
   - argocd-image-updater

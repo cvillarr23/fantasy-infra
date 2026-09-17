@@ -2,7 +2,7 @@
 # gateway pod can create/monitor the draft-sync Job via the Kubernetes API instead of requiring
 # manual `kubectl` access from the user (who will be traveling internationally on Sept 8, 2026).
 # Default namespace only, no broader cluster permissions -- not a general-purpose k8s-admin
-# credential. Same scoping convention as WORKER-12's ollama/rbac.yaml.
+# credential. Same scoping convention as WORKER-12's browser-worker/rbac.yaml.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

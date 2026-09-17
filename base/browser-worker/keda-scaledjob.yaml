@@ -15,7 +15,7 @@ spec:
       spec:
         restartPolicy: OnFailure
         # Grants access to scale the ollama Deployment 0->1 on demand (WORKER-12's
-        # llm_client.js) -- see base/ollama/rbac.yaml for the exact (narrowly-scoped) rules.
+        # llm_client.js) -- see rbac.yaml for the exact (narrowly-scoped) rules.
         # Previously unset, which meant this ran as the `default` ServiceAccount with no API
         # access at all.
         serviceAccountName: fantasy-browser-worker

@@ -4,3 +4,4 @@ resources:
   - keda-scaledjob.yaml
   - trigger-auth.yaml
   - espn-session-healthcheck-cronjob.yaml
+  - rbac.yaml
