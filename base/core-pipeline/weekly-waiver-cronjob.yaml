@@ -56,6 +56,12 @@ spec:
                 # relying on the code default.
                 - name: CORE_API_BASE_URL
                   value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
+                # Guards /v1/trigger/*, called in-cluster and bypassing oauth2-proxy.
+                - name: TRIGGER_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: trigger-api-key
+                      key: trigger-api-key
                 # OTLP export target for homelab-deployment's shared Tempo instance
                 # (homelab-deployment#5/#6) -- endpoint + service name only, actual
                 # span emission is CORE-12.
