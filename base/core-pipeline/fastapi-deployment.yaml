@@ -45,6 +45,12 @@ spec:
                 secretKeyRef:
                   name: rabbitmq-credentials
                   key: amqp-url
+            # Guards /v1/trigger/*, called in-cluster and bypassing oauth2-proxy.
+            - name: TRIGGER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trigger-api-key
+                  key: trigger-api-key
             - name: REDIS_HOST
               value: "fantasy-cache.default.svc.cluster.local"
             - name: REDIS_PORT
