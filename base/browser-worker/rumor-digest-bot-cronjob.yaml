@@ -1,0 +1,62 @@
+# Production schedule for rumor_digest_bot.js, which previously had no CronJob anywhere. Runs
+# an hour before core-pipeline's fantasy-rumor-action-trigger (0 12 * * *) so today's
+# rumor_signals rows exist before that job consumes them.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rumor-digest-bot
+  namespace: default
+spec:
+  schedule: "0 11 * * *" # 06:00 America/Chicago (UTC-5/-6) every day
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-browser-worker
+            component: rumor-digest-bot
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: rumor-digest-bot
+              image: ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31
+              imagePullPolicy: Always
+              command: ["node", "src/bots/rumor_digest_bot.js"]
+              env:
+                # Same fantasy-db credentials every other CronJob/Job in this repo uses. Without
+                # these, execution_log.js's pg Pool dials localhost:5432 inside the pod and
+                # silently never writes a row.
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                # No ESPN_S2/SWID — unlike every other bot here, this one only touches
+                # Postgres and the LLM fallback chain, never a browser page or ESPN's API.
+                # OTLP export target for homelab-deployment's shared Tempo instance.
+                - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                  value: "http://tempo.default.svc.cluster.local:4317"
+                - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                  value: "grpc"
+                - name: OTEL_SERVICE_NAME
+                  value: "browser-worker"
+              resources:
+                requests:
+                  memory: "128Mi" # no Chromium in this bot's process, unlike the browser-driving bots
+                  cpu: "50m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
