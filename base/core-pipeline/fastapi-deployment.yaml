@@ -65,6 +65,14 @@ spec:
                 secretKeyRef:
                   name: espn-session-secrets
                   key: swid
+            # Set directly - llm_client.py's OpenBao fallback shells out to `bao`, which isn't
+            # on this image and has no pod route to OpenBao anyway (no Vault agent sidecar).
+            # Same fix as browser-worker's rumor-digest-bot-cronjob.yaml.
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-api-key
+                  key: groq_api_key
           # draft_matrix.py POSTs its chosen pick to /v1/trigger/draft-pick on this URL.
             # Set explicitly because the module default (fantasy-api.core.svc.cluster.local)
             # names a Service/namespace that does not exist in this cluster, which would make
