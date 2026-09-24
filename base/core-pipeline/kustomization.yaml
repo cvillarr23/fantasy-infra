@@ -15,4 +15,6 @@ resources:
   - fantasy-traces-dashboard.yaml
   - fantasy-draft-pipeline-dashboard.yaml
   - fantasy-bot-decisions-dashboard.yaml
+  - fantasy-execution-log-dashboard.yaml
+  - fantasy-bot-logs-dashboard.yaml
   - rbac.yaml

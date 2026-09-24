@@ -12,6 +12,8 @@ metadata:
   namespace: default
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
 data:
   fantasy-bot-decisions.json: |
     {
@@ -83,7 +85,8 @@ data:
       "timepicker": {},
       "timezone": "",
       "title": "Fantasy Bot Decision Audit Trail",
+      "description": "Currently empty - bot_decisions has 0 rows in production despite write call sites existing in draft_matrix.py/lineup_solver.py/waiver_evaluator.py/waiver_strategy.py. Tracked as a fantasy-core-pipeline follow-up issue, not a broken datasource.",
       "uid": "fantasy-bot-decisions",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }

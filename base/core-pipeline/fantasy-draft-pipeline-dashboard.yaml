@@ -16,6 +16,8 @@ metadata:
   namespace: default
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
 data:
   fantasy-draft-pipeline.json: |
     {
@@ -72,7 +74,8 @@ data:
       "timepicker": {},
       "timezone": "",
       "title": "Fantasy Draft Pipeline - Pick Rejections",
+      "description": "Expected empty outside an active draft window - no active practice/live draft means no listener Job pods emitting these log lines. Not a broken datasource.",
       "uid": "fantasy-draft-pipeline",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }

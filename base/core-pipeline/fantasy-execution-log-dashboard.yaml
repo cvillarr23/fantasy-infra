@@ -1,0 +1,126 @@
+# Execution-log overview for all bots, giving the rumor-digest/rumor-action
+# failure alerts a dashboard to jump into instead of being orphaned.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-execution-log-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
+data:
+  fantasy-execution-log.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Overall Success Rate (24h)",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT (COUNT(*) FILTER (WHERE status='success'))::float / NULLIF(COUNT(*),0) * 100 AS success_pct FROM execution_log WHERE executed_at > now() - interval '24 hours';"
+            }
+          ]
+        },
+        {
+          "type": "barchart",
+          "title": "Success/Failure Rate by Bot (24h)",
+          "description": "Execution counts by bot_name and status, last 24 hours.",
+          "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+          "id": 2,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT bot_name, status, COUNT(*) AS n FROM execution_log WHERE executed_at > now() - interval '24 hours' AND bot_name IS NOT NULL GROUP BY bot_name, status ORDER BY bot_name;"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Execution Volume Over Time",
+          "description": "Hourly execution counts per bot, last 7 days.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "id": 3,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "time_series",
+              "rawSql": "SELECT date_trunc('hour', executed_at) AS time, bot_name, COUNT(*) AS executions FROM execution_log WHERE executed_at > now() - interval '7 days' AND bot_name IS NOT NULL GROUP BY 1, bot_name ORDER BY 1;"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "p50/p95 Duration by Bot (24h)",
+          "description": "Hourly p50/p95 duration_ms per bot, last 24 hours.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "id": 4,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "time_series",
+              "rawSql": "SELECT date_trunc('hour', executed_at) AS time, bot_name || ' p50' AS metric, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms) AS value FROM execution_log WHERE executed_at > now() - interval '24 hours' AND duration_ms IS NOT NULL AND bot_name IS NOT NULL GROUP BY 1, bot_name ORDER BY 1;"
+            },
+            {
+              "refId": "B",
+              "format": "time_series",
+              "rawSql": "SELECT date_trunc('hour', executed_at) AS time, bot_name || ' p95' AS metric, percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS value FROM execution_log WHERE executed_at > now() - interval '24 hours' AND duration_ms IS NOT NULL AND bot_name IS NOT NULL GROUP BY 1, bot_name ORDER BY 1;"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Recent Failures (Raw)",
+          "description": "The 50 most recent failed executions across all bots.",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+          "id": 5,
+          "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT executed_at, bot_name, transaction_type, error_message, trace_id FROM execution_log WHERE status = 'failure' ORDER BY executed_at DESC LIMIT 50;"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "execution-log"],
+      "templating": {
+        "list": [
+          {
+            "name": "bot_name",
+            "type": "query",
+            "datasource": { "type": "postgres", "uid": "FantasyFootballDB" },
+            "query": "SELECT DISTINCT bot_name FROM execution_log WHERE bot_name IS NOT NULL ORDER BY 1;",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          }
+        ]
+      },
+      "time": { "from": "now-24h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Execution Log Overview",
+      "uid": "fantasy-execution-log",
+      "version": 1,
+      "weekStart": ""
+    }

@@ -15,6 +15,8 @@ metadata:
   namespace: default
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
 data:
   fantasy-traces.json: |
     {
