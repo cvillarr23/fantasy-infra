@@ -1,0 +1,90 @@
+# Loki log panels for the fantasy bots' stdout/stderr, alongside the traces
+# dashboard. Bot identity (botName) lives inside each pino-style JSON log line,
+# not as an indexed Loki label, so panels parse it with `| json`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-bot-logs-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
+data:
+  fantasy-bot-logs.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Error Rate by Bot",
+          "description": "Count of level>=50 (error) log lines per bot.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | json | botName=~\"$bot_name\" | botName != \"\" | level >= 50 [$__interval]))"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Log Volume by Bot",
+          "description": "Total log line count per bot.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "id": 2,
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | json | botName=~\"$bot_name\" | botName != \"\" [$__interval]))"
+            }
+          ]
+        },
+        {
+          "type": "logs",
+          "title": "Bot Log Explorer",
+          "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
+          "id": 3,
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{namespace=\"default\"} | json | botName=~\"$bot_name\""
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["fantasy", "logs"],
+      "templating": {
+        "list": [
+          {
+            "name": "bot_name",
+            "type": "custom",
+            "query": "draft_clicker,trade_bot,rumor_digest_bot,lineup_bot,check_espn_session,remote_login,draft_sync",
+            "includeAll": true,
+            "multi": true,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "time": { "from": "now-6h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Fantasy Bot Logs",
+      "uid": "fantasy-bot-logs",
+      "version": 1,
+      "weekStart": ""
+    }

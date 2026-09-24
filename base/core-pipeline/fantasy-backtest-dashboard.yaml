@@ -7,6 +7,8 @@ metadata:
   namespace: default
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
 data:
   fantasy-backtest.json: |
     {
@@ -93,7 +95,8 @@ data:
       "timepicker": {},
       "timezone": "",
       "title": "Fantasy Backtest Results",
+      "description": "Currently empty - backtest_results has 0 rows, ever. Populated only by a manually-run backtest job, not expected on a normal cadence. Tracked as a fantasy-core-pipeline follow-up issue to confirm the intended schedule.",
       "uid": "fantasy-backtest-results",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }
