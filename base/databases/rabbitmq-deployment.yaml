@@ -45,9 +45,20 @@ data:
         {"name": "/"}
       ],
       "queues": [
-        {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
-        {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
-        {"name": "draft_targets", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+        {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "lineup_updates"}},
+        {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "waiver_actions"}},
+        {"name": "draft_targets", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "draft_targets"}},
+        {"name": "lineup_updates.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "waiver_actions.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "draft_targets.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+      ],
+      "exchanges": [
+        {"name": "dlx", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+      ],
+      "bindings": [
+        {"source": "dlx", "vhost": "/", "destination": "lineup_updates.dlq", "destination_type": "queue", "routing_key": "lineup_updates", "arguments": {}},
+        {"source": "dlx", "vhost": "/", "destination": "waiver_actions.dlq", "destination_type": "queue", "routing_key": "waiver_actions", "arguments": {}},
+        {"source": "dlx", "vhost": "/", "destination": "draft_targets.dlq", "destination_type": "queue", "routing_key": "draft_targets", "arguments": {}}
       ]
     }
   load_definitions.conf: |
