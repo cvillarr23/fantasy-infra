@@ -1,24 +1,12 @@
-# Temporary, draft-day-specific: keeps weekly_stats.projected_points/vorp_score current for
-# the Sept 8, 2026 draft, since neither sync_projections nor vorp_matrix has any other
-# scheduled automation (fantasy-weekly-ingestor only runs metrics_extractor, which is a no-op
-# pre-season - no games have happened yet to extract advanced metrics from). Sleeper's own
-# preseason projections and injury designations shift daily as roster news breaks, so a single
-# manual pipeline run (done once, 2026-08-20) goes stale well before draft day.
-#
-# fantasy-core-pipeline#45 tracks the actual bug this schedule works around: the OTHER weekly
-# CronJob crashes outright pre-season on its own default --year/--week resolution. This
-# CronJob avoids that entirely by always passing explicit --season/--week.
-#
-# Scope note: hardcodes season=2026/week=1 deliberately, matching src/api/draft.py's
-# DRAFT_SYNC_WEEK convention (a draft has no real "current week").
-# Suspended 2026-09-17: draft is over, and this manifest doesn't compute real per-week values.
+# Keeps weekly_stats.projected_points/vorp_score current for the ongoing season.
+# sync_projections/vorp_matrix require --season/--week with no CLI default, so this reuses
+# lineup_solver's resolve_default_week() (already proven by weekly-waiver-cronjob.yaml).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fantasy-draft-prep-refresher
   namespace: default
 spec:
-  suspend: true
   schedule: "0 5 * * *" # 5:00 AM Central, daily (timeZone below makes this expression local, not UTC), well clear of the other two ingestion CronJobs' windows
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
@@ -44,7 +32,14 @@ spec:
             - name: sync-projections
               image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
               imagePullPolicy: Always
-              command: ["python", "-m", "src.ingestion.sync_projections", "--season", "2026", "--week", "1"]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
+                  python -m src.ingestion.sync_projections --season "$CURRENT_YEAR" --week "$WEEK"
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
               env:
                 - name: DB_HOST
                   value: "fantasy-db.default.svc.cluster.local"
@@ -68,7 +63,14 @@ spec:
             - name: vorp-matrix
               image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
               imagePullPolicy: Always
-              command: ["python", "-m", "src.optimization.vorp_matrix", "--season", "2026", "--week", "1"]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
+                  python -m src.optimization.vorp_matrix --season "$CURRENT_YEAR" --week "$WEEK"
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
               env:
                 - name: DB_HOST
                   value: "fantasy-db.default.svc.cluster.local"
