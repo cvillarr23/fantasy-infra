@@ -52,6 +52,11 @@ spec:
                     secretKeyRef:
                       name: groq-api-key
                       key: groq_api_key
+                - name: GEMINI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: gemini-api-key
+                      key: gemini_api_key
                 # No ESPN_S2/SWID — unlike every other bot here, this one only touches
                 # Postgres and the LLM fallback chain, never a browser page or ESPN's API.
                 # OTLP export target for homelab-deployment's shared Tempo instance.
