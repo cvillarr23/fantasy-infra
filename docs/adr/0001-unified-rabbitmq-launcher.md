@@ -93,25 +93,20 @@ Recommendation: do not migrate `fantasy-rumor-syncer` at all under this proposal
 flowchart LR
     sched["Launcher\n(new: FastAPI endpoint\nor small Deployment)"]
 
-    sched -->|"publishes on schedule"| q1[("stale_draft_sweep")]
-    sched -->|"publishes on schedule"| q2[("status_sync")]
-    sched -->|"publishes on schedule"| q3[("lineup_updates\n(existing)")]
-    sched -->|"publishes on schedule"| q4[("rumor_action")]
+    sched -->|publish| q1[("stale_draft_sweep")]
+    sched -->|publish| q2[("status_sync")]
+    sched -->|publish| q3[("lineup_updates\n(existing)")]
+    sched -->|publish| q4[("rumor_action")]
 
-    q1 & q2 & q3 & q4 -.->|failed| dlq[("per-queue DLQ\n(existing pattern)")]
+    q1 -->|consume| w1["worker\n(KEDA ScaledJob,\nscale-to-zero)"]
+    q2 -->|consume| w1
+    q3 -->|consume| w2["lineup_bot.js\n(existing consumer)"]
+    q4 -->|consume| w1
 
-    q1 --> w1["worker\n(KEDA ScaledJob,\nscale-to-zero)"]
-    q2 --> w1
-    q3 --> w2["lineup_bot.js\n(existing consumer)"]
-    q4 --> w1
-
-    keda["KEDA rabbitmq trigger\nmode: QueueLength"] -.scales.-> w1
-
-    launcheralert["1 launcher-health alert"] -.watches.-> sched
-    laglerts["per-queue consumer-lag alerts"] -.watches.-> q1
+    keda["KEDA rabbitmq trigger\nmode: QueueLength"] -.scales 0→N.-> w1
 ```
 
-*Fig. 2 — the pilot batch collapses to one scheduler and four durable queues, each paired with the existing DLQ pattern from `rabbitmq-deployment.yaml`. Consumers scale from zero the same way `browser-worker` already does.*
+*Fig. 2 — the pilot batch's static topology: one scheduler, four durable queues, and the KEDA scale-to-zero consumers, mirroring `browser-worker`'s existing pattern. The failure/retry/DLQ path and alerting are a separate concern, shown in Fig. 3.*
 
 ### Request / Receive / Notify contract (generalized for future jobs)
 
@@ -155,9 +150,22 @@ sequenceDiagram
 | `traceparent` | W3C trace context, so the consumer's span links to the launcher's publish span in Tempo |
 | `idempotency_key` | Dedupe key (e.g. `job_type:scheduled_at`) so redelivery after a crash or requeue doesn't double-run the job |
 | `scheduled_at` | When the launcher intended this to fire — lets a consumer or dashboard detect late delivery |
-| `attempt` | Retry count; consumer increments on nack/requeue up to a max before letting the message fall through to the DLQ |
+| `attempt` | Retry count; consumer increments on nack/requeue, compared against that `job_type`'s `max_attempts` below before letting the message fall through to the DLQ |
 
 Two-phase jobs (the "needs care" bucket) fit this same envelope as either two chained messages (a phase-1 consumer publishes the phase-2 envelope on success, carrying the same `traceparent`) or a single consumer running both steps — a decision left to the follow-up implementation issue, not this ADR, since it doesn't change the contract shape above.
+
+### Error-handling policy (per job type, not per message)
+
+`attempt` is the only piece of retry *state*, and it lives on the message because it changes every redelivery. Retry *policy* — how many attempts, how long to back off, how loud to alert — is the opposite: fixed per `job_type` and identical across every message of that type. Putting it on the envelope would mean repeating the same three values on every publish and risking two in-flight messages of the same `job_type` disagreeing about their own retry policy after a mid-rollout config change. Instead it's a small static table the launcher and every consumer read by `job_type`, checked in alongside the queue/DLQ declaration:
+
+| `job_type` | `max_attempts` | `backoff_seconds` | `dlq_alert_severity` |
+|---|---|---|---|
+| `stale_draft_sweep` | 3 | 30 | warning |
+| `status_sync` | 3 | 30 | warning |
+| `lineup_updates` | 5 | 60 | critical (draft-adjacent, user-facing) |
+| `rumor_action` | 3 | 30 | warning |
+
+This is what makes the single templated DLQ-depth alert in Fig. 3 actually templated: the alert reads `dlq_alert_severity` from this same table instead of every `job_type` needing its own hand-written alert rule. Onboarding a future job type means adding one row here, not writing new alerting logic.
 
 ## Consequences
 
