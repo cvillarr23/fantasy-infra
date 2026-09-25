@@ -7,9 +7,9 @@ resources:
 - argocd-image-updater-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
-  digest: sha256:d3b926aad2ecb756a8abbfce33dfc53aced7ed1f58cbce5c81b4cdf3b7daae89
+  digest: sha256:686093a8f9309c374be35d14cda27454e3e8b05598665f1a247fc295390253fc
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:b0787c9c31af21b77b6032ca8851069624ad2b7380bdb05ca848de84d8d54a22
+  digest: sha256:b045bd32de7d6787e7a6aff50270f0937d64fdc986ec1ece606acbe2b7fff8be
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:6e9753f3defeca3f1ab589041cbb97bf8ca7f6c0d1334246e14d20509a2900fe
 # DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
