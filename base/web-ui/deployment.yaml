@@ -23,6 +23,12 @@ spec:
           ports:
             - containerPort: 80
               name: http
+          env:
+            - name: TRIGGER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trigger-api-key
+                  key: trigger-api-key
 
           livenessProbe:
             httpGet:
