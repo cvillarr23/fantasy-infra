@@ -1,4 +1,14 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fantasy-broker-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: fantasy-broker
@@ -45,9 +55,9 @@ data:
         {"name": "/"}
       ],
       "queues": [
-        {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "lineup_updates"}},
-        {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "waiver_actions"}},
-        {"name": "draft_targets", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "draft_targets"}},
+        {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "draft_targets", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "lineup_updates.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "waiver_actions.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "draft_targets.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
@@ -59,6 +69,9 @@ data:
         {"source": "dlx", "vhost": "/", "destination": "lineup_updates.dlq", "destination_type": "queue", "routing_key": "lineup_updates", "arguments": {}},
         {"source": "dlx", "vhost": "/", "destination": "waiver_actions.dlq", "destination_type": "queue", "routing_key": "waiver_actions", "arguments": {}},
         {"source": "dlx", "vhost": "/", "destination": "draft_targets.dlq", "destination_type": "queue", "routing_key": "draft_targets", "arguments": {}}
+      ],
+      "policies": [
+        {"vhost": "/", "name": "fantasy-dead-letter", "pattern": "^(lineup_updates|waiver_actions|draft_targets)$", "apply-to": "queues", "definition": {"dead-letter-exchange": "dlx"}, "priority": 10}
       ]
     }
   load_definitions.conf: |
@@ -70,8 +83,8 @@ data:
     import os
     import secrets
 
-    TEMPLATE_PATH = "/template/definitions.template.json"
-    OUTPUT_PATH = "/rendered/definitions.json"
+    TEMPLATE_PATH = os.getenv("BROKER_TEMPLATE_PATH", "/template/definitions.template.json")
+    OUTPUT_PATH = os.getenv("BROKER_DEFINITIONS_PATH", "/rendered/definitions.json")
 
     user = os.environ["RABBITMQ_DEFAULT_USER"]
     password = os.environ["RABBITMQ_DEFAULT_PASS"]
@@ -108,6 +121,8 @@ metadata:
   name: fantasy-broker
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: fantasy-broker
@@ -116,6 +131,9 @@ spec:
       labels:
         app: fantasy-broker
     spec:
+      hostname: fantasy-broker
+      securityContext:
+        fsGroup: 999
       initContainers:
         - name: render-definitions
           image: python:3.12-alpine
@@ -173,6 +191,8 @@ spec:
               memory: "512Mi"
               cpu: "1000m"
           volumeMounts:
+            - name: broker-data
+              mountPath: /var/lib/rabbitmq
             - name: rendered-definitions
               mountPath: /etc/rabbitmq/definitions.json
               subPath: definitions.json
@@ -180,6 +200,9 @@ spec:
               mountPath: /etc/rabbitmq/conf.d/20-load_definitions.conf
               subPath: load_definitions.conf
       volumes:
+        - name: broker-data
+          persistentVolumeClaim:
+            claimName: fantasy-broker-data
         - name: broker-definitions
           configMap:
             name: fantasy-broker-definitions
