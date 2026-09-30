@@ -51,6 +51,11 @@ spec:
                   value: "fantasy-cache.default.svc.cluster.local"
                 - name: REDIS_PORT
                   value: "6379"
+                # Real in-cluster service DNS -- sweep_stale_draft_jobs.py's own
+                # CORE_API_BASE_URL default (fantasy-api.core...) doesn't resolve, so the
+                # teardown call failed; same override as the lineup/waiver CronJobs.
+                - name: CORE_API_BASE_URL
+                  value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
                 # OTLP export target for homelab-deployment's shared Tempo instance
                 # (homelab-deployment#5/#6) -- endpoint + service name only, actual
                 # span emission is CORE-12.
