@@ -1,0 +1,95 @@
+# Fires when a watched CronJob is more than 2h past its expected run and the
+# controller never started it (fantasy-infra#97). kube-state-metrics computes
+# kube_cronjob_next_schedule_time from the CronJob's schedule *and* spec.timeZone
+# (America/Chicago here), and it only advances once a run is scheduled. So a
+# skipped Tuesday 04:00 Central run leaves it in the past, and this fires around
+# 06:00 Central. There's no hardcoded UTC hour, so it holds across DST changes.
+# A suspended CronJob also fires; the summary says so.
+#
+# Period-agnostic: to cover another CronJob (fantasy-infra#75), add it to the
+# cronjob regex in all three queries (adjust the 7200s grace if needed).
+# Runbook: docs/cronjob-alerts.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-cronjob-missed-schedule-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  fantasy-cronjob-missed-schedule.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: fantasy-cronjob-missed-schedule
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: fantasy-cronjob-missed-schedule
+            title: Fantasy CronJob missed its scheduled run
+            condition: C
+            for: 0m
+            # No kube-state-metrics data means a missed run can't be ruled out.
+            noDataState: Alerting
+            execErrState: Error
+            annotations:
+              summary: >-
+                CronJob {{ $labels.cronjob }} did not run: expected
+                {{ humanizeDuration $values.B.Value }} ago. Last successful run
+                {{ humanizeTimestamp $values.E.Value }}; suspended={{ $values.G.Value }}.
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#fantasy-cronjob-missed-its-scheduled-run
+            data:
+              # Seconds since the run kube-state-metrics expected next.
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    time() - max by (exported_namespace, cronjob) (
+                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-lineup-optimizer"}
+                    )
+                  instant: true
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [7200]}
+              # Context only, for the summary.
+              - refId: D
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    max by (exported_namespace, cronjob) (
+                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-lineup-optimizer"}
+                    )
+                  instant: true
+              - refId: E
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: D
+                  reducer: last
+              - refId: F
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    max by (exported_namespace, cronjob) (
+                      kube_cronjob_spec_suspend{cronjob=~"fantasy-lineup-optimizer"}
+                    )
+                  instant: true
+              - refId: G
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: F
+                  reducer: last

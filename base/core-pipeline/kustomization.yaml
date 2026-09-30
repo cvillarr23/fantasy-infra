@@ -17,4 +17,5 @@ resources:
   - fantasy-bot-decisions-dashboard.yaml
   - fantasy-execution-log-dashboard.yaml
   - fantasy-bot-logs-dashboard.yaml
+  - fantasy-cronjob-health-dashboard.yaml
   - rbac.yaml

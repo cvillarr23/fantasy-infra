@@ -1,0 +1,136 @@
+# promtool unit tests for base/telemetry's alert rules; run via ./run.sh, which
+# renders rules.yaml from the committed ConfigMaps (see render_rules.py).
+# Series use real epochs: the optimizer is "0 4 * * 2" in America/Chicago, i.e.
+# 2026-09-29 and 2026-10-06 at 09:00 UTC (CDT) but 2026-11-03 at 10:00 UTC (CST).
+# kube_job_created's value is the creation time; next_schedule_time is what
+# kube-state-metrics reports (it applies spec.timeZone). As on the live cluster, a
+# succeeded Job has no kube_job_failed{condition="true"} series at all.
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+
+tests:
+  # Healthy week. The latest optimizer and ingestor Jobs succeeded and the next runs are
+  # scheduled. The ingestor also has an older failed Job still in failedJobsHistoryLimit
+  # (mirrors the live fantasy-weekly-ingestor-29814240), which must not fire. A zero-swap
+  # "already optimal" run produces exactly these series; kube-state-metrics has no swap
+  # count, so it can't alert.
+  - name: success and zero-swap no-op do not alert
+    interval: 1m
+    start_timestamp: 1790673000 # 2026-09-29 09:10 UTC, after both runs
+    input_series:
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-lineup-optimizer-29834460", owner_kind="CronJob", owner_name="fantasy-lineup-optimizer"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-lineup-optimizer-29834460"}'
+        values: '1790067600x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-lineup-optimizer-29844540", owner_kind="CronJob", owner_name="fantasy-lineup-optimizer"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-lineup-optimizer-29844540"}'
+        values: '1790672400x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-ingestor-29814240", owner_kind="CronJob", owner_name="fantasy-weekly-ingestor"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-ingestor-29814240"}'
+        values: '1788854400x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-weekly-ingestor-29814240", condition="true"}'
+        values: '1x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-ingestor-29844480", owner_kind="CronJob", owner_name="fantasy-weekly-ingestor"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-ingestor-29844480"}'
+        values: '1790668800x10'
+      - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
+        values: '1791277200x10'
+      - series: 'kube_cronjob_status_last_successful_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
+        values: '1790672409x10'
+      - series: 'kube_cronjob_status_last_successful_time{exported_namespace="default", cronjob="fantasy-weekly-ingestor"}'
+        values: '1790668813x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: fantasy-cronjob-job-failed
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts: []
+    promql_expr_test:
+      # The failed alert's "last successful run" context joins on owner_name.
+      - expr: grafana_context:fantasy_cronjob_job_failed:D
+        eval_time: 5m
+        exp_samples:
+          - labels: 'grafana_context:fantasy_cronjob_job_failed:D{exported_namespace="default", owner_name="fantasy-lineup-optimizer"}'
+            value: 1790672409
+          - labels: 'grafana_context:fantasy_cronjob_job_failed:D{exported_namespace="default", owner_name="fantasy-weekly-ingestor"}'
+            value: 1790668813
+
+  # The latest optimizer and ingestor Jobs both failed (for the optimizer, e.g. missing
+  # input after fantasy-core-pipeline#178). Each fires with its Job name. A failed
+  # CronJob outside the watched set doesn't fire. The runs did happen, so the next
+  # schedule advanced and "missed" stays quiet: failed and missed are separate states.
+  - name: latest Job failed alerts per CronJob
+    interval: 1m
+    start_timestamp: 1790673000
+    input_series:
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-lineup-optimizer-29834460", owner_kind="CronJob", owner_name="fantasy-lineup-optimizer"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-lineup-optimizer-29834460"}'
+        values: '1790067600x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-lineup-optimizer-29844540", owner_kind="CronJob", owner_name="fantasy-lineup-optimizer"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-lineup-optimizer-29844540"}'
+        values: '1790672400x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-lineup-optimizer-29844540", condition="true"}'
+        values: '1x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-ingestor-29844480", owner_kind="CronJob", owner_name="fantasy-weekly-ingestor"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-ingestor-29844480"}'
+        values: '1790668800x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-weekly-ingestor-29844480", condition="true"}'
+        values: '1x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-rumor-syncer-29844550", owner_kind="CronJob", owner_name="fantasy-rumor-syncer"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-rumor-syncer-29844550"}'
+        values: '1790673000x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-rumor-syncer-29844550", condition="true"}'
+        values: '1x10'
+      - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
+        values: '1791277200x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: fantasy-cronjob-job-failed
+        exp_alerts:
+          - exp_labels: {exported_namespace: default, owner_name: fantasy-lineup-optimizer, job_name: fantasy-lineup-optimizer-29844540}
+          - exp_labels: {exported_namespace: default, owner_name: fantasy-weekly-ingestor, job_name: fantasy-weekly-ingestor-29844480}
+      - eval_time: 5m
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts: []
+
+  # Missed run in CDT. The 2026-10-06 04:00 Central Job was never created, so
+  # next_schedule_time stays at 09:00 UTC. Quiet within the 2h grace, fires after it.
+  - name: missed Tuesday run alerts after 2h grace (CDT)
+    interval: 1m
+    start_timestamp: 1791277200 # 2026-10-06 09:00 UTC = 04:00 CDT
+    input_series:
+      - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
+        values: '1791277200x180'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts: []
+      - eval_time: 125m
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts:
+          - exp_labels: {exported_namespace: default, cronjob: fantasy-lineup-optimizer}
+
+  # Missed run after the 2026-11-01 DST change: 04:00 CST is 10:00 UTC. At 11:05 UTC,
+  # a rule that assumed 09:00 UTC would already fire; this one waits until after 12:00 UTC.
+  - name: missed Tuesday run follows America/Chicago across DST (CST)
+    interval: 1m
+    start_timestamp: 1793696400 # 2026-11-03 09:00 UTC = 03:00 CST
+    input_series:
+      - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
+        values: '1793700000x240'
+    alert_rule_test:
+      - eval_time: 125m # 11:05 UTC
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts: []
+      - eval_time: 185m # 12:05 UTC
+        alertname: fantasy-cronjob-missed-schedule
+        exp_alerts:
+          - exp_labels: {exported_namespace: default, cronjob: fantasy-lineup-optimizer}

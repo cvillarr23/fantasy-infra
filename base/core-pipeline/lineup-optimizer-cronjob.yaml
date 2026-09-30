@@ -9,7 +9,7 @@ metadata:
   name: fantasy-lineup-optimizer
   namespace: default
 spec:
-  schedule: "0 4 * * 2" # 5:00 AM Central, every Tuesday (America/Chicago local time below)
+  schedule: "0 4 * * 2" # 4:00 AM Central, every Tuesday (America/Chicago local time below)
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
