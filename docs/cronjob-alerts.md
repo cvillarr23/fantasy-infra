@@ -6,6 +6,7 @@ Grafana alert rules for the weekly lineup automation ([#97](https://github.com/c
 |---|---|---|
 | `fantasy-weekly-ingestor` | `0 3 * * 2`, Tuesday 03:00 | latest Job failed |
 | `fantasy-lineup-optimizer` | `30 5 * * 2`, Tuesday 05:30 | latest Job failed, missed scheduled run |
+| `fantasy-weekly-waiver-trigger` | `0 6 * * 2`, Tuesday 06:00 | latest Job failed |
 
 The optimizer's main input is the upcoming week's `vorp_score`, written by `fantasy-draft-prep-refresher` (daily 05:00), so it runs 30 minutes after that. If those rows are missing it falls back to prior weeks' rows, and it fails the Job when last week's rows are missing too (fantasy-core-pipeline#178). So a failed optimizer run usually traces back to that morning's refresher, or last week's.
 
@@ -33,8 +34,10 @@ Fires for the newest Job of each watched CronJob only. Older failures still kept
    kubectl logs job/<job_name> -n default -c sync-league
    ```
    The Job's pods may already be gone. In that case use Loki: `{namespace="default", pod=~"<job_name>-.*"}`, or the dashboard's log panel for the optimizer.
-2. If the ingestor failed, expect the optimizer run an hour later to fail or run on stale data too.
-3. Fix the cause, then either wait for next Tuesday's run or re-run it by hand (`kubectl create job --from=cronjob/<name> ...`). A manual re-run changes the cluster and publishes real lineup actions, so it's your call, not part of this check.
+2. Check what each failure depends on:
+   - **Optimizer and waiver trigger** (`… cannot evaluate Team … Season … Week …: <reason>`): both read the target week's `vorp_score` from that morning's `fantasy-draft-prep-refresher` (05:00). Check its latest Job first. The waiver trigger has no prior-week fallback, so a missing or failed refresh fails it directly (`no bench or free-agent players with weekly_stats rows …`).
+   - **Ingestor:** its play-by-play metrics don't feed either Tuesday decision directly, but a missing week leaves gaps in `weekly_stats` history.
+3. Fix the cause, then either wait for next Tuesday's run or re-run it by hand (`kubectl create job --from=cronjob/<name> ...`). A manual re-run changes the cluster and publishes real lineup or waiver actions, so it's your call, not part of this check.
 
 ## Fantasy CronJob missed its scheduled run
 
@@ -49,8 +52,8 @@ Fires for the newest Job of each watched CronJob only. Older failures still kept
 The CronJobs and their recent Jobs, newest last:
 
 ```bash
-kubectl get cronjob fantasy-lineup-optimizer fantasy-weekly-ingestor -n default -o wide
-kubectl get jobs -n default --sort-by=.metadata.creationTimestamp | grep -E 'lineup-optimizer|weekly-ingestor'
+kubectl get cronjob fantasy-lineup-optimizer fantasy-weekly-ingestor fantasy-weekly-waiver-trigger -n default -o wide
+kubectl get jobs -n default --sort-by=.metadata.creationTimestamp | grep -E 'lineup-optimizer|weekly-ingestor|weekly-waiver-trigger'
 ```
 
 Job names end in the scheduled minute since the Unix epoch. For example, `fantasy-lineup-optimizer-29844540` × 60 = 2026-09-29 09:00 UTC = 04:00 CDT.
@@ -68,16 +71,16 @@ Individual inputs:
 
 ```promql
 # When each CronJob last ran, last succeeded, and will next run (unix seconds)
-kube_cronjob_status_last_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor"}
-kube_cronjob_status_last_successful_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor"}
-kube_cronjob_next_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor"}
+kube_cronjob_status_last_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
+kube_cronjob_status_last_successful_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
+kube_cronjob_next_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
 
 # Seconds overdue; the missed-run alert fires above 7200
 time() - kube_cronjob_next_schedule_time{cronjob="fantasy-lineup-optimizer"}
 
 # Failed Jobs still in history, per CronJob; the alert only counts the newest Job
 kube_job_failed{condition="true"} == 1
-  and on (exported_namespace, job_name) kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor"}
+  and on (exported_namespace, job_name) kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
 ```
 
 `exported_namespace` is the object's namespace; `namespace` is where kube-state-metrics itself runs. Prometheus here keeps only about a week of data, so older runs are only visible through `kubectl` and Loki.
