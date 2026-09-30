@@ -135,3 +135,57 @@ tests:
         alertname: fantasy-cronjob-missed-schedule
         exp_alerts:
           - exp_labels: {exported_namespace: default, cronjob: fantasy-lineup-optimizer}
+
+  # fantasy-infra#101: the waiver trigger exits 1 on empty target-week pools
+  # (fantasy-core-pipeline#181). Its latest Job (2026-10-06 06:00 CDT = 11:00 UTC) failed,
+  # so it fires. The older failed 2026-09-29 04:30 Job is not the latest, so it doesn't
+  # fire on its own.
+  - name: latest waiver trigger Job failed alerts
+    interval: 1m
+    start_timestamp: 1791285000 # 2026-10-06 11:10 UTC
+    input_series:
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570", owner_kind="CronJob", owner_name="fantasy-weekly-waiver-trigger"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570"}'
+        values: '1790674200x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570", condition="true"}'
+        values: '1x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29854740", owner_kind="CronJob", owner_name="fantasy-weekly-waiver-trigger"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29854740"}'
+        values: '1791284400x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29854740", condition="true"}'
+        values: '1x10'
+      - series: 'kube_cronjob_status_last_successful_time{exported_namespace="default", cronjob="fantasy-weekly-waiver-trigger"}'
+        values: '1790069409x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: fantasy-cronjob-job-failed
+        exp_alerts:
+          - exp_labels: {exported_namespace: default, owner_name: fantasy-weekly-waiver-trigger, job_name: fantasy-weekly-waiver-trigger-29854740}
+    promql_expr_test:
+      - expr: grafana_context:fantasy_cronjob_job_failed:D
+        eval_time: 5m
+        exp_samples:
+          - labels: 'grafana_context:fantasy_cronjob_job_failed:D{exported_namespace="default", owner_name="fantasy-weekly-waiver-trigger"}'
+            value: 1790069409
+
+  # An older failed waiver Job followed by a successful one doesn't fire.
+  - name: waiver trigger recovered after an older failure does not alert
+    interval: 1m
+    start_timestamp: 1791285000
+    input_series:
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570", owner_kind="CronJob", owner_name="fantasy-weekly-waiver-trigger"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570"}'
+        values: '1790674200x10'
+      - series: 'kube_job_failed{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29844570", condition="true"}'
+        values: '1x10'
+      - series: 'kube_job_owner{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29854740", owner_kind="CronJob", owner_name="fantasy-weekly-waiver-trigger"}'
+        values: '1x10'
+      - series: 'kube_job_created{exported_namespace="default", job_name="fantasy-weekly-waiver-trigger-29854740"}'
+        values: '1791284400x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: fantasy-cronjob-job-failed
+        exp_alerts: []
