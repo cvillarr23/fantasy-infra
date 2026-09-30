@@ -18,14 +18,22 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      backoffLimit: 1
+      # fantasy-infra#110: each retry is a fresh pod (restartPolicy: Never below). Under
+      # OnFailure, container restarts count toward backoffLimit, so backoffLimit: 1 failed the
+      # Job - and killed the pod - on its first restart, even when that retry succeeded
+      # (fantasy-lineup-optimizer-manual-202609301623). Never also keeps failed pods, and
+      # their logs, until history cleanup. Retrying the whole optimizer is only safe because
+      # /v1/trigger/lineup dedupes on an idempotency key scoped to JOB_NAME
+      # (fantasy-core-pipeline#189). An insufficient-input exit (#178) just fails the same way
+      # 3 times, a minute or so later.
+      backoffLimit: 2
       template:
         metadata:
           labels:
             app: fantasy-core-pipeline
             component: lineup-optimizer
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           imagePullSecrets:
             - name: ghcr-pull-secret
           containers:
@@ -37,6 +45,12 @@ spec:
                 - configMapRef:
                     name: fantasy-league-config
               env:
+                # Scopes lineup_solver's idempotency key to this Job: pod retries within it
+                # dedupe, and every new scheduled or manual Job still publishes.
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['batch.kubernetes.io/job-name']
                 - name: DB_HOST
                   value: "fantasy-db.default.svc.cluster.local"
                 - name: DB_NAME
