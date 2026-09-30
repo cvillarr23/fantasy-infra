@@ -11,5 +11,10 @@ spec:
       targetPort: 8000
       protocol: TCP
       name: http
+  # Not app alone: every core-pipeline CronJob pod (lineup, waiver, sweeper, ...) also
+  # carries app=fantasy-core-pipeline and counts as Ready while running (no probes), so it
+  # joined this Service's endpoints and a CronJob calling /v1/* could be routed to itself
+  # and get "Connection refused" on :8000.
   selector:
     app: fantasy-core-pipeline
+    component: gateway
