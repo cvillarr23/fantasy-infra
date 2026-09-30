@@ -18,6 +18,10 @@ spec:
             app: fantasy-core-pipeline
             component: stale-draft-job-sweeper
         spec:
+          # The sweeper lists and deletes draft Jobs; without this it ran as the
+          # `default` SA and every run died on a 403 listing jobs.batch. The
+          # draft-sync-orchestrator Role (jobs get/list/delete) is bound to this SA.
+          serviceAccountName: fantasy-core-pipeline
           restartPolicy: OnFailure
           imagePullSecrets:
             - name: ghcr-pull-secret
