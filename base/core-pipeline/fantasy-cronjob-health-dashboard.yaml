@@ -265,7 +265,7 @@ data:
                 "type": "loki",
                 "uid": "loki"
               },
-              "expr": "{namespace=\"default\", container=\"lineup-optimizer\"} |~ \"Lineup already optimal|Published [0-9]+ lineup swap|No active roster metrics|Traceback|ERROR\""
+              "expr": "{namespace=\"default\", container=\"lineup-optimizer\"} |~ \"Lineup already optimal|Published [0-9]+ lineup swap|Evaluating Team|cannot evaluate|Traceback|ERROR\""
             }
           ],
           "options": {

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# >= 3.15 for test groups' start_timestamp (real Tuesday 04:00 America/Chicago epochs).
+# >= 3.15 for test groups' start_timestamp (real Tuesday America/Chicago epochs).
 IMAGE="${PROMTOOL_IMAGE:-prom/prometheus:v3.15.0}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
