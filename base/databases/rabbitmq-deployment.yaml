@@ -134,6 +134,10 @@ spec:
       hostname: fantasy-broker
       securityContext:
         fsGroup: 999
+        # Only re-chown/chmod the volume when its root doesn't already match, instead of
+        # recursively on every mount (#103). Belt-and-braces: the cookie is no longer on
+        # the volume at all (see the broker-data mount below).
+        fsGroupChangePolicy: OnRootMismatch
       initContainers:
         - name: render-definitions
           image: python:3.12-alpine
@@ -191,8 +195,16 @@ spec:
               memory: "512Mi"
               cpu: "1000m"
           volumeMounts:
+            # Persist only the data directory, not all of /var/lib/rabbitmq (#103). That
+            # directory also holds .erlang.cookie, which RabbitMQ refuses to use unless it
+            # is owner-only - and kubelet's fsGroup pass adds group rw to everything on the
+            # volume, so every boot after the first crashed at prelaunch. subPath "mnesia"
+            # is exactly where the old whole-directory mount kept its data, so existing
+            # queued messages carry over. The cookie now lives in the container filesystem,
+            # which is fine for this single-node broker (only in-pod rabbitmqctl uses it).
             - name: broker-data
-              mountPath: /var/lib/rabbitmq
+              mountPath: /var/lib/rabbitmq/mnesia
+              subPath: mnesia
             - name: rendered-definitions
               mountPath: /etc/rabbitmq/definitions.json
               subPath: definitions.json
