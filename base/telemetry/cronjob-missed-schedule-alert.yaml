@@ -2,8 +2,8 @@
 # controller never started it (fantasy-infra#97). kube-state-metrics computes
 # kube_cronjob_next_schedule_time from the CronJob's schedule *and* spec.timeZone
 # (America/Chicago here), and it only advances once a run is scheduled. So a
-# skipped Tuesday 04:00 Central run leaves it in the past, and this fires around
-# 06:00 Central. There's no hardcoded UTC hour, so it holds across DST changes.
+# skipped Tuesday 05:30 Central run leaves it in the past, and this fires around
+# 07:30 Central. There's no hardcoded UTC hour, so it holds across DST changes.
 # A suspended CronJob also fires; the summary says so.
 #
 # Period-agnostic: to cover another CronJob (fantasy-infra#75), add it to the

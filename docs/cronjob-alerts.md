@@ -5,9 +5,9 @@ Grafana alert rules for the weekly lineup automation ([#97](https://github.com/c
 | CronJob | Schedule (`America/Chicago`) | Alerts |
 |---|---|---|
 | `fantasy-weekly-ingestor` | `0 3 * * 2`, Tuesday 03:00 | latest Job failed |
-| `fantasy-lineup-optimizer` | `0 4 * * 2`, Tuesday 04:00 | latest Job failed, missed scheduled run |
+| `fantasy-lineup-optimizer` | `30 5 * * 2`, Tuesday 05:30 | latest Job failed, missed scheduled run |
 
-The optimizer runs an hour after the ingestor and reads the data the ingestor wrote, so an ingestor failure usually explains a bad optimizer run the same morning.
+The optimizer's main input is the upcoming week's `vorp_score`, written by `fantasy-draft-prep-refresher` (daily 05:00), so it runs 30 minutes after that. If those rows are missing it falls back to prior weeks' rows, and it fails the Job when last week's rows are missing too (fantasy-core-pipeline#178). So a failed optimizer run usually traces back to that morning's refresher, or last week's.
 
 ## Three states, and which ones alert
 
@@ -19,7 +19,7 @@ The optimizer runs an hour after the ingestor and reads the data the ingestor wr
 
 A successful optimizer run that publishes **zero swaps** is the "Succeeded" state: the lineup was already optimal. It never alerts. The logs show which kind of success it was: `Lineup already optimal for Team …` means no swaps; `Published N lineup swap(s) …` means it acted.
 
-Missing optimizer input (`No active roster metrics found …`) only shows up as a **Failed Job** once [fantasy-core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178) ships. Before that, the optimizer logs the error and exits 0. That is the silent 2026-09-22 and 2026-09-29 runs these alerts exist for.
+Missing optimizer input shows up as a **Failed Job** since [fantasy-core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178): the optimizer logs `Lineup optimizer cannot evaluate Team … Season … Week …: <reason>` and exits 1. Before that it logged `No active roster metrics found …` and exited 0: the silent 2026-09-22 and 2026-09-29 runs these alerts exist for. Every run also logs `Evaluating Team … from weekly_stats.vorp_score (<mode>, …)`, which shows whether it used the target week's projections or fell back to prior weeks.
 
 ## Fantasy CronJob latest Job failed
 
