@@ -250,7 +250,134 @@ initializeQueueConsumer(async (queue, payload) => {
             )
 
 
+def broker_pod_storage():
+    """The rabbitmq container's broker-data mount plus the pod-level settings that shape it,
+    as rendered for production - so the restart scenario tests what Argo CD would apply."""
+    manifests = yaml.safe_load_all(
+        command("kubectl", "kustomize", str(ROOT / "overlays/production"))
+    )
+    deployment = next(
+        item
+        for item in manifests
+        if item.get("kind") == "Deployment"
+        and item.get("metadata", {}).get("name") == "fantasy-broker"
+    )
+    spec = deployment["spec"]["template"]["spec"]
+    rabbitmq = next(c for c in spec["containers"] if c["name"] == "rabbitmq")
+    mount = next(m for m in rabbitmq["volumeMounts"] if m["name"] == "broker-data")
+    return {
+        "mount_path": mount["mountPath"],
+        "sub_path": mount.get("subPath"),
+        "hostname": spec["hostname"],
+        "fs_group": spec.get("securityContext", {}).get("fsGroup"),
+    }
+
+
+def apply_fs_group(volume, fs_group):
+    """What kubelet does to the whole volume on every mount under fsGroup with the default
+    fsGroupChangePolicy: group-own everything, add group rw, setgid directories."""
+    if fs_group is None:
+        return
+    command(
+        "docker", "run", "--rm", "-v", f"{volume}:/data", "alpine:3", "sh", "-c",
+        f"chgrp -R {fs_group} /data && chmod -R g+rwX /data"
+        " && find /data -type d -exec chmod g+s {} +",
+    )
+
+
+def exercise_restart(migrate=False):
+    """fantasy-infra#103: the first boot on a fresh PVC always passed, but kubelet re-applied
+    fsGroup on the next mount, left .erlang.cookie group-readable, and RabbitMQ refused to
+    start ever again. Boot, persist a message, restart through a simulated fsGroup pass, and
+    require the broker to come back with the message.
+
+    migrate=True makes the first boot use the pre-#103 layout (all of /var/lib/rabbitmq on
+    the volume), so the second boot proves the live PVC's queued messages carry over."""
+    storage = broker_pod_storage()
+    first = (
+        {**storage, "mount_path": "/var/lib/rabbitmq", "sub_path": None}
+        if migrate
+        else storage
+    )
+    with tempfile.TemporaryDirectory(prefix="fantasy-issue-103-") as scratch:
+        directory = Path(scratch)
+        rendered_definitions(directory)
+        volume = f"fantasy-issue-103-{uuid.uuid4().hex[:10]}"
+        command("docker", "volume", "create", volume)
+
+        def mount_for(layout):
+            mount = f"type=volume,src={volume},dst={layout['mount_path']}"
+            if layout["sub_path"]:
+                # kubelet creates a missing subPath directory; docker requires it to exist.
+                command(
+                    "docker", "run", "--rm", "-v", f"{volume}:/data", "alpine:3",
+                    "mkdir", "-p", f"/data/{layout['sub_path']}",
+                )
+                mount += f",volume-subpath={layout['sub_path']}"
+            return mount
+
+        def boot(layout):
+            mount = mount_for(layout)
+            apply_fs_group(volume, layout["fs_group"])
+            container = f"fantasy-issue-103-{uuid.uuid4().hex[:10]}"
+            containers.append(container)
+            # No --rm: a broker that crashes at boot must stay around for `docker logs`.
+            command(
+                "docker", "run", "-d", "--name", container,
+                "--hostname", layout["hostname"],
+                "-p", "127.0.0.1::5672",
+                "--mount", mount,
+                "-v", f"{directory / 'definitions.json'}:/etc/rabbitmq/definitions.json:ro",
+                "-v", f"{directory / 'load_definitions.conf'}:/etc/rabbitmq/conf.d/20-load_definitions.conf:ro",
+                "rabbitmq:3-management-alpine",
+            )
+            try:
+                port = command("docker", "port", container, "5672/tcp").rsplit(":", 1)[1]
+                return container, wait_for_connection(
+                    f"amqp://contract:{PASSWORD}@127.0.0.1:{port}/%2f"
+                )
+            except Exception as error:
+                logs = subprocess.run(
+                    ["docker", "logs", container], capture_output=True, text=True
+                )
+                raise AssertionError(
+                    f"broker boot #{len(containers)} did not come up: {error}\n"
+                    f"{(logs.stdout + logs.stderr)[-1500:]}"
+                ) from error
+
+        containers = []
+        try:
+            container, broker = boot(first)
+            channel = broker.channel()
+            channel.confirm_delivery()
+            channel.basic_publish(
+                exchange="",
+                routing_key="waiver_actions",
+                body=json.dumps({"player_id": "survives-restart"}),
+                properties=pika.BasicProperties(delivery_mode=2),
+            )
+            broker.close()
+            command("docker", "stop", container)
+
+            container, broker = boot(storage)
+            method, _, body = broker.channel().basic_get(
+                queue="waiver_actions", auto_ack=True
+            )
+            assert method is not None, "persisted message was lost across the restart"
+            assert json.loads(body)["player_id"] == "survives-restart"
+            broker.close()
+        finally:
+            for name in containers:
+                subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
+            subprocess.run(["docker", "volume", "rm", "-f", volume], capture_output=True, check=False)
+
+
 if __name__ == "__main__":
-    for name in ("fresh", "existing", "existing_args"):
-        exercise(name)
-        print(f"{name}: normal delivery and dead-letter routing passed", flush=True)
+    selected = sys.argv[1:] or ["fresh", "existing", "existing_args", "restart", "migrate"]
+    for name in selected:
+        if name in ("restart", "migrate"):
+            exercise_restart(migrate=name == "migrate")
+            print(f"{name}: broker survived an fsGroup remount with its data", flush=True)
+        else:
+            exercise(name)
+            print(f"{name}: normal delivery and dead-letter routing passed", flush=True)
