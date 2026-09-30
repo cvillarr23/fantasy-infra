@@ -6,6 +6,10 @@ metadata:
     app: fantasy-web-ui
 spec:
   type: ClusterIP
+  # Pinned: homelab-deployment's cloudflared tunnel (fantasy.roo-net.cc, apps/cloudflared/)
+  # runs hostNetwork with the node's resolv.conf, so it can't resolve cluster DNS and
+  # routes to this IP directly. Changing it breaks that route - update both together.
+  clusterIP: 10.152.183.104
   ports:
     - port: 80
       targetPort: 80
