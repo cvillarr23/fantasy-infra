@@ -1,0 +1,323 @@
+# CronJob run state for the fantasy-infra#97 alerts (base/telemetry/): tells a missed
+# schedule, a failed Job and a successful run apart. The log panel separates a successful
+# zero-swap optimizer run ("already optimal") from one that published swaps.
+# Same sidecar discovery as the other dashboards here (grafana_dashboard: "1").
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-cronjob-health-grafana-dashboard
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Fantasy
+data:
+  fantasy-cronjob-health.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [
+        {
+          "title": "Runbook",
+          "type": "link",
+          "targetBlank": true,
+          "url": "https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md"
+        }
+      ],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "table",
+          "title": "CronJob run state",
+          "id": 1,
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "description": "One row per CronJob, using the same PromQL as the base/telemetry alert rules. Missed schedule: the next expected run is more than 2h overdue and no Job was created. Failed Job: the latest Job failed. Succeeded: the latest Job completed; for the optimizer that includes zero-swap \"already optimal\" runs, which are told apart in the log panel below. Runbook: docs/cronjob-alerts.md.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob) (time() - kube_cronjob_next_schedule_time{cronjob=~\"$cronjob\"} > bool 7200) * 2 + on (cronjob) max by (cronjob) (label_replace((((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0 + on (exported_namespace, job_name) group_left () kube_job_failed{condition=\"true\"}) or (((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0), \"cronjob\", \"$1\", \"owner_name\", \"(.*)\"))",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob, job_name) (label_replace(((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))), \"cronjob\", \"$1\", \"owner_name\", \"(.*)\")) * 1000",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob) (kube_cronjob_status_last_schedule_time{cronjob=~\"$cronjob\"}) * 1000",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "refId": "D",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob) (kube_cronjob_status_last_successful_time{cronjob=~\"$cronjob\"}) * 1000",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "refId": "E",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob) (kube_cronjob_next_schedule_time{cronjob=~\"$cronjob\"}) * 1000",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "refId": "F",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (cronjob) (kube_cronjob_status_active{cronjob=~\"$cronjob\"})",
+              "instant": true,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "cronjob": 0,
+                  "Value #A": 1,
+                  "job_name": 2,
+                  "Value #B": 3,
+                  "Value #C": 4,
+                  "Value #D": 5,
+                  "Value #E": 6,
+                  "Value #F": 7
+                },
+                "renameByName": {
+                  "cronjob": "CronJob",
+                  "Value #A": "State",
+                  "job_name": "Latest Job",
+                  "Value #B": "Latest Job created",
+                  "Value #C": "Last scheduled",
+                  "Value #D": "Last successful",
+                  "Value #E": "Next expected",
+                  "Value #F": "Active Jobs"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "State"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Succeeded",
+                            "color": "green",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "Failed Job",
+                            "color": "red",
+                            "index": 1
+                          },
+                          "2": {
+                            "text": "Missed schedule",
+                            "color": "orange",
+                            "index": 2
+                          },
+                          "3": {
+                            "text": "Missed schedule (last Job failed)",
+                            "color": "orange",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Latest Job created"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Last scheduled"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Last successful"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Next expected"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true
+          }
+        },
+        {
+          "type": "logs",
+          "title": "Lineup optimizer outcome (no-op vs swaps vs missing input)",
+          "id": 2,
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 8
+          },
+          "description": "A successful optimizer Job either published swaps (\"Published N lineup swap(s)\") or found the lineup already optimal (\"Lineup already optimal\"). Neither is an alert. \"No active roster metrics\" is missing input, which fails the Job once fantasy-core-pipeline#178 ships.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{namespace=\"default\", container=\"lineup-optimizer\"} |~ \"Lineup already optimal|Published [0-9]+ lineup swap|No active roster metrics|Traceback|ERROR\""
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending"
+          }
+        }
+      ],
+      "refresh": "5m",
+      "schemaVersion": 39,
+      "tags": [
+        "fantasy",
+        "cronjob"
+      ],
+      "templating": {
+        "list": [
+          {
+            "name": "cronjob",
+            "label": "CronJob",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "query": {
+              "query": "label_values(kube_cronjob_info{exported_namespace=\"default\"}, cronjob)",
+              "refId": "cronjob"
+            },
+            "definition": "label_values(kube_cronjob_info{exported_namespace=\"default\"}, cronjob)",
+            "multi": true,
+            "includeAll": false,
+            "refresh": 1,
+            "current": {
+              "text": [
+                "fantasy-lineup-optimizer",
+                "fantasy-weekly-ingestor"
+              ],
+              "value": [
+                "fantasy-lineup-optimizer",
+                "fantasy-weekly-ingestor"
+              ]
+            }
+          }
+        ]
+      },
+      "time": {
+        "from": "now-14d",
+        "to": "now"
+      },
+      "timezone": "America/Chicago",
+      "title": "Fantasy CronJob Health",
+      "uid": "fantasy-cronjob-health",
+      "version": 1
+    }

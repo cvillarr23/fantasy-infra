@@ -16,7 +16,7 @@ This is one of three repos that make up the platform:
 - Secrets are never committed in cleartext — they're materialized via `ExternalSecret` from the shared OpenBao `ClusterSecretStore` (see `overlays/production/externalsecrets.yaml`). Any manifest introducing a credential/token/API key must go through that path, not a plain `Secret` with inline `data`/`stringData`.
 - Playwright worker pods scale via KEDA off queue depth and are expected to scale to zero when idle — don't suggest a fixed `replicas` count or a plain `Deployment` for that workload without checking whether it should stay a KEDA-scaled resource.
 - Postgres/TimescaleDB needs a real PVC — don't suggest `emptyDir` or removing volume claims for stateful services.
-- Grafana dashboards for this pipeline are provisioned from `homelab-deployment/apps/telemetry/`, not from this repo — a PR adding dashboard JSON here is out of place (see `homelab-deployment#1` for the tracked follow-up to change that).
+- Grafana dashboards (`grafana_dashboard: "1"`) and alert rules (`grafana_alert: "1"`, `base/telemetry/`) are ConfigMaps in this repo, loaded by sidecars in homelab-deployment's Grafana; datasources are still provisioned in `homelab-deployment/apps/telemetry/`. Alert rule changes must keep `./tests/cronjob_alerts/run.sh` passing (runbook: `docs/cronjob-alerts.md`).
 
 ## Critical Environment Variables (fantasy-core-pipeline)
 

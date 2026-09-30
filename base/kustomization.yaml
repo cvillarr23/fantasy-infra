@@ -7,3 +7,4 @@ resources:
   - web-ui
   - oauth2-proxy
   - argocd-image-updater
+  - telemetry

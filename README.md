@@ -13,7 +13,7 @@ This GitOps infrastructure repository manages the Kubernetes deployments, networ
     *   `production/`: Active operational values, sync targets, and `ExternalSecret`s.
     *   `draft-day/`: CPU burst and memory caching patches applied specifically during the live draft window.
 
-Grafana dashboards/datasource for this pipeline live in `homelab-deployment/apps/telemetry/` (that repo's Grafana only provisions dashboards it finds listed in its own Kustomize root) rather than here — see [homelab-deployment#1](https://github.com/cvillarr23/homelab-deployment/issues/1) for the tracked follow-up to make that self-service from repos like this one. This repo's side of that wiring (INFRA-06) is the read-only `grafana_reader` Postgres role, provisioned by a one-shot `Job` in `base/databases/postgres-readonly-role-job.yaml` — Grafana's datasource authenticates as that role, never `bot_admin`.
+Grafana dashboards and alert rules for this pipeline are registered from this repo. homelab-deployment's Grafana runs sidecars that load ConfigMaps in `default` labeled `grafana_dashboard: "1"` (dashboards, e.g. `base/core-pipeline/*-dashboard.yaml`) or `grafana_alert: "1"` (Grafana alert rules, `base/telemetry/`; see [docs/cronjob-alerts.md](docs/cronjob-alerts.md) for the CronJob alerts runbook and `./tests/cronjob_alerts/run.sh` for their promtool tests). Datasources still live in `homelab-deployment/apps/telemetry/`. This repo's side of that wiring (INFRA-06) is the read-only `grafana_reader` Postgres role, provisioned by a one-shot `Job` in `base/databases/postgres-readonly-role-job.yaml` — Grafana's datasource authenticates as that role, never `bot_admin`.
 
 ## Cluster Pre-requisites
 
