@@ -13,6 +13,9 @@ spec:
     metadata:
       labels:
         app: fantasy-core-pipeline
+        # Distinguishes the gateway from the core-pipeline CronJob pods, which share
+        # app=fantasy-core-pipeline - the Service selects on this (see fastapi-service.yaml).
+        component: gateway
     spec:
       serviceAccountName: fantasy-core-pipeline
       imagePullSecrets:
