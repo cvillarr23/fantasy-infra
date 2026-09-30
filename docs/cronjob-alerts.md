@@ -41,7 +41,7 @@ Fires for the newest Job of each watched CronJob only. Older failures still kept
 
 ## Fantasy CronJob missed its scheduled run
 
-`time() - kube_cronjob_next_schedule_time > 7200` for `fantasy-lineup-optimizer`. kube-state-metrics works out the next run from the CronJob's `schedule` **and** `timeZone`, and only moves it forward once a run is scheduled. So this fires about 06:00 Central on a Tuesday whose 04:00 run never started, in CDT and in CST alike. The summary shows how overdue the run is, the last successful run and `suspended`. This alert also fires, deliberately, when kube-state-metrics has no data at all.
+`time() - kube_cronjob_next_schedule_time > 7200` for `fantasy-lineup-optimizer`. kube-state-metrics works out the next run from the CronJob's `schedule` **and** `timeZone`, and only moves it forward once a run is scheduled. So this fires about 07:30 Central on a Tuesday whose 05:30 run never started, in CDT and in CST alike. The summary shows how overdue the run is, the last successful run and `suspended`. This alert also fires, deliberately, when kube-state-metrics has no data at all.
 
 1. `kubectl get cronjob fantasy-lineup-optimizer -n default -o wide`: check `SUSPEND`, `LAST SCHEDULE` and `TIMEZONE`.
 2. `kubectl describe cronjob fantasy-lineup-optimizer -n default`: look at Events for `MissSchedule`, `FailedCreate`, or too many missed start times.
