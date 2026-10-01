@@ -1,4 +1,4 @@
-# CronJob run state for the fantasy-infra#97 alerts (base/telemetry/): tells a missed
+# CronJob run state for the fantasy-infra#75 alerts (base/telemetry/): tells a missed
 # schedule, a failed Job and a successful run apart. The log panel separates a successful
 # zero-swap optimizer run ("already optimal") from one that published swaps.
 # Same sidecar discovery as the other dashboards here (grafana_dashboard: "1").
@@ -36,12 +36,12 @@ data:
           "title": "CronJob run state",
           "id": 1,
           "gridPos": {
-            "h": 8,
+            "h": 12,
             "w": 24,
             "x": 0,
             "y": 0
           },
-          "description": "One row per CronJob, using the same PromQL as the base/telemetry alert rules. Missed schedule: the next expected run is more than 2h overdue and no Job was created. Failed Job: the latest Job failed. Succeeded: the latest Job completed; for the optimizer that includes zero-swap \"already optimal\" runs, which are told apart in the log panel below. Runbook: docs/cronjob-alerts.md.",
+          "description": "One row per watched CronJob. Missed schedule uses the same per-job grace as the alerts: 20m rapid status, 30m sweeper, 60m rumor sync, 2h daily/weekly. Failed Job considers only the newest Job; older failures are ignored. Optimizer success includes zero swaps. Runbook: docs/cronjob-alerts.md.",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -53,7 +53,7 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "max by (cronjob) (time() - kube_cronjob_next_schedule_time{cronjob=~\"$cronjob\"} > bool 7200) * 2 + on (cronjob) max by (cronjob) (label_replace((((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0 + on (exported_namespace, job_name) group_left () kube_job_failed{condition=\"true\"}) or (((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0), \"cronjob\", \"$1\", \"owner_name\", \"(.*)\"))",
+              "expr": "((max by (cronjob) (time() - kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot\",cronjob=~\"$cronjob\"} > bool 7200)) or (max by (cronjob) (time() - kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-rapid-status-syncer\",cronjob=~\"$cronjob\"} > bool 1200)) or (max by (cronjob) (time() - kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-stale-draft-job-sweeper\",cronjob=~\"$cronjob\"} > bool 1800)) or (max by (cronjob) (time() - kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-rumor-syncer\",cronjob=~\"$cronjob\"} > bool 3600))) * 2 + on (cronjob) max by (cronjob) (label_replace((((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0 + on (exported_namespace, job_name) group_left () kube_job_failed{condition=\"true\"}) or (((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})) == on (exported_namespace, owner_name) group_left () max by (exported_namespace, owner_name) ((kube_job_created * on (exported_namespace, job_name) group_left (owner_name) max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind=\"CronJob\", owner_name=~\"$cronjob\"})))) * 0), \"cronjob\", \"$1\", \"owner_name\", \"(.*)\"))",
               "instant": true,
               "format": "table"
             },
@@ -106,6 +106,16 @@ data:
               "expr": "max by (cronjob) (kube_cronjob_status_active{cronjob=~\"$cronjob\"})",
               "instant": true,
               "format": "table"
+            },
+            {
+              "refId": "G",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "(max by (cronjob) (kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot\",cronjob=~\"$cronjob\"}) * 0 + 7200) or (max by (cronjob) (kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-rapid-status-syncer\",cronjob=~\"$cronjob\"}) * 0 + 1200) or (max by (cronjob) (kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-stale-draft-job-sweeper\",cronjob=~\"$cronjob\"}) * 0 + 1800) or (max by (cronjob) (kube_cronjob_next_schedule_time{exported_namespace=\"default\",cronjob=~\"fantasy-rumor-syncer\",cronjob=~\"$cronjob\"}) * 0 + 3600)",
+              "instant": true,
+              "format": "table"
             }
           ],
           "transformations": [
@@ -127,7 +137,8 @@ data:
                   "Value #C": 4,
                   "Value #D": 5,
                   "Value #E": 6,
-                  "Value #F": 7
+                  "Value #F": 7,
+                  "Value #G": 8
                 },
                 "renameByName": {
                   "cronjob": "CronJob",
@@ -137,7 +148,8 @@ data:
                   "Value #C": "Last scheduled",
                   "Value #D": "Last successful",
                   "Value #E": "Next expected",
-                  "Value #F": "Active Jobs"
+                  "Value #F": "Active Jobs",
+                  "Value #G": "Missed-run grace"
                 }
               }
             }
@@ -236,6 +248,18 @@ data:
                     "value": "dateTimeAsIso"
                   }
                 ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Missed-run grace"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  }
+                ]
               }
             ]
           },
@@ -251,7 +275,7 @@ data:
             "h": 10,
             "w": 24,
             "x": 0,
-            "y": 8
+            "y": 12
           },
           "description": "A successful optimizer Job either published swaps (\"Published N lineup swap(s)\") or found the lineup already optimal (\"Lineup already optimal\"). Neither is an alert. \"No active roster metrics\" is missing input, which fails the Job once fantasy-core-pipeline#178 ships.",
           "datasource": {
@@ -297,18 +321,13 @@ data:
             },
             "definition": "label_values(kube_cronjob_info{exported_namespace=\"default\"}, cronjob)",
             "multi": true,
-            "includeAll": false,
+            "includeAll": true,
             "refresh": 1,
             "current": {
-              "text": [
-                "fantasy-lineup-optimizer",
-                "fantasy-weekly-ingestor"
-              ],
-              "value": [
-                "fantasy-lineup-optimizer",
-                "fantasy-weekly-ingestor"
-              ]
-            }
+              "text": "All",
+              "value": "$__all"
+            },
+            "allValue": "fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot"
           }
         ]
       },
@@ -319,5 +338,5 @@ data:
       "timezone": "America/Chicago",
       "title": "Fantasy CronJob Health",
       "uid": "fantasy-cronjob-health",
-      "version": 1
+      "version": 2
     }

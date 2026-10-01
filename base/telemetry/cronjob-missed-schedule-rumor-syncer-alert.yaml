@@ -1,0 +1,87 @@
+# fantasy-rumor-syncer: 60m grace, two scheduled cadences (#75).
+# Uses next_schedule_time, so normal inactive days do not alert.
+# Runbook: docs/cronjob-alerts.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-cronjob-missed-schedule-rumor-syncer-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  fantasy-cronjob-missed-schedule-rumor-syncer.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: fantasy-cronjob-missed-schedule-rumor-syncer
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: fantasy-cronjob-missed-schedule-rumor
+            title: Fantasy CronJob missed scheduled run (rumor-syncer, 60m grace)
+            condition: C
+            for: 0m
+            # No kube-state-metrics data means a missed run can't be ruled out.
+            noDataState: Alerting
+            execErrState: Error
+            annotations:
+              summary: >-
+                CronJob {{ $labels.cronjob }} did not run: expected
+                {{ humanizeDuration $values.B.Value }} ago. Last successful run
+                {{ humanizeTimestamp $values.E.Value }}; suspended={{ $values.G.Value }}.
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#fantasy-cronjob-missed-its-scheduled-run
+            data:
+              # Seconds since the run kube-state-metrics expected next.
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    time() - max by (exported_namespace, cronjob) (
+                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-rumor-syncer"}
+                    )
+                  instant: true
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [3600]}
+              # Context only, for the summary.
+              - refId: D
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    max by (exported_namespace, cronjob) (
+                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-rumor-syncer"}
+                    )
+                  instant: true
+              - refId: E
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: D
+                  reducer: last
+              - refId: F
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: prometheus
+                model:
+                  expr: >
+                    max by (exported_namespace, cronjob) (
+                      kube_cronjob_spec_suspend{cronjob=~"fantasy-rumor-syncer"}
+                    )
+                  instant: true
+              - refId: G
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: F
+                  reducer: last

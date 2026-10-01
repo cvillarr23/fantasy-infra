@@ -5,3 +5,6 @@ kind: Kustomization
 resources:
   - cronjob-job-failed-alert.yaml
   - cronjob-missed-schedule-alert.yaml
+  - cronjob-missed-schedule-rapid-status-syncer-alert.yaml
+  - cronjob-missed-schedule-stale-draft-job-sweeper-alert.yaml
+  - cronjob-missed-schedule-rumor-syncer-alert.yaml

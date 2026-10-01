@@ -1,102 +1,117 @@
 # CronJob alerts runbook
 
-Grafana alert rules for the weekly lineup automation ([#97](https://github.com/cvillarr23/fantasy-infra/issues/97), a slice of [#75](https://github.com/cvillarr23/fantasy-infra/issues/75)). The rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`. homelab-deployment's Grafana `alert-sidecar` loads them into the **Fantasy** alert folder. Dashboard: **Fantasy → Fantasy CronJob Health** (`base/core-pipeline/fantasy-cronjob-health-dashboard.yaml`).
+All ten CronJobs in `base/` are covered by [#75](https://github.com/cvillarr23/fantasy-infra/issues/75). The first slices were [#97 / PR #98](https://github.com/cvillarr23/fantasy-infra/pull/98) and [#101](https://github.com/cvillarr23/fantasy-infra/issues/101). Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`; homelab-deployment's Grafana alert sidecar loads them into **Fantasy**. Dashboard: **Fantasy → Fantasy CronJob Health**.
 
-| CronJob | Schedule (`America/Chicago`) | Alerts |
+Every row has **latest Job failed** and **missed scheduled run** alerts. Schedule fields, not comments that assume UTC, determine local run times.
+
+| CronJob | Schedule | `spec.timeZone` | Missed-run grace |
+|---|---|---|---|
+| `espn-session-healthcheck` | `0 6 * * 1`, Monday 06:00 UTC | unset; controller uses UTC here | 2h |
+| `fantasy-draft-prep-refresher` | `0 5 * * *`, daily 05:00 | America/Chicago | 2h |
+| `fantasy-lineup-optimizer` | `30 5 * * 2`, Tuesday 05:30 | America/Chicago | 2h |
+| `fantasy-rapid-status-syncer` | `*/10 * * * 4,0,1`, every 10m Thu/Sun/Mon | America/Chicago | 20m |
+| `fantasy-rumor-action-trigger` | `0 12 * * *`, daily 12:00 | America/Chicago | 2h |
+| `fantasy-rumor-syncer` | `*/30 * * * *`, every 30m | America/Chicago | 60m |
+| `fantasy-stale-draft-job-sweeper` | `*/15 * * * *`, every 15m | America/Chicago | 30m |
+| `fantasy-weekly-ingestor` | `0 3 * * 2`, Tuesday 03:00 | America/Chicago | 2h |
+| `fantasy-weekly-waiver-trigger` | `0 6 * * 2`, Tuesday 06:00 | America/Chicago | 2h |
+| `rumor-digest-bot` | `0 11 * * *`, daily 11:00 | America/Chicago | 2h |
+
+Daily/weekly runs retain the original 2h scheduling grace. Frequent jobs get two cadences: 20m for rapid status, 30m for the high-impact sweeper, and 60m for rumor ingestion. Waiting 2h would hide 12, 8, and 4 missed runs respectively. Rules evaluate every 5m and fire **strictly above** the grace; expect up to another 5m before evaluation. Grace concerns Job creation, not runtime or completion.
+
+## States and alert meaning
+
+| State | Evidence | Alert |
 |---|---|---|
-| `fantasy-weekly-ingestor` | `0 3 * * 2`, Tuesday 03:00 | latest Job failed |
-| `fantasy-lineup-optimizer` | `30 5 * * 2`, Tuesday 05:30 | latest Job failed, missed scheduled run |
-| `fantasy-weekly-waiver-trigger` | `0 6 * * 2`, Tuesday 06:00 | latest Job failed |
+| Missed schedule | Expected next run is older than that job's grace | Fantasy CronJob missed its scheduled run (daily/weekly or cadence-specific rule) |
+| Failed Job | Newest owned Job has `kube_job_failed{condition="true"} == 1` | Fantasy CronJob latest Job failed |
+| Succeeded | Latest Job completed and last-success time advanced | none |
 
-The optimizer's main input is the upcoming week's `vorp_score`, written by `fantasy-draft-prep-refresher` (daily 05:00), so it runs 30 minutes after that. If those rows are missing it falls back to prior weeks' rows, and it fails the Job when last week's rows are missing too (fantasy-core-pipeline#178). So a failed optimizer run usually traces back to that morning's refresher, or last week's.
+The table shows last scheduled/successful/next times, latest Job, active count, and grace for all ten jobs by default. A running Job is not proven successful merely because no failure condition exists: check **Active Jobs** and **Last successful**. Missing input series may leave fields blank; inspect telemetry before interpreting the state.
 
-## Three states, and which ones alert
-
-| State | What the metrics show | Alert |
-|---|---|---|
-| **Missed schedule** | `kube_cronjob_next_schedule_time` is more than 2h in the past, so the controller never created that run's Job (CronJob suspended, controller down, bad schedule) | *Fantasy CronJob missed its scheduled run* |
-| **Failed Job** | The newest Job for the CronJob has `kube_job_failed{condition="true"} == 1` | *Fantasy CronJob latest Job failed* |
-| **Succeeded** | The newest Job completed; `kube_cronjob_status_last_successful_time` advanced | none |
-
-A successful optimizer run that publishes **zero swaps** is the "Succeeded" state: the lineup was already optimal. It never alerts. The logs show which kind of success it was: `Lineup already optimal for Team …` means no swaps; `Published N lineup swap(s) …` means it acted.
-
-Missing optimizer input shows up as a **Failed Job** since [fantasy-core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178): the optimizer logs `Lineup optimizer cannot evaluate Team … Season … Week …: <reason>` and exits 1. Before that it logged `No active roster metrics found …` and exited 0: the silent 2026-09-22 and 2026-09-29 runs these alerts exist for. Every run also logs `Evaluating Team … from weekly_stats.vorp_score (<mode>, …)`, which shows whether it used the target week's projections or fell back to prior weeks.
+A successful optimizer with zero swaps is a normal no-op. Its log panel distinguishes `Lineup already optimal` from `Published N lineup swap(s)`. Missing input fails the Job after [core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178); empty waiver pools fail after [#181](https://github.com/cvillarr23/fantasy-core-pipeline/issues/181).
 
 ## Fantasy CronJob latest Job failed
 
-Fires for the newest Job of each watched CronJob only. Older failures still kept by `failedJobsHistoryLimit` don't count, and the alert resolves once the next run succeeds. The summary names the Job, its creation time and the CronJob's last successful run.
+Only the newest Job per CronJob counts, selected by creation time and joined on `exported_namespace`/`job_name`. Old failures retained by history limits do not keep firing. A newer successful run clears the alert; a newer active run also supersedes an older failure. The summary includes Job name, creation time, and last successful run.
 
-1. Find out why it failed. Everything below is read-only:
-   ```bash
-   kubectl describe job <job_name> -n default          # conditions: BackoffLimitExceeded, DeadlineExceeded...
-   kubectl logs job/<job_name> -n default --all-containers
-   # weekly-ingestor has an initContainer (sync-league); a failure there never starts the main container:
-   kubectl logs job/<job_name> -n default -c sync-league
-   ```
-   The Job's pods may already be gone. In that case use Loki: `{namespace="default", pod=~"<job_name>-.*"}`, or the dashboard's log panel for the optimizer.
-2. Check what each failure depends on:
-   - **Optimizer and waiver trigger** (`… cannot evaluate Team … Season … Week …: <reason>`): both read the target week's `vorp_score` from that morning's `fantasy-draft-prep-refresher` (05:00). Check its latest Job first. The waiver trigger has no prior-week fallback, so a missing or failed refresh fails it directly (`no bench or free-agent players with weekly_stats rows …`).
-   - **Ingestor:** its play-by-play metrics don't feed either Tuesday decision directly, but a missing week leaves gaps in `weekly_stats` history.
-3. Fix the cause, then either wait for next Tuesday's run or re-run it by hand (`kubectl create job --from=cronjob/<name> ...`). A manual re-run changes the cluster and publishes real lineup or waiver actions, so it's your call, not part of this check.
+Read-only investigation:
+
+```bash
+kubectl describe job <job_name> -n default
+kubectl logs job/<job_name> -n default --all-containers
+# Init containers can fail before the main container starts:
+kubectl logs job/<job_name> -n default -c sync-league       # weekly ingestor
+kubectl logs job/<job_name> -n default -c sync-projections  # draft refresher
+```
+
+If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix the dependency and allow the next scheduled run to recover. This verification procedure does not create Jobs or rerun workloads.
+
+### What each job depends on
+
+| CronJob | Check first |
+|---|---|
+| `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
+| `fantasy-draft-prep-refresher` | `sync-projections` init container, external projections, season/week/team configuration, Postgres credentials, then `vorp-matrix`. It supplies target-week VORP for optimizer and waiver decisions. |
+| `fantasy-lineup-optimizer` | That morning's 05:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
+| `fantasy-rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity; Thu/Sun/Mon are the only scheduled days. |
+| `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of endpoint-level success; see the application alert below. |
+| `fantasy-rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis; ingestion feeds the digest/action path. |
+| `fantasy-stale-draft-job-sweeper` | `fantasy-core-pipeline` service account and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis, and core API teardown. Verification only reads these resources. |
+| `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it does not replace projection/VORP refresh. |
+| `fantasy-weekly-waiver-trigger` | That morning's refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
+| `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs one hour before the action trigger. |
+
+[core-pipeline#140](https://github.com/cvillarr23/fantasy-core-pipeline/issues/140) owns application success/failure for `POST /v1/trigger/rumor-action`. homelab-deployment already provisions `rumor-action-trigger-failure` and `rumor-digest-bot-failure` from `execution_log`. These Kubernetes alerts complement those signals; they do not duplicate endpoint-level monitoring or validate partially processed actions.
 
 ## Fantasy CronJob missed its scheduled run
 
-`time() - kube_cronjob_next_schedule_time > 7200` for `fantasy-lineup-optimizer`. kube-state-metrics works out the next run from the CronJob's `schedule` **and** `timeZone`, and only moves it forward once a run is scheduled. So this fires about 07:30 Central on a Tuesday whose 05:30 run never started, in CDT and in CST alike. The summary shows how overdue the run is, the last successful run and `suspended`. This alert also fires, deliberately, when kube-state-metrics has no data at all.
+Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against its group's grace. The seven daily/weekly jobs retain UID `fantasy-cronjob-missed-schedule`; three additional rules use suffixes `rapid`, `sweeper`, and `rumor` (UIDs stay within Grafana's 40-character limit). Each provisioning file/group has one rule, matching the Grafana convention and test renderer.
 
-1. `kubectl get cronjob fantasy-lineup-optimizer -n default -o wide`: check `SUSPEND`, `LAST SCHEDULE` and `TIMEZONE`.
-2. `kubectl describe cronjob fantasy-lineup-optimizer -n default`: look at Events for `MissSchedule`, `FailedCreate`, or too many missed start times.
-3. Check that kube-state-metrics is up: `kubectl get deploy kube-state-metrics -n default`.
+kube-state-metrics calculates the next timestamp from the schedule and timezone, advancing from the last scheduled run. The optimizer's missing 05:30 Tuesday run alerts after 07:30 Central in both CDT and CST. Rapid status naturally advances to the next Thu/Sun/Mon slot: a long inactive-day gap alone does not alert. A missed active-day slot remains overdue even if the grace crosses midnight.
+
+Suspended jobs intentionally alert once overdue. Summaries show overdue duration, last success and suspension. All missed rules use `noDataState: Alerting` when the group's query has no series and `execErrState: Error`; missing one member of a multi-job group does not itself create a per-job no-data alert. A Job that starts but hangs needs separate runtime/completion monitoring.
+
+```bash
+kubectl get cronjob <cronjob> -n default -o wide
+kubectl describe cronjob <cronjob> -n default
+kubectl get deploy kube-state-metrics -n default
+```
+
+Check SUSPEND, LAST SCHEDULE, TIMEZONE and events (`MissSchedule`, `FailedCreate`, too many missed start times).
 
 ## Read-only live checks
 
-The CronJobs and their recent Jobs, newest last:
-
 ```bash
-kubectl get cronjob fantasy-lineup-optimizer fantasy-weekly-ingestor fantasy-weekly-waiver-trigger -n default -o wide
-kubectl get jobs -n default --sort-by=.metadata.creationTimestamp | grep -E 'lineup-optimizer|weekly-ingestor|weekly-waiver-trigger'
-```
+kubectl get cronjobs -n default -o wide
+kubectl get jobs -n default --sort-by=.metadata.creationTimestamp
 
-Job names end in the scheduled minute since the Unix epoch. For example, `fantasy-lineup-optimizer-29844540` × 60 = 2026-09-29 09:00 UTC = 04:00 CDT.
-
-Queries can go to Prometheus through the API server's service proxy, with no port-forward. Run the committed alert expression, refId A, like this:
-
-```bash
 promq() {
   kubectl get --raw "/api/v1/namespaces/default/services/prometheus:9090/proxy/api/v1/query?query=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$1")"
 }
-promq "$(python3 tests/cronjob_alerts/render_rules.py | python3 -c 'import sys,yaml;[print(r["expr"]) for r in yaml.safe_load(sys.stdin)["groups"][0]["rules"] if r.get("alert")=="fantasy-cronjob-job-failed"]')"
+# Run each exact committed alert expression; empty results can mean healthy.
+python3 tests/cronjob_alerts/render_rules.py
 ```
 
-Individual inputs:
+For each name in the inventory, query:
 
 ```promql
-# When each CronJob last ran, last succeeded, and will next run (unix seconds)
-kube_cronjob_status_last_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
-kube_cronjob_status_last_successful_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
-kube_cronjob_next_schedule_time{cronjob=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
-
-# Seconds overdue; the missed-run alert fires above 7200
-time() - kube_cronjob_next_schedule_time{cronjob="fantasy-lineup-optimizer"}
-
-# Failed Jobs still in history, per CronJob; the alert only counts the newest Job
-kube_job_failed{condition="true"} == 1
-  and on (exported_namespace, job_name) kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-lineup-optimizer|fantasy-weekly-ingestor|fantasy-weekly-waiver-trigger"}
+kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="<cronjob>"}
+kube_cronjob_status_last_schedule_time{exported_namespace="default",cronjob="<cronjob>"}
+kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="<cronjob>"}
+kube_job_owner{exported_namespace="default",owner_kind="CronJob",owner_name="<cronjob>"}
+kube_job_created * on (exported_namespace,job_name) group_left (owner_name)
+  kube_job_owner{exported_namespace="default",owner_kind="CronJob",owner_name="<cronjob>"}
+kube_job_failed * on (exported_namespace,job_name) group_left (owner_name)
+  kube_job_owner{exported_namespace="default",owner_kind="CronJob",owner_name="<cronjob>"}
 ```
 
-`exported_namespace` is the object's namespace; `namespace` is where kube-state-metrics itself runs. Prometheus here keeps only about a week of data, so older runs are only visible through `kubectl` and Loki.
+Successful Jobs can have **no** `kube_job_failed` series. Confirm their Job conditions read-only and record this as expected absence, not a broken scrape. Never manufacture a failed Job to get a series. `exported_namespace` is the object's namespace; `namespace` is kube-state-metrics' namespace. Retention limits historical verification.
 
-## Testing the rules
+After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all five rule UIDs, their query groups match this inventory, and the dashboard shows all ten rows with the right grace. Only then tick the remaining #75 checkboxes. Do not close #75 until all ten are verified.
 
-```bash
-./tests/cronjob_alerts/run.sh
-```
+## Testing and adding coverage
 
-`render_rules.py` turns the committed Grafana rules into a Prometheus rule file. `tests.yaml` then runs these scenarios through `promtool test rules` in Docker (`prom/prometheus:v3.15.0`):
-- success, including zero swaps
-- an old failure followed by success
-- the latest Job failed
-- a run missed in CDT and in CST
+Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard queries and runs Docker promtool fixtures covering all ten failures, success after historical failures, grace boundaries, suspended/resumed runs, CDT/CST, UTC healthcheck, rapid-status inactive days and unwatched jobs. Dashboard state and grace queries are checked against the same fixtures. Grafana's no-data policy requires live provisioning verification; promtool tests PromQL, not Grafana's evaluator.
 
-## Adding another CronJob (#75)
-
-Add its name to the `owner_name=~` / `cronjob=~` regexes in `base/telemetry/*-alert.yaml`: both queries in the failed rule, and all three in the missed rule. Adjust the missed rule's 7200s grace if 2h doesn't suit that schedule. Then add a case to `tests/cronjob_alerts/tests.yaml`. The dashboard's CronJob variable already lists every CronJob.
+For a new CronJob, update all failure selectors/context, select or add a missed-rule grace group, register new ConfigMaps, update dashboard inventory/grace and this table, then add firing/non-firing fixtures. Keep each rule's provisioning key and UID unique. Validate both production and draft-day renders.
