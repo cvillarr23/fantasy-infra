@@ -17,14 +17,24 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      backoffLimit: 1
+      # fantasy-infra#115 (same as #110 for the lineup optimizer): each retry is a fresh pod
+      # (restartPolicy: Never below). Under OnFailure, container restarts count toward
+      # backoffLimit, so backoffLimit: 1 failed the Job - and killed the pod - on its first
+      # restart, even when that retry would have succeeded. Never also keeps failed pods, and
+      # their logs, until history cleanup. Re-running the whole evaluator is only safe because
+      # /v1/trigger/waiver dedupes each claim on a key scoped to team + season/week + add/drop
+      # (fantasy-core-pipeline#193/#194/#191), so claims an earlier attempt queued come back
+      # "duplicate". No JOB_NAME env, unlike the lineup CronJob: the waiver key deliberately
+      # spans every Job that week. An insufficient-input exit (#178) just fails the same way
+      # 3 times, a minute or so later.
+      backoffLimit: 2
       template:
         metadata:
           labels:
             app: fantasy-core-pipeline
             component: weekly-waiver-trigger
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           imagePullSecrets:
             - name: ghcr-pull-secret
           containers:
