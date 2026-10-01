@@ -1,14 +1,7 @@
-# Fires when a watched CronJob is more than 2h past its expected run and the
-# controller never started it (fantasy-infra#97). kube-state-metrics computes
-# kube_cronjob_next_schedule_time from the CronJob's schedule *and* spec.timeZone
-# (America/Chicago here), and it only advances once a run is scheduled. So a
-# skipped Tuesday 05:30 Central run leaves it in the past, and this fires around
-# 07:30 Central. There's no hardcoded UTC hour, so it holds across DST changes.
-# A suspended CronJob also fires; the summary says so.
-#
-# Period-agnostic: to cover another CronJob (fantasy-infra#75), add it to the
-# cronjob regex in all three queries (adjust the 7200s grace if needed).
-# Runbook: docs/cronjob-alerts.md.
+# Daily/weekly CronJobs: alert more than 2h after the expected schedule (#75).
+# kube-state-metrics applies schedule and timeZone; no UTC hour is hardcoded.
+# Separate 20m/30m/60m rules cover frequent jobs. Suspended jobs also alert.
+# One rule per provisioning file/group; see docs/cronjob-alerts.md.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,7 +39,7 @@ data:
                 model:
                   expr: >
                     time() - max by (exported_namespace, cronjob) (
-                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-lineup-optimizer"}
+                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot"}
                     )
                   instant: true
               - refId: B
@@ -69,7 +62,7 @@ data:
                 model:
                   expr: >
                     max by (exported_namespace, cronjob) (
-                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-lineup-optimizer"}
+                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot"}
                     )
                   instant: true
               - refId: E
@@ -84,7 +77,7 @@ data:
                 model:
                   expr: >
                     max by (exported_namespace, cronjob) (
-                      kube_cronjob_spec_suspend{cronjob=~"fantasy-lineup-optimizer"}
+                      kube_cronjob_spec_suspend{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot"}
                     )
                   instant: true
               - refId: G

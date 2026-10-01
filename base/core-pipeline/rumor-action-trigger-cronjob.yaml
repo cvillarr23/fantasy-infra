@@ -6,7 +6,7 @@ metadata:
   name: fantasy-rumor-action-trigger
   namespace: default
 spec:
-  schedule: "0 12 * * *" # 7:00 AM Central, every day (America/Chicago local time below)
+  schedule: "0 12 * * *" # 12:00 PM Central, every day (America/Chicago local time below)
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3

@@ -4,9 +4,12 @@ Each Grafana rule becomes a Prometheus alert named by its uid, with
 expr = (<refId A query>) > <threshold from the condition refId>. Every other
 Prometheus query in the rule (the summary's context values) becomes a recording
 rule grafana_context:<uid>:<refId>, so promtool checks it too. The tests then run
-against exactly the expressions that are committed.
+against exactly the expressions that are committed. The dashboard state and grace
+queries are rendered as recording rules for the same fixtures.
 """
 
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -40,6 +43,7 @@ def render():
             seen_keys.add(key)
             (group,) = yaml.safe_load(body)["groups"]  # one group per file, see homelab-deployment
             (rule,) = group["rules"]  # one rule per group, same convention
+            assert re.fullmatch(r"[a-zA-Z0-9_-]{1,40}", rule["uid"]), f"{path.name}: invalid Grafana UID"
             name = rule["uid"].replace("-", "_")
             for d in rule["data"]:
                 if d["datasourceUid"] != "prometheus":
@@ -52,6 +56,18 @@ def render():
                     })
                 else:
                     prom_rules.append({"record": f"grafana_context:{name}:{d['refId']}", "expr": expr})
+    # Exercise the committed dashboard's state and grace queries with the same fixtures.
+    dashboard_cm = yaml.safe_load(
+        (ROOT / "base/core-pipeline/fantasy-cronjob-health-dashboard.yaml").read_text()
+    )
+    dashboard = json.loads(dashboard_cm["data"]["fantasy-cronjob-health.json"])
+    watched = dashboard["templating"]["list"][0]["allValue"]
+    targets = {target["refId"]: target for target in dashboard["panels"][0]["targets"]}
+    for ref, field in [("A", "state"), ("G", "grace")]:
+        prom_rules.append({
+            "record": f"grafana_dashboard:fantasy_cronjob_health:{field}",
+            "expr": targets[ref]["expr"].replace("$cronjob", watched),
+        })
     return {"groups": [{"name": "fantasy-cronjob-alerts", "rules": prom_rules}]}
 
 
