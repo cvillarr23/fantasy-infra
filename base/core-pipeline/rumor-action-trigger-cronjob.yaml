@@ -13,6 +13,10 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
+      # Counts Pending time too: a pod that can't schedule (e.g. node CPU requests full) fails
+      # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
+      # silently skips every later run. 3600s is far above its normal runtime.
+      activeDeadlineSeconds: 3600
       backoffLimit: 1
       template:
         metadata:

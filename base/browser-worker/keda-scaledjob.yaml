@@ -29,6 +29,15 @@ spec:
               - configMapRef:
                   name: fantasy-league-config
             env:
+              # Must stay env[0]: overlays/draft-day patches it by index (guarded by a JSON
+              # patch `test` op, so moving it fails the build instead of silently patching the
+              # wrong var). Exits the worker (code 0, so the Job completes) after this long with
+              # no message in flight. Without it the worker is a run-forever daemon and every
+              # Job KEDA starts stays Running after the queues drain -- 21 idle Jobs from one
+              # waiver burst once held ~2.1 CPU of requests for 19h, starving Ollama's scale-up
+              # and blocking CronJobs. Draft-day sets 0 to keep its warm browser.
+              - name: IDLE_EXIT_SECONDS
+                value: "120"
               - name: AMQP_URL
                 valueFrom:
                   secretKeyRef:
@@ -75,13 +84,19 @@ spec:
             resources:
               requests:
                 memory: "256Mi"
-                cpu: "100m"
+                # 50m, not more: requests are reserved whether or not the worker is busy, and
+                # the 1-CPU limit below still lets an active Chromium burst into idle node CPU.
+                cpu: "50m"
               limits:
                 memory: "1200Mi" # Hard ceiling preventing Chromium memory bloat from stalling the node
                 cpu: "1000m"
 
   # KEDA Polling and Scaling parameters
   pollingInterval: 10 # Checks the RabbitMQ queue every 10 seconds
+  # Caps concurrent workers; RabbitMQ holds any backlog beyond that and the running workers drain
+  # it one message at a time (prefetch 1). Without a cap KEDA's default is 100 -- one Job per
+  # queued message -- so a 21-message waiver burst started 21 Jobs at once.
+  maxReplicaCount: 3
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
 
@@ -90,7 +105,7 @@ spec:
       metadata:
         queueName: lineup_updates
         mode: QueueLength # queueLength is deprecated in favor of mode + value
-        value: "1" # Spawns 1 job pod per message in the queue
+        value: "1" # 1 job per queued message, up to maxReplicaCount
       authenticationRef:
         name: rabbitmq-trigger-auth
     - type: rabbitmq
@@ -103,6 +118,32 @@ spec:
     - type: rabbitmq
       metadata:
         queueName: draft_targets
+        mode: QueueLength
+        value: "1"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    # The worker also consumes these three (see fantasy-browser-worker src/queue/connection.js),
+    # but without triggers a message on them only got handled if a worker happened to be up for
+    # one of the queues above. Not broker-owned (the worker asserts them durable on startup), so
+    # on a fresh broker these scalers error until the first worker has run; the triggers above
+    # keep working meanwhile.
+    - type: rabbitmq
+      metadata:
+        queueName: trade_evaluations
+        mode: QueueLength
+        value: "1"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    - type: rabbitmq
+      metadata:
+        queueName: trade_negotiations
+        mode: QueueLength
+        value: "1"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    - type: rabbitmq
+      metadata:
+        queueName: llm_requests
         mode: QueueLength
         value: "1"
       authenticationRef:

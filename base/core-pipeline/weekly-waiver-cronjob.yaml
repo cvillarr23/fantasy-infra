@@ -17,6 +17,10 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
+      # Counts Pending time too: a pod that can't schedule (e.g. node CPU requests full) fails
+      # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
+      # silently skips every later run. 3600s is far above its normal runtime.
+      activeDeadlineSeconds: 3600
       # fantasy-infra#115 (same as #110 for the lineup optimizer): each retry is a fresh pod
       # (restartPolicy: Never below). Under OnFailure, container restarts count toward
       # backoffLimit, so backoffLimit: 1 failed the Job - and killed the pod - on its first
