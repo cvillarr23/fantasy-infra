@@ -8,3 +8,4 @@ resources:
   - cronjob-missed-schedule-rapid-status-syncer-alert.yaml
   - cronjob-missed-schedule-stale-draft-job-sweeper-alert.yaml
   - cronjob-missed-schedule-rumor-syncer-alert.yaml
+  - rumor-action-outcome-alert.yaml

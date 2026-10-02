@@ -1,0 +1,17 @@
+name: Rumor action alert
+on:
+  pull_request:
+    paths:
+      - base/telemetry/rumor-action-outcome-alert.yaml
+      - tests/rumor_action_alert/**
+      - .github/workflows/rumor-action-alert.yml
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install PyYAML
+      - run: ./tests/rumor_action_alert/run.sh
