@@ -55,14 +55,19 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 | `fantasy-draft-prep-refresher` | `sync-projections` init container, external projections, season/week/team configuration, Postgres credentials, then `vorp-matrix`. It supplies target-week VORP for optimizer and waiver decisions. |
 | `fantasy-lineup-optimizer` | That morning's 05:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
 | `fantasy-rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity; Thu/Sun/Mon are the only scheduled days. |
-| `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of endpoint-level success; see the application alert below. |
+| `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of complete application processing; see the application alert below. |
 | `fantasy-rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis; ingestion feeds the digest/action path. |
 | `fantasy-stale-draft-job-sweeper` | `fantasy-core-pipeline` service account and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis, and core API teardown. Verification only reads these resources. |
 | `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it does not replace projection/VORP refresh. |
 | `fantasy-weekly-waiver-trigger` | That morning's refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
 | `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs one hour before the action trigger. |
 
-[core-pipeline#140](https://github.com/cvillarr23/fantasy-core-pipeline/issues/140) owns application success/failure for `POST /v1/trigger/rumor-action`. homelab-deployment already provisions `rumor-action-trigger-failure` and `rumor-digest-bot-failure` from `execution_log`. These Kubernetes alerts complement those signals; they do not duplicate endpoint-level monitoring or validate partially processed actions.
+[core-pipeline#140](https://github.com/cvillarr23/fantasy-core-pipeline/issues/140) owns
+application outcomes for the shared rumor-action service (CLI and HTTP). Its
+`rumor-action-trigger-failure` rule now lives in fantasy-infra; homelab-deployment retains
+`rumor-digest-bot-failure`. See [application outcome](#rumor-action-application-outcome)
+for semantics and the provisioning ownership handoff. Kubernetes alerts complement
+these signals and do not validate partially processed actions.
 
 ## Fantasy CronJob missed its scheduled run
 
@@ -115,3 +120,54 @@ After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all fi
 Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard queries and runs Docker promtool fixtures covering all ten failures, success after historical failures, grace boundaries, suspended/resumed runs, CDT/CST, UTC healthcheck, rapid-status inactive days and unwatched jobs. Dashboard state and grace queries are checked against the same fixtures. Grafana's no-data policy requires live provisioning verification; promtool tests PromQL, not Grafana's evaluator.
 
 For a new CronJob, update all failure selectors/context, select or add a missed-rule grace group, register new ConfigMaps, update dashboard inventory/grace and this table, then add firing/non-firing fixtures. Keep each rule's provisioning key and UID unique. Validate both production and draft-day renders.
+
+## Rumor-action application outcome
+
+**Rumor action incomplete or failed processing** (`rumor-action-trigger-failure`) complements
+Kubernetes failed/missed Job alerts. The daily CronJob runs `python -m
+src.services.rumor_action_service`, not the HTTP endpoint; both paths now record one
+`execution_log` row with transaction type `rumor_action_trigger` and bot
+`rumor_action_service`.
+
+The rule lives in `base/telemetry/rumor-action-outcome-alert.yaml`, evaluates every 5m,
+and fires immediately when any `failure` or `partial_failure` was recorded in the last
+26h. It intentionally does not select just the latest execution: until core-pipeline#192
+fixes retry/watermark semantics, an empty retry can otherwise erase evidence of lost
+work. A recovered retry remains visible until the original failure ages out. This is
+an observation window, not proof that the error remains unresolved.
+
+No new signals after a successful fetch, low-confidence/non-actionable signals,
+superseded signals, no beneficial move, and already-queued actions are healthy. Missing
+identity mappings for proposed actions, incomplete accounting, evaluation failures and
+publish failures alert. Signals and actions have separate counts: one signal may produce
+multiple actions. “Accepted” means queued by the core API, not executed in ESPN.
+
+Open **Fantasy → Fantasy Execution Log Overview → Rumor Action Outcomes** (panel 6).
+Check `reason`, signal reasons, proposed/accepted/duplicate/missing/failed counts,
+watermark range and `error_message`; use `job_name` for pod logs. Look for
+`rumor_action_outcome` in Loki if PostgreSQL logging failed. An empty query returns zero;
+a database query error uses Grafana's Error state. A run unable to persist its outcome
+cannot be detected by this SQL rule: inspect the log fallback and Kubernetes alerts.
+Missing runs are covered by #118, not by a zero-action threshold.
+
+Do not blindly rerun: #192 is still responsible for retry safety and watermark recovery.
+Investigate unresolved ESPN identities or input data before retrying. The app signal
+also covers HTTP invocations; its failure count is per invocation, not per CronJob.
+
+### Provisioning ownership and rollout
+
+1. Deploy core-pipeline's additive `outcome_details JSONB` migration and service changes.
+   Migrations run at API startup; confirm the column exists before expecting CronJob
+   outcome writes or opening the new dashboard panel.
+2. Remove homelab-deployment's old `rumor-action-trigger-failure.yaml` from its alerting
+   ConfigMap generator and deployed ConfigMap. Do not provision `deleteRules`: the
+   existing Grafana rule is retained until fantasy-infra takes ownership.
+3. Deploy this fantasy-infra rule, retaining the old UID/group, folder and provisioning
+   filename. Never leave two ConfigMaps supplying that same file/rule. Verify the
+   Grafana rule shows the 26h SQL, 5m cadence and panel 6 link, and the new table displays
+   structured outcomes. No live Jobs need to be triggered for verification.
+
+Run `./tests/rumor_action_alert/run.sh` (Python/PyYAML and Docker). It tests the committed
+SQL on isolated PostgreSQL 16: no data, healthy no-op, total/partial failure, failure then
+success, unrelated rows, legacy rows and exact window boundaries. Existing CronJob
+PromQL tests remain in `./tests/cronjob_alerts/run.sh`.

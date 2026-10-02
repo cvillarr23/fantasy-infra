@@ -96,7 +96,30 @@ data:
             {
               "refId": "A",
               "format": "table",
-              "rawSql": "SELECT executed_at, bot_name, transaction_type, error_message, trace_id FROM execution_log WHERE status = 'failure' ORDER BY executed_at DESC LIMIT 50;"
+              "rawSql": "SELECT executed_at, bot_name, transaction_type, error_message, trace_id FROM execution_log WHERE status IN ('failure', 'partial_failure') ORDER BY executed_at DESC LIMIT 50;"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Rumor Action Outcomes",
+          "description": "One row per CLI/HTTP invocation. No new signals, no beneficial move and already queued are healthy. Accepted actions are queued, not confirmed in ESPN. Failures remain alertable for 26h even after a later success.",
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 26
+          },
+          "id": 6,
+          "datasource": {
+            "type": "postgres",
+            "uid": "FantasyFootballDB"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawSql": "SELECT executed_at, status, outcome_details->>'source' AS source, outcome_details->>'job_name' AS job_name, outcome_details->>'run_id' AS run_id, outcome_details->>'team_id' AS team_id, season, outcome_details->>'week' AS week, outcome_details->>'reason' AS reason, outcome_details->>'signals_fetched' AS signals_fetched, outcome_details->>'signals_qualifying' AS signals_qualifying, outcome_details->>'actions_proposed' AS actions_proposed, outcome_details->>'actions_accepted' AS actions_accepted, outcome_details->>'actions_already_queued' AS already_queued, outcome_details->>'actions_missing_identity' AS missing_identity, outcome_details->>'actions_failed' AS actions_failed, outcome_details->>'actions_unaccounted' AS actions_unaccounted, outcome_details->>'signals_unaccounted' AS signals_unaccounted, outcome_details->>'signal_reasons' AS signal_reasons, outcome_details->>'watermark_start' AS watermark_start, outcome_details->>'watermark_end' AS watermark_end, error_message FROM execution_log WHERE transaction_type = 'rumor_action_trigger' AND bot_name = 'rumor_action_service' AND $__timeFilter(executed_at) ORDER BY executed_at DESC, id DESC LIMIT 100;"
             }
           ]
         }

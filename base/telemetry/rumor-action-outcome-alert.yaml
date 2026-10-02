@@ -1,0 +1,60 @@
+# Application outcomes complement the failed/missed CronJob rules (#140).
+# Retain failures for 26h: #192's fail-open watermark can turn a retry into an empty
+# success. A latest-row query would hide that lost work. Zero actions is not failure.
+# UID/group retained from homelab-deployment; remove its old provisioning file first.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-rumor-action-outcome-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  rumor-action-trigger-failure.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: rumor-action-trigger-failure
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: rumor-action-trigger-failure
+            title: Rumor action incomplete or failed processing
+            condition: C
+            for: 0m
+            noDataState: OK
+            execErrState: Error
+            annotations:
+              summary: '{{ $values.B.Value }} rumor-action invocation(s) failed or partially failed in the last 26 hours.'
+              description: 'Includes CLI and HTTP invocations. Zero-action successes are healthy. Later success does not clear a recorded failure until it ages out; inspect outcomes before retrying.'
+              __dashboardUid__: fantasy-execution-log
+              __panelId__: '6'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#rumor-action-application-outcome
+            data:
+              - refId: A
+                relativeTimeRange: {from: 93600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: >
+                    SELECT COUNT(*)::double precision AS value
+                    FROM execution_log
+                    WHERE transaction_type = 'rumor_action_trigger'
+                      AND bot_name = 'rumor_action_service'
+                      AND status IN ('failure', 'partial_failure')
+                      AND executed_at > now() - interval '26 hours';
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}
