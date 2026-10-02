@@ -103,6 +103,7 @@ data:
         {
           "type": "table",
           "title": "Rumor Action Outcomes",
+          "timeFrom": "26h",
           "description": "One row per CLI/HTTP invocation. No new signals, no beneficial move and already queued are healthy. Accepted actions are queued, not confirmed in ESPN. Failures remain alertable for 26h even after a later success.",
           "gridPos": {
             "h": 10,
