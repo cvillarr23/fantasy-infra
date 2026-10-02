@@ -4,3 +4,19 @@ resources:
   - ../production
 patches:
   - path: resource-patches.yaml
+  # Keeps the draft-day warm worker (minReplicaCount: 1 in resource-patches.yaml) running instead
+  # of exiting after production's idle timeout. JSON6902 rather than a merge patch: ScaledJob is a
+  # CRD, so a merge patch on `env` would replace the whole containers list. The `test` op fails
+  # the build if env[0] is ever no longer IDLE_EXIT_SECONDS.
+  - target:
+      group: keda.sh
+      version: v1alpha1
+      kind: ScaledJob
+      name: fantasy-browser-worker-scaler
+    patch: |-
+      - op: test
+        path: /spec/jobTargetRef/template/spec/containers/0/env/0/name
+        value: IDLE_EXIT_SECONDS
+      - op: replace
+        path: /spec/jobTargetRef/template/spec/containers/0/env/0/value
+        value: "0"
