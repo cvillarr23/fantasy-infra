@@ -1,0 +1,28 @@
+name: Browser worker queue triggers
+on:
+  pull_request:
+    paths:
+      - 'base/browser-worker/**'
+      - 'overlays/**'
+      - 'tests/test_worker_triggers.py'
+      - '.github/workflows/worker-triggers.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'base/browser-worker/**'
+      - 'overlays/**'
+      - 'tests/test_worker_triggers.py'
+      - '.github/workflows/worker-triggers.yml'
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.35.0'
+      - run: pip install PyYAML
+      - run: python -m unittest discover -s tests -p test_worker_triggers.py
