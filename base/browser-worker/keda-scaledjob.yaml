@@ -21,6 +21,11 @@ spec:
         serviceAccountName: fantasy-browser-worker
         imagePullSecrets:
           - name: ghcr-pull-secret
+        volumes:
+          - name: espn-session-state
+            secret:
+              secretName: espn-session-state
+              optional: true
         containers:
           - name: worker
             image: ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31
@@ -81,6 +86,14 @@ spec:
                 value: "grpc"
               - name: OTEL_SERVICE_NAME
                 value: "browser-worker"
+              # Full stored login (fantasy-infra#129): auth.js prefers this over the cookie pair
+              # above. If the secret is absent the file is missing and auth falls back to cookies.
+              - name: ESPN_SESSION_STATE_FILE
+                value: "/var/run/espn-session/state.json"
+            volumeMounts:
+              - name: espn-session-state
+                mountPath: /var/run/espn-session
+                readOnly: true
             resources:
               requests:
                 memory: "256Mi"
