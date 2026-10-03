@@ -17,14 +17,17 @@ spec:
       # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
       # silently skips every later run. 3600s is far above its normal runtime.
       activeDeadlineSeconds: 3600
-      backoffLimit: 1
+      # fantasy-infra#122: each retry gets a fresh pod and preserves failed-pod logs. The
+      # core service checkpoints rumor actions and resumes only unfinished work
+      # (fantasy-core-pipeline#198), so re-running this Job cannot discard its watermark.
+      backoffLimit: 2
       template:
         metadata:
           labels:
             app: fantasy-core-pipeline
             component: rumor-action-trigger
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           imagePullSecrets:
             - name: ghcr-pull-secret
           containers:
@@ -37,6 +40,12 @@ spec:
                 - configMapRef:
                     name: fantasy-league-config
               env:
+                # Gives rumor_action_service and lineup_solver one stable identity across
+                # pod retries, while each scheduled Job receives its own idempotency scope.
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['batch.kubernetes.io/job-name']
                 - name: DB_HOST
                   value: "fantasy-db.default.svc.cluster.local"
                 - name: DB_NAME
