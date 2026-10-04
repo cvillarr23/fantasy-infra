@@ -6,3 +6,4 @@ resources:
   - espn-session-healthcheck-cronjob.yaml
   - rumor-digest-bot-cronjob.yaml
   - rbac.yaml
+  - trade-scan-cronjob.yaml
