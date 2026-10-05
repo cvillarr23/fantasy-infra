@@ -23,7 +23,7 @@ spec:
   selector:
     app: fantasy-broker
 ---
-# USER PROVISIONING LANDMINE - see cvillarr23/fantasy-infra#77. Do not drop the
+# USER PROVISIONING LANDMINE: do not drop the
 # render-definitions initContainer or rely on RABBITMQ_DEFAULT_USER/PASS to create the
 # broker user; the rabbitmq container's startup/readiness probes below fail loudly if the
 # user is missing or its password doesn't match the secret.
@@ -120,7 +120,7 @@ data:
     with open(OUTPUT_PATH, "w") as f:
         json.dump(definitions, f)
 
-    # Fail the initContainer loudly rather than boot a broker with no users (#77).
+    # Fail the initContainer loudly rather than boot a broker with no users.
     with open(OUTPUT_PATH) as f:
         written = json.load(f)
     assert [u["name"] for u in written.get("users", [])] == [user], "rendered definitions lack the broker user"
@@ -150,7 +150,7 @@ spec:
         # the volume at all (see the broker-data mount below).
         fsGroupChangePolicy: OnRootMismatch
       initContainers:
-        # Creates the broker's only user (#77). RABBITMQ_DEFAULT_USER/PASS are a no-op on
+        # Creates the broker's only user. RABBITMQ_DEFAULT_USER/PASS are a no-op on
         # this image once load_definitions is active, so removing this step boots the
         # broker with zero users (every connection refused).
         - name: render-definitions
@@ -185,8 +185,7 @@ spec:
             - containerPort: 15672
               name: management
           env:
-            # Not consumed by this image's entrypoint (see the ConfigMap comment above and
-            # #77) - they do NOT create a user. Used only by the probes below, which check
+            # Not consumed by this image's entrypoint (see the ConfigMap comment above) - they do NOT create a user. Used only by the probes below, which check
             # that the user rendered by the initContainer really exists with this password.
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
@@ -201,7 +200,7 @@ spec:
             # Force Erlang runtime to page messages to disk early to save cluster memory
             - name: RABBITMQ_VM_MEMORY_HIGH_WATERMARK_RELATIVE
               value: "0.4"
-          # Fail loudly instead of silently 403ing when the user is missing (#77).
+          # Fail loudly instead of silently 403ing when the user is missing.
           # authenticate_user verifies the password hash, so it also catches drift
           # between the secret and the rendered definitions.
           startupProbe:
