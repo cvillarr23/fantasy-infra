@@ -1078,3 +1078,55 @@ tests:
       - exp_labels:
           exported_namespace: default
           cronjob: fantasy-rapid-status-syncer
+
+  - name: trade-scan missed threshold, suspended and resumed
+    interval: 1m
+    start_timestamp: 1791302400
+    input_series:
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="trade-scan"}
+      values: 1791302400x125 1791388800x5
+    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="trade-scan"}
+      values: 1x125 0x5
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="trade-scan"}
+      values: 1791216000x130
+    - series: kube_job_owner{exported_namespace="default",job_name="trade-scan-new",owner_kind="CronJob",owner_name="trade-scan"}
+      values: 1x130
+    - series: kube_job_created{exported_namespace="default",job_name="trade-scan-new"}
+      values: 1791302340x130
+    alert_rule_test:
+    - eval_time: 119m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 120m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 125m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts:
+      - exp_labels:
+          exported_namespace: default
+          cronjob: trade-scan
+    - eval_time: 126m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    promql_expr_test:
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 120m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-scan"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 125m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-scan"}
+        value: 2
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 126m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-scan"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:grace
+      eval_time: 5m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="trade-scan"}
+        value: 7200

@@ -171,3 +171,17 @@ Run `./tests/rumor_action_alert/run.sh` (Python/PyYAML and Docker). It tests the
 SQL on isolated PostgreSQL 16: no data, healthy no-op, total/partial failure, failure then
 success, unrelated rows, legacy rows and exact window boundaries. Existing CronJob
 PromQL tests remain in `./tests/cronjob_alerts/run.sh`.
+
+## Outgoing trade scan
+
+`trade-scan` runs Wednesday and Friday 13:00 America/Chicago, directly in the worker image.
+It allows one attempt per league/team/Chicago calendar date, shared with manual runs.
+Deploy the browser-worker #94 image before syncing this CronJob; the production
+Kustomize digest applies to it just like the other worker workloads. It reuses
+worker secrets/config and stages proposals for separate human approval only.
+There is intentionally no trade_proposals producer/scaler pair. See the worker
+README's outgoing scan section for read-only manual checks, claim retention and
+failure recovery. Suspend this job after the configured ESPN league trade deadline.
+Off-season/duplicate/no-target outcomes are successful no-ops. Failures have no
+automatic retry; inspect trade_scan logs and execution_log claims before recovery.
+The 15-minute process and 16-minute Job deadlines bound execution and Pending time.
