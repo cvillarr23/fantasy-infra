@@ -23,6 +23,11 @@ spec:
   selector:
     app: fantasy-broker
 ---
+# USER PROVISIONING LANDMINE - see cvillarr23/fantasy-infra#77. Do not drop the
+# render-definitions initContainer or rely on RABBITMQ_DEFAULT_USER/PASS to create the
+# broker user; the rabbitmq container's startup/readiness probes below fail loudly if the
+# user is missing or its password doesn't match the secret.
+#
 # Pre-declares the queues KEDA's rabbitmq ScaledJob triggers depend on
 # (base/browser-worker/keda-scaledjob.yaml). The KEDA rabbitmq scaler errors out
 # (rather than reporting zero messages) when a queue doesn't exist yet, and with the
@@ -114,6 +119,12 @@ data:
 
     with open(OUTPUT_PATH, "w") as f:
         json.dump(definitions, f)
+
+    # Fail the initContainer loudly rather than boot a broker with no users (#77).
+    with open(OUTPUT_PATH) as f:
+        written = json.load(f)
+    assert [u["name"] for u in written.get("users", [])] == [user], "rendered definitions lack the broker user"
+    assert any(p["user"] == user for p in written.get("permissions", [])), "rendered definitions lack its permissions"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -139,6 +150,9 @@ spec:
         # the volume at all (see the broker-data mount below).
         fsGroupChangePolicy: OnRootMismatch
       initContainers:
+        # Creates the broker's only user (#77). RABBITMQ_DEFAULT_USER/PASS are a no-op on
+        # this image once load_definitions is active, so removing this step boots the
+        # broker with zero users (every connection refused).
         - name: render-definitions
           image: python:3.12-alpine
           command: ["python3", "/scripts/render-definitions.py"]
@@ -171,9 +185,9 @@ spec:
             - containerPort: 15672
               name: management
           env:
-            # Not consumed by this image's entrypoint (see the ConfigMap comment above) -
-            # kept only so `kubectl describe` still shows which credentials this broker
-            # is meant to authenticate, without duplicating them a third time.
+            # Not consumed by this image's entrypoint (see the ConfigMap comment above and
+            # #77) - they do NOT create a user. Used only by the probes below, which check
+            # that the user rendered by the initContainer really exists with this password.
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
                 secretKeyRef:
@@ -187,6 +201,26 @@ spec:
             # Force Erlang runtime to page messages to disk early to save cluster memory
             - name: RABBITMQ_VM_MEMORY_HIGH_WATERMARK_RELATIVE
               value: "0.4"
+          # Fail loudly instead of silently 403ing when the user is missing (#77).
+          # authenticate_user verifies the password hash, so it also catches drift
+          # between the secret and the rendered definitions.
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - rabbitmqctl authenticate_user "$RABBITMQ_DEFAULT_USER" "$RABBITMQ_DEFAULT_PASS"
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - rabbitmqctl authenticate_user "$RABBITMQ_DEFAULT_USER" "$RABBITMQ_DEFAULT_PASS"
+            periodSeconds: 30
+            timeoutSeconds: 10
           resources:
             requests:
               memory: "256Mi"

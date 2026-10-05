@@ -56,3 +56,12 @@ FANTASY_WORKER_ROOT=/path/to/fantasy-browser-worker \
 
 The test starts and stops its own containers. It never connects to the live
 broker.
+
+## Broker user startup check
+
+`RABBITMQ_DEFAULT_USER`/`_PASS` do not create a user on this image once
+`management.load_definitions` is active (#77). The `render-definitions`
+initContainer creates it, and the broker's startup and readiness probes run
+`rabbitmqctl authenticate_user` with the secret's credentials. If the user is
+missing or its password has drifted, the pod stays `NotReady` instead of
+silently refusing connections.
