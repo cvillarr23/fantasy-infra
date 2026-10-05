@@ -174,7 +174,8 @@ PromQL tests remain in `./tests/cronjob_alerts/run.sh`.
 
 ## Outgoing trade scan
 
-`trade-scan` runs Wednesday 10:00 America/Chicago, directly in the worker image.
+`trade-scan` runs Wednesday and Friday 13:00 America/Chicago, directly in the worker image.
+It allows one attempt per league/team/Chicago calendar date, shared with manual runs.
 Deploy the browser-worker #94 image before syncing this CronJob; the production
 Kustomize digest applies to it just like the other worker workloads. It reuses
 worker secrets/config and stages proposals for separate human approval only.

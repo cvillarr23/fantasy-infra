@@ -1,4 +1,4 @@
-# Weekly outgoing proposals for human review; deploy only after the #94 worker image.
+# Twice-weekly outgoing proposals for human review; deploy only after the #94 worker image.
 # Direct runner: deliberately no RabbitMQ producer or trade_proposals KEDA trigger.
 apiVersion: batch/v1
 kind: CronJob
@@ -6,7 +6,7 @@ metadata:
   name: trade-scan
   namespace: default
 spec:
-  schedule: 0 10 * * 3
+  schedule: "0 13 * * 3,5"
   timeZone: America/Chicago
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 1800
