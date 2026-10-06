@@ -16,65 +16,96 @@ spec:
     spec:
       # Counts Pending time too: a pod that can't schedule (e.g. node CPU requests full) fails
       # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
-      # silently skips every later run. 3600s is far above its normal runtime.
+      # silently skips every later run. Four sequential 600s week budgets leave
+      # headroom within this deadline.
       activeDeadlineSeconds: 3600
-      backoffLimit: 1
+      backoffLimit: 0
       template:
         metadata:
           labels:
             app: fantasy-core-pipeline
             component: draft-prep-refresher
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           imagePullSecrets:
             - name: ghcr-pull-secret
-          # initContainers run in order and must each fully succeed before the main
-          # container (vorp_matrix) starts - vorp_matrix computes vorp_score FROM
-          # projected_points, so running them the other way round or in parallel would
-          # compute VORP against yesterday's projections. sync_projections (Sleeper) covers
-          # QB/RB/WR/TE; sync_kicker_dst (ESPN) covers every K and D/ST, rostered or not
-          # (fantasy-core-pipeline#183). An ESPN failure (e.g. expired session cookies)
-          # fails the Job and skips vorp_matrix for the day; the optimizer then uses the
-          # previous run's target-week VORP or its prior-week fallback.
-          initContainers:
-            - name: sync-projections
+          # Each week finishes projections, K/D-ST and VORP before the next starts.
+          # Disable automatic whole-run retries so a future-week failure never replays
+          # the already committed target week; the next daily run refreshes all weeks.
+          containers:
+            - name: draft-prep-refresher
               image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
               imagePullPolicy: Always
-              command: ["/bin/sh", "-c"]
+              command: ["python", "-u", "-c"]
               args:
                 - |
-                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
-                  python -m src.ingestion.sync_projections --season "$CURRENT_YEAR" --week "$WEEK"
-              envFrom:
-                - configMapRef:
-                    name: fantasy-league-config
-              env:
-                - name: DB_HOST
-                  value: "fantasy-db.default.svc.cluster.local"
-                - name: DB_NAME
-                  value: "fantasy_football"
-                - name: DB_USER
-                  value: "bot_admin"
-                - name: DB_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: database-credentials
-                      key: postgres-password
-              resources:
-                requests:
-                  memory: "256Mi"
-                  cpu: "100m"
-                limits:
-                  memory: "512Mi"
-                  cpu: "500m"
-            - name: sync-kicker-dst
-              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
-              imagePullPolicy: Always
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
-                  python -m src.ingestion.sync_kicker_dst --season "$CURRENT_YEAR" --week "$WEEK"
+                  import logging
+                  import os
+                  import subprocess
+                  import sys
+                  import time
+
+                  logging.basicConfig(level=logging.INFO)
+                  logger = logging.getLogger("DraftPrepRefresher")
+                  WEEK_BUDGET_SECONDS = 600
+                  STAGES = (
+                      "src.ingestion.sync_projections",
+                      "src.ingestion.sync_kicker_dst",
+                      "src.optimization.vorp_matrix",
+                  )
+
+
+                  def main():
+                      try:
+                          from src.optimization.lineup_solver import resolve_default_week
+
+                          season = int(os.environ["CURRENT_YEAR"])
+                          first_week = int(resolve_default_week())
+                          if first_week < 1:
+                              raise ValueError("Target week must be at least 1")
+                      except Exception:
+                          logger.exception("Unable to resolve refresh season/week")
+                          return 1
+                      if first_week > 18:
+                          logger.info("Offseason: season=%s week=%s; no regular-season weeks to refresh", season, first_week)
+                          return 0
+
+                      last_week = min(first_week + 3, 18)
+                      completed, failed = [], []
+                      logger.info("Refreshing season=%s weeks=%s..%s", season, first_week, last_week)
+                      for week in range(first_week, last_week + 1):
+                          week_started = time.monotonic()
+                          for stage in STAGES:
+                              stage_started = time.monotonic()
+                              remaining = WEEK_BUDGET_SECONDS - (stage_started - week_started)
+                              logger.info("Starting season=%s week=%s stage=%s budget_remaining=%.1fs", season, week, stage, remaining)
+                              try:
+                                  if remaining <= 0:
+                                      raise subprocess.TimeoutExpired(stage, WEEK_BUDGET_SECONDS)
+                                  subprocess.run(
+                                      [sys.executable, "-u", "-m", stage, "--season", str(season), "--week", str(week)],
+                                      check=True,
+                                      timeout=remaining,
+                                  )
+                              except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+                                  logger.error("Failed season=%s week=%s stage=%s elapsed=%.1fs: %s", season, week, stage, time.monotonic() - stage_started, exc)
+                                  failed.append(week)
+                                  break
+                              logger.info("Completed season=%s week=%s stage=%s elapsed=%.1fs", season, week, stage, time.monotonic() - stage_started)
+                          else:
+                              completed.append(week)
+                              logger.info("Week complete season=%s week=%s elapsed=%.1fs", season, week, time.monotonic() - week_started)
+
+                          # The target week must finish before any horizon work starts. Later failures
+                          # skip dependent stages but allow other weeks to refresh independently.
+                          if week == first_week and failed:
+                              break
+
+                      logger.info("Refresh summary season=%s target_week=%s completed_weeks=%s failed_weeks=%s", season, first_week, completed, failed)
+                      return 1 if failed else 0
+
+
+                  sys.exit(main())
               envFrom:
                 - configMapRef:
                     name: fantasy-league-config
@@ -100,37 +131,6 @@ spec:
                     secretKeyRef:
                       name: espn-session-secrets
                       key: swid
-              resources:
-                requests:
-                  memory: "256Mi"
-                  cpu: "100m"
-                limits:
-                  memory: "512Mi"
-                  cpu: "500m"
-          containers:
-            - name: vorp-matrix
-              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
-              imagePullPolicy: Always
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
-                  python -m src.optimization.vorp_matrix --season "$CURRENT_YEAR" --week "$WEEK"
-              envFrom:
-                - configMapRef:
-                    name: fantasy-league-config
-              env:
-                - name: DB_HOST
-                  value: "fantasy-db.default.svc.cluster.local"
-                - name: DB_NAME
-                  value: "fantasy_football"
-                - name: DB_USER
-                  value: "bot_admin"
-                - name: DB_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: database-credentials
-                      key: postgres-password
                 - name: OTEL_EXPORTER_OTLP_ENDPOINT
                   value: "http://tempo.default.svc.cluster.local:4318"
                 - name: OTEL_EXPORTER_OTLP_PROTOCOL
