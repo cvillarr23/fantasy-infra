@@ -148,7 +148,7 @@ class DraftPrepRefresherTest(unittest.TestCase):
                 job = next(doc for doc in yaml.safe_load_all(rendered)
                            if doc and doc.get("kind") == "CronJob"
                            and doc["metadata"]["name"] == "fantasy-draft-prep-refresher")
-                self.assertEqual(job["spec"]["schedule"], "0 5 * * *")
+                self.assertEqual(job["spec"]["schedule"], "0 18 * * *")
                 self.assertEqual(job["spec"]["timeZone"], "America/Chicago")
                 self.assertEqual(job["spec"]["concurrencyPolicy"], "Forbid")
                 spec = job["spec"]["jobTemplate"]["spec"]

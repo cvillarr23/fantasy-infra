@@ -1,16 +1,13 @@
-# Nothing previously triggered the live waiver evaluator on a recurring basis --
-# waiver_sniper.js's consumer side already works, but production had no automatic entry
-# point to publish a claim. Runs after fantasy-draft-prep-refresher (daily 05:00 Central) has
-# written the upcoming week's vorp_score - the waiver evaluator's bench/free-agent pools are
-# exact-week joins, so before that it had nothing to compare and now fails the Job
-# (fantasy-core-pipeline#178 follow-up) - and 30 min after fantasy-lineup-optimizer.
+# Waiver decisions require the refreshed target-week VORP for exact-week
+# bench/free-agent joins. Run after the Tuesday refresher and lineup optimizer
+# so these decisions use the newly ingested metrics and current rosters.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fantasy-weekly-waiver-trigger
   namespace: default
 spec:
-  schedule: "0 6 * * 2" # 6:00 AM Central, every Tuesday (America/Chicago local time below)
+  schedule: "30 20 * * 2" # 20:30 Central Tuesday, after the optimizer's one-hour deadline.
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3

@@ -1,17 +1,21 @@
-name: Draft prep refresher
+name: Core pipeline refresh and schedules
 on:
   pull_request:
     paths:
-      - 'base/core-pipeline/draft-prep-refresher-cronjob.yaml'
+      - 'base/core-pipeline/*cronjob.yaml'
+      - 'base/browser-worker/trade-scan-cronjob.yaml'
       - 'overlays/**'
       - 'tests/test_draft_prep_refresher.py'
+      - 'tests/test_weekly_schedules.py'
       - '.github/workflows/draft-prep-refresher.yml'
   push:
     branches: [main]
     paths:
-      - 'base/core-pipeline/draft-prep-refresher-cronjob.yaml'
+      - 'base/core-pipeline/*cronjob.yaml'
+      - 'base/browser-worker/trade-scan-cronjob.yaml'
       - 'overlays/**'
       - 'tests/test_draft_prep_refresher.py'
+      - 'tests/test_weekly_schedules.py'
       - '.github/workflows/draft-prep-refresher.yml'
 jobs:
   validate:
@@ -26,3 +30,4 @@ jobs:
           version: 'v1.35.0'
       - run: pip install PyYAML
       - run: python -m unittest discover -s tests -p test_draft_prep_refresher.py
+      - run: python -m unittest discover -s tests -p test_weekly_schedules.py

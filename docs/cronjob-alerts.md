@@ -7,14 +7,14 @@ Every row has **latest Job failed** and **missed scheduled run** alerts. Schedul
 | CronJob | Schedule | `spec.timeZone` | Missed-run grace |
 |---|---|---|---|
 | `espn-session-healthcheck` | `0 6 * * 1`, Monday 06:00 UTC | unset; controller uses UTC here | 2h |
-| `fantasy-draft-prep-refresher` | `0 5 * * *`, daily 05:00 | America/Chicago | 2h |
-| `fantasy-lineup-optimizer` | `30 5 * * 2`, Tuesday 05:30 | America/Chicago | 2h |
+| `fantasy-draft-prep-refresher` | `0 18 * * *`, daily 18:00 | America/Chicago | 2h |
+| `fantasy-lineup-optimizer` | `15 19 * * 2`, Tuesday 19:15 | America/Chicago | 2h |
 | `fantasy-rapid-status-syncer` | `*/10 * * * 4,0,1`, every 10m Thu/Sun/Mon | America/Chicago | 20m |
-| `fantasy-rumor-action-trigger` | `0 12 * * *`, daily 12:00 | America/Chicago | 2h |
+| `fantasy-rumor-action-trigger` | `45 21 * * *`, daily 21:45 | America/Chicago | 2h |
 | `fantasy-rumor-syncer` | `*/30 * * * *`, every 30m | America/Chicago | 60m |
 | `fantasy-stale-draft-job-sweeper` | `*/15 * * * *`, every 15m | America/Chicago | 30m |
-| `fantasy-weekly-ingestor` | `0 3 * * 2`, Tuesday 03:00 | America/Chicago | 2h |
-| `fantasy-weekly-waiver-trigger` | `0 6 * * 2`, Tuesday 06:00 | America/Chicago | 2h |
+| `fantasy-weekly-ingestor` | `0 16 * * 2`, Tuesday 16:00 | America/Chicago | 2h |
+| `fantasy-weekly-waiver-trigger` | `30 20 * * 2`, Tuesday 20:30 | America/Chicago | 2h |
 | `rumor-digest-bot` | `0 11 * * *`, daily 11:00 | America/Chicago | 2h |
 
 Daily/weekly runs retain the original 2h scheduling grace. Frequent jobs get two cadences: 20m for rapid status, 30m for the high-impact sweeper, and 60m for rumor ingestion. Waiting 2h would hide 12, 8, and 4 missed runs respectively. Rules evaluate every 5m and fire **strictly above** the grace; expect up to another 5m before evaluation. Grace concerns Job creation, not runtime or completion.
@@ -53,14 +53,14 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 |---|---|
 | `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
 | `fantasy-draft-prep-refresher` | `draft-prep-refresher` container: Sleeper skill-position projections, ESPN K/D-ST projections (needs `espn-session-secrets` `espn_s2`/`swid`), then VORP for each horizon week. Check season/week/team configuration and Postgres credentials. It supplies target-week VORP for optimizer and waiver decisions and later-week VORP for trade scoring. |
-| `fantasy-lineup-optimizer` | That morning's 05:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
+| `fantasy-lineup-optimizer` | That day's 18:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
 | `fantasy-rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity; Thu/Sun/Mon are the only scheduled days. |
 | `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of complete application processing; see the application alert below. |
 | `fantasy-rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis; ingestion feeds the digest/action path. |
 | `fantasy-stale-draft-job-sweeper` | `fantasy-core-pipeline` service account and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis, and core API teardown. Verification only reads these resources. |
 | `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it does not replace projection/VORP refresh. |
-| `fantasy-weekly-waiver-trigger` | That morning's refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
-| `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs one hour before the action trigger. |
+| `fantasy-weekly-waiver-trigger` | That day's 18:00 refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
+| `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |
 
 [core-pipeline#140](https://github.com/cvillarr23/fantasy-core-pipeline/issues/140) owns
 application outcomes for the shared rumor-action service (CLI and HTTP). Its
@@ -69,14 +69,38 @@ application outcomes for the shared rumor-action service (CLI and HTTP). Its
 for semantics and the provisioning ownership handoff. Kubernetes alerts complement
 these signals and do not validate partially processed actions.
 
+### Tuesday ingestion and decision order
+
+All times below use America/Chicago. Tuesday's sequence is `sync_league` →
+metrics at 16:00 → projections/K/D-ST/VORP at 18:00 → lineup at 19:15 →
+waivers at 20:30 → rumor actions at 21:45. Each gap exceeds the preceding
+Job's one-hour deadline. The daily refresher and rumor actions also use these
+later slots on other days. The Wednesday/Friday 13:00 trade scan follows the
+previous evening's projection/VORP rebuild.
+
+The ingestor runs at 21:00Z during daylight saving time and 22:00Z during
+standard time. On 2026-10-06, nflverse's current-season pbp assets were updated
+at 15:53Z and schedules assets at 19:47–19:48Z. The later slot provides publication
+headroom after Monday-night games. Release APIs expose only current asset timestamps;
+four Tuesdays of upstream pbp workflow history are supporting timing evidence,
+not a guarantee that each week's data will be complete.
+
+The roster sync stays in the initContainer so it finishes before metrics and
+that day's scheduled decisions. No early-Tuesday scheduled consumer requires it.
+There is no second ingestion window: a successful partial ingestion would not
+trigger an automatic retry, and a later correction would need another VORP rebuild
+before dependent decisions. CronJobs enforce time spacing, not successful dependency
+completion. Inspect ingestion counts and refresher logs before trusting a run's data;
+the existing failed/missed Job alerts do not detect successful partial ingestion.
+
 ### Projection and VORP refresh horizon
 
-The daily 05:00 America/Chicago refresher resolves the target week W once, then runs
+The daily 18:00 America/Chicago refresher resolves the target week W once, then runs
 `sync_projections` → `sync_kicker_dst` → `vorp_matrix` for each week from W through
 min(W+3, 18), always finishing W before starting future weeks. A target above week 18
 is an offseason no-op; a target below week 1 fails. Every command receives the same
-configured season and its own week. Tuesday's lineup and waiver jobs still run at
-05:30 and 06:00 respectively.
+configured season and its own week. Tuesday's lineup and waiver jobs run at
+19:15 and 20:30 respectively.
 
 Each week has a shared 600-second subprocess budget. The Job retains its 3600-second
 deadline, which also bounds Pending time, and its existing CPU/memory requests and
@@ -109,7 +133,9 @@ rows when a later response is empty; ESPN ingestion deletes matched K/D-ST targe
 rows whose projections are no longer present. The refresher preserves these behaviors.
 
 Run `python3 -m unittest discover -s tests -p test_draft_prep_refresher.py` for offline
-supervisor and production/draft-day render checks. After rollout, observe a scheduled
+supervisor and production/draft-day render checks, and
+`python3 -m unittest discover -s tests -p test_weekly_schedules.py` for dependency
+spacing, roster-sync placement, and DST coverage. After rollout, observe a scheduled
 run read-only: verify W completes before the Tuesday consumers, compare each week's
 ingestion/VORP counts, and inspect the scorer's per-week coverage. Future projection
 availability is provider-dependent: verify nonempty Sleeper `stats.pts_ppr` and ESPN
@@ -121,7 +147,7 @@ write to the database. Print counts and week identifiers, never session credenti
 
 Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against its group's grace. The seven daily/weekly jobs retain UID `fantasy-cronjob-missed-schedule`; three additional rules use suffixes `rapid`, `sweeper`, and `rumor` (UIDs stay within Grafana's 40-character limit). Each provisioning file/group has one rule, matching the Grafana convention and test renderer.
 
-kube-state-metrics calculates the next timestamp from the schedule and timezone, advancing from the last scheduled run. The optimizer's missing 05:30 Tuesday run alerts after 07:30 Central in both CDT and CST. Rapid status naturally advances to the next Thu/Sun/Mon slot: a long inactive-day gap alone does not alert. A missed active-day slot remains overdue even if the grace crosses midnight.
+kube-state-metrics calculates the next timestamp from the schedule and timezone, advancing from the last scheduled run. The optimizer's missing 19:15 Tuesday run alerts after 21:15 Central in both CDT and CST. Rapid status naturally advances to the next Thu/Sun/Mon slot: a long inactive-day gap alone does not alert. A missed active-day slot remains overdue even if the grace crosses midnight.
 
 Suspended jobs intentionally alert once overdue. Summaries show overdue duration, last success and suspension. All missed rules use `noDataState: Alerting` when the group's query has no series and `execErrState: Error`; missing one member of a multi-job group does not itself create a per-job no-data alert. A Job that starts but hangs needs separate runtime/completion monitoring.
 

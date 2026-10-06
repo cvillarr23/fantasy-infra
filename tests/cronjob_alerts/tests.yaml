@@ -1,8 +1,8 @@
 # promtool unit tests for base/telemetry's alert rules; run via ./run.sh, which
 # renders rules.yaml from the committed ConfigMaps (see render_rules.py).
 # Series use real epochs. Past Jobs (2026-09-22/29) ran on the old "0 4 * * 2" schedule,
-# at 09:00 UTC. The optimizer is now "30 5 * * 2" in America/Chicago, i.e. 2026-10-06 at
-# 10:30 UTC (CDT) but 2026-11-03 at 11:30 UTC (CST).
+# at 09:00 UTC. Historical failure fixtures retain their original creation times.
+# Missed-run DST fixtures use the optimizer's 19:15 America/Chicago schedule.
 # kube_job_created's value is the creation time; next_schedule_time is what
 # kube-state-metrics reports (it applies spec.timeZone). As on the live cluster, a
 # succeeded Job has no kube_job_failed{condition="true"} series at all.
@@ -102,14 +102,14 @@ tests:
         alertname: fantasy-cronjob-missed-schedule
         exp_alerts: []
 
-  # Missed run in CDT. The 2026-10-06 05:30 Central Job was never created, so
-  # next_schedule_time stays at 10:30 UTC. Quiet within the 2h grace, fires after it.
+  # The 19:15 CDT slot crosses midnight UTC. A missing Job leaves next_schedule_time
+  # overdue; the two-hour grace still applies to the actual timezone-aware timestamp.
   - name: missed Tuesday run alerts after 2h grace (CDT)
     interval: 1m
-    start_timestamp: 1791282600 # 2026-10-06 10:30 UTC = 05:30 CDT
+    start_timestamp: 1791936900 # 2026-10-14 00:15 UTC = Tuesday 19:15 CDT
     input_series:
       - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
-        values: '1791282600x180'
+        values: '1791936900x180'
     alert_rule_test:
       - eval_time: 60m
         alertname: fantasy-cronjob-missed-schedule
@@ -119,19 +119,19 @@ tests:
         exp_alerts:
           - exp_labels: {exported_namespace: default, cronjob: fantasy-lineup-optimizer}
 
-  # Missed run after the 2026-11-01 DST change: 05:30 CST is 11:30 UTC. At 12:35 UTC,
-  # a rule that assumed 10:30 UTC would already fire; this one waits until after 13:30 UTC.
+  # After DST ends, 19:15 CST is 01:15 UTC the following day. At 02:20 UTC,
+  # assuming the summer UTC offset would fire early; wait until after 03:15 UTC.
   - name: missed Tuesday run follows America/Chicago across DST (CST)
     interval: 1m
-    start_timestamp: 1793696400 # 2026-11-03 09:00 UTC = 03:00 CST
+    start_timestamp: 1793745900 # 2026-11-03 22:45 UTC = 16:45 CST
     input_series:
       - series: 'kube_cronjob_next_schedule_time{exported_namespace="default", cronjob="fantasy-lineup-optimizer"}'
-        values: '1793705400x300'
+        values: '1793754900x300'
     alert_rule_test:
-      - eval_time: 215m # 12:35 UTC
+      - eval_time: 215m # 2026-11-04 02:20 UTC
         alertname: fantasy-cronjob-missed-schedule
         exp_alerts: []
-      - eval_time: 275m # 13:35 UTC
+      - eval_time: 275m # 2026-11-04 03:20 UTC
         alertname: fantasy-cronjob-missed-schedule
         exp_alerts:
           - exp_labels: {exported_namespace: default, cronjob: fantasy-lineup-optimizer}

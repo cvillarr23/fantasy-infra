@@ -4,7 +4,7 @@ metadata:
   name: fantasy-weekly-ingestor
   namespace: default
 spec:
-  schedule: "0 3 * * 2" # 4:00 AM Eastern, every Tuesday (America/Chicago local time below)
+  schedule: "0 16 * * 2" # 16:00 Central Tuesday gives nflverse time to publish Monday-night data.
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
