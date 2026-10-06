@@ -9,7 +9,7 @@ images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
   digest: sha256:fe6bbb23bcd9b8fd155ccebc52979e8fbb1a7acd8bb0ed8ca007e2a9a1b19fac
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:28b0c0fd6edd23b7c60e10ab0f4b84ddb7f502d87a5f7b3320e6fd8afb426428
+  digest: sha256:0914daf775c572ee7583c808227f441b0fe2e792c760aa1076df2ac9e33f145f
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:72021a4b1374238e4341589cb47dd4c8c095b8f6ca72ebaf62286f0713c72e01
 # DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
