@@ -7,6 +7,11 @@ on:
 jobs:
   check-epic:
     runs-on: ubuntu-latest
+    # This repo's default workflow token is read-only, under which every issues call below
+    # fails (403 on writes, NOT_FOUND on reads of a private repo's issues). issues: write
+    # covers both the reads and the label/comment writes.
+    permissions:
+      issues: write
     steps:
       - name: Check for a parent epic
         uses: actions/github-script@v7
