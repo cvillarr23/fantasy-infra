@@ -42,7 +42,7 @@ kubectl describe job <job_name> -n default
 kubectl logs job/<job_name> -n default --all-containers
 # Init containers can fail before the main container starts:
 kubectl logs job/<job_name> -n default -c sync-league       # weekly ingestor
-kubectl logs job/<job_name> -n default -c sync-projections  # draft refresher
+kubectl logs job/<job_name> -n default -c draft-prep-refresher
 ```
 
 If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix the dependency and allow the next scheduled run to recover. This verification procedure does not create Jobs or rerun workloads.
@@ -52,7 +52,7 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 | CronJob | Check first |
 |---|---|
 | `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
-| `fantasy-draft-prep-refresher` | `sync-projections` init container (Sleeper skill-position projections), then `sync-kicker-dst` (ESPN K/D-ST projections; needs `espn-session-secrets` `espn_s2`/`swid`), season/week/team configuration, Postgres credentials, then `vorp-matrix`. It supplies target-week VORP for optimizer and waiver decisions. |
+| `fantasy-draft-prep-refresher` | `draft-prep-refresher` container: Sleeper skill-position projections, ESPN K/D-ST projections (needs `espn-session-secrets` `espn_s2`/`swid`), then VORP for each horizon week. Check season/week/team configuration and Postgres credentials. It supplies target-week VORP for optimizer and waiver decisions and later-week VORP for trade scoring. |
 | `fantasy-lineup-optimizer` | That morning's 05:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
 | `fantasy-rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity; Thu/Sun/Mon are the only scheduled days. |
 | `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of complete application processing; see the application alert below. |
@@ -68,6 +68,54 @@ application outcomes for the shared rumor-action service (CLI and HTTP). Its
 `rumor-digest-bot-failure`. See [application outcome](#rumor-action-application-outcome)
 for semantics and the provisioning ownership handoff. Kubernetes alerts complement
 these signals and do not validate partially processed actions.
+
+### Projection and VORP refresh horizon
+
+The daily 05:00 America/Chicago refresher resolves the target week W once, then runs
+`sync_projections` → `sync_kicker_dst` → `vorp_matrix` for each week from W through
+min(W+3, 18), always finishing W before starting future weeks. A target above week 18
+is an offseason no-op; a target below week 1 fails. Every command receives the same
+configured season and its own week. Tuesday's lineup and waiver jobs still run at
+05:30 and 06:00 respectively.
+
+Each week has a shared 600-second subprocess budget. The Job retains its 3600-second
+deadline, which also bounds Pending time, and its existing CPU/memory requests and
+limits. Work is sequential, so four weeks increase runtime without multiplying peak
+resource demand. The four week budgets total 2400 seconds, leaving deadline headroom
+for startup and scheduling. Scheduling delays can still affect the Tuesday consumers.
+
+A failure or timeout in W stops the run immediately. A future-week failure skips that
+week's remaining stages but allows the other weeks to refresh. Any failed week makes
+the Job fail after processing finishes, so the existing latest-Job-failed alert also
+reports an incomplete refresh horizon. Completed W writes remain committed and usable
+even when the Job fails later. Steps commit independently; a failed week can retain
+partial writes. `restartPolicy: Never` and `backoffLimit: 0` prevent an automatic
+whole-run replay; ingestion's internal retries remain. Investigate the failed stage
+and allow the next daily run to refresh the horizon.
+
+Logs include season, week, stage, elapsed time and a `Refresh summary` with
+`completed_weeks` and `failed_weeks`. A failed horizon does not advance the CronJob's
+last-success timestamp even when W completed. The health dashboard shows whole-Job
+state, not individual-week readiness. Missed-run grace still measures Job creation,
+not completion or data availability.
+
+Future-week rows intentionally enable the lineup optimizer's target-week source when
+rostered non-K/D-ST VORP exists and the waiver service's exact-week pools when populated.
+They are refreshed daily, but failed refreshes can leave older rows available. Empty
+upstream responses are successful no-ops, not permission to copy another week's VORP
+or synthesize missing projections. Missing weekly rows remain unscored by the trade
+scorer. Existing Sleeper ingestion does not remove previously written skill-player
+rows when a later response is empty; ESPN ingestion deletes matched K/D-ST target-week
+rows whose projections are no longer present. The refresher preserves these behaviors.
+
+Run `python3 -m unittest discover -s tests -p test_draft_prep_refresher.py` for offline
+supervisor and production/draft-day render checks. After rollout, observe a scheduled
+run read-only: verify W completes before the Tuesday consumers, compare each week's
+ingestion/VORP counts, and inspect the scorer's per-week coverage. Future projection
+availability is provider-dependent: verify nonempty Sleeper `stats.pts_ppr` and ESPN
+`kona_player_info` target-period projected stats rather than player counts alone.
+Use read-only provider requests when investigating availability; ingestion commands
+write to the database. Print counts and week identifiers, never session credentials.
 
 ## Fantasy CronJob missed its scheduled run
 
