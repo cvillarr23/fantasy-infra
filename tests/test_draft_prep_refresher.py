@@ -29,8 +29,8 @@ class DraftPrepRefresherTest(unittest.TestCase):
 
     def run_supervisor(self, week=5, failure=None, clock=None, season="2026", resolver_error=None, budgets=None):
         resolver = Mock(return_value=week, side_effect=resolver_error)
-        module = types.ModuleType("src.optimization.lineup_solver")
-        module.resolve_default_week = resolver
+        module = types.ModuleType("src.nfl_schedule")
+        module.resolve_upcoming_week = resolver
         calls = []
 
         def run(command, *, check, timeout):
@@ -62,18 +62,25 @@ class DraftPrepRefresherTest(unittest.TestCase):
         status, calls, resolver, logs = self.run_supervisor()
         self.assertEqual(status, 0)
         self.assertEqual(calls, [(week, stage) for week in range(5, 9) for stage in STAGES])
-        resolver.assert_called_once_with()
+        resolver.assert_called_once_with(2026)
         self.assertIn("completed_weeks=[5, 6, 7, 8] failed_weeks=[]", logs)
 
-    def test_regular_season_cap_and_offseason(self):
-        for first in (16, 17, 18, 19):
+    def test_regular_season_cap(self):
+        for first in (16, 17, 18):
             with self.subTest(first=first):
                 status, calls, _, _ = self.run_supervisor(week=first)
                 self.assertEqual(status, 0)
                 self.assertEqual(calls, [(week, stage) for week in range(first, min(first + 3, 18) + 1) for stage in STAGES])
 
+    def test_offseason_is_an_explicit_no_op(self):
+        status, calls, _, logs = self.run_supervisor(week=None)
+        self.assertEqual(status, 0)
+        self.assertEqual(calls, [])
+        self.assertIn("regular season is over", logs)
+
     def test_invalid_configuration_and_resolution_fail_before_ingestion(self):
-        for kwargs in ({"week": 0}, {"week": -1}, {"season": "invalid"},
+        # A resolver failure must fail the Job, never fall back to some other week.
+        for kwargs in ({"week": 0}, {"week": -1}, {"week": 19}, {"season": "invalid"},
                        {"resolver_error": RuntimeError("schedule unavailable")}):
             with self.subTest(kwargs=kwargs):
                 status, calls, _, logs = self.run_supervisor(**kwargs)
