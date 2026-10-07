@@ -1,10 +1,9 @@
 # Keeps weekly_stats.projected_points/vorp_score current for the ongoing season.
-# sync_projections/vorp_matrix require --season/--week with no CLI default, so this reuses
-# lineup_solver's resolve_default_week(): the upcoming CURRENT_YEAR regular-season week from
-# the nflverse schedule. It retries the schedule download and then raises rather than guess
-# a week, so an unreadable schedule fails the Job (exit 1) instead of refreshing the wrong
-# weeks. Once the regular season is over it returns 19, which the > 18 branch treats as
-# offseason (exit 0).
+# sync_projections/vorp_matrix require --season/--week with no CLI default, so the target
+# week comes from core's src.nfl_schedule.resolve_upcoming_week(): the upcoming CURRENT_YEAR
+# regular-season week from the nflverse schedule. It retries the schedule download and then
+# raises rather than guess a week, so an unreadable schedule fails the Job (exit 1) instead
+# of refreshing the wrong weeks. None means the regular season is over (exit 0).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -61,18 +60,19 @@ spec:
 
                   def main():
                       try:
-                          from src.optimization.lineup_solver import resolve_default_week
+                          from src.nfl_schedule import resolve_upcoming_week
 
                           season = int(os.environ["CURRENT_YEAR"])
-                          first_week = int(resolve_default_week())
-                          if first_week < 1:
-                              raise ValueError("Target week must be at least 1")
+                          first_week = resolve_upcoming_week(season)
+                          if first_week is not None and not 1 <= int(first_week) <= 18:
+                              raise ValueError(f"Target week {first_week} is outside regular-season weeks 1-18")
                       except Exception:
                           logger.exception("Unable to resolve refresh season/week")
                           return 1
-                      if first_week > 18:
-                          logger.info("Offseason: season=%s week=%s; no regular-season weeks to refresh", season, first_week)
+                      if first_week is None:
+                          logger.info("Offseason: the season=%s regular season is over; no weeks to refresh", season)
                           return 0
+                      first_week = int(first_week)
 
                       last_week = min(first_week + 3, 18)
                       completed, failed = [], []
