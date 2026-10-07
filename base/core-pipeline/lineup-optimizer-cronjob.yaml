@@ -1,17 +1,13 @@
-# fantasy-browser-worker issue #80: nothing previously triggered the PuLP lineup solver
-# (src/optimization/lineup_solver.py, CORE-06) on a recurring basis — lineup_bot.js's consumer
-# side (WORKER-03) already works, but production had no automatic entry point to actually
-# produce a LineupTriggerPayload. Runs 30 min after fantasy-draft-prep-refresher
-# (draft-prep-refresher-cronjob.yaml, daily 05:00 Central), whose Tuesday run is the first to
-# write the upcoming week's projections + vorp_score. At the old 04:00 slot the solver ran
-# before they existed and fell back to prior weeks (fantasy-core-pipeline#178).
+# Target-week projections and VORP must be refreshed before lineup decisions.
+# Tuesday's 18:00 Central refresher follows historical metrics ingestion;
+# the 19:15 slot leaves room for its one-hour Job deadline and startup.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fantasy-lineup-optimizer
   namespace: default
 spec:
-  schedule: "30 5 * * 2" # 5:30 AM Central, every Tuesday (America/Chicago local time below)
+  schedule: "15 19 * * 2" # 19:15 Central Tuesday, after the refresher's one-hour deadline.
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3

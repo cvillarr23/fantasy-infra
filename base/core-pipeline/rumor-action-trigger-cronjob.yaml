@@ -1,12 +1,13 @@
-# The rumor digest bot writes advisory-only signals daily, but nothing previously acted on them
-# before the weekly waiver/lineup cadence caught up. Runs the evaluator/publisher daily instead.
+# Rumor actions call the lineup and waiver evaluators, which consume target-week VORP.
+# Run after the daily refresher and Tuesday waiver window; the 11:00 digest
+# is already available when this evaluator processes its advisory signals.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fantasy-rumor-action-trigger
   namespace: default
 spec:
-  schedule: "0 12 * * *" # 12:00 PM Central, every day (America/Chicago local time below)
+  schedule: "45 21 * * *" # 21:45 Central daily, after fresh VORP and Tuesday's waiver window.
   timeZone: "America/Chicago"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
