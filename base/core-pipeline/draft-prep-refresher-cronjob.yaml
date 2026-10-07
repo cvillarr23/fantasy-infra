@@ -1,6 +1,10 @@
 # Keeps weekly_stats.projected_points/vorp_score current for the ongoing season.
 # sync_projections/vorp_matrix require --season/--week with no CLI default, so this reuses
-# lineup_solver's resolve_default_week() (already proven by weekly-waiver-cronjob.yaml).
+# lineup_solver's resolve_default_week(): the upcoming CURRENT_YEAR regular-season week from
+# the nflverse schedule. It retries the schedule download and then raises rather than guess
+# a week, so an unreadable schedule fails the Job (exit 1) instead of refreshing the wrong
+# weeks. Once the regular season is over it returns 19, which the > 18 branch treats as
+# offseason (exit 0).
 apiVersion: batch/v1
 kind: CronJob
 metadata:

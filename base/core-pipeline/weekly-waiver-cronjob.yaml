@@ -44,8 +44,10 @@ spec:
               imagePullPolicy: Always
               command: ["/bin/sh", "-c"]
               # waiver_evaluator.py's --week has no env-var fallback (unlike lineup_solver.py's
-              # --team-id/--season), so this reuses lineup_solver's already-tested
-              # resolve_default_week() rather than reimplementing its nflreadpy fallback here.
+              # --team-id/--season), so this reuses lineup_solver's resolve_default_week(): the
+              # upcoming CURRENT_YEAR week from the nflverse schedule. It retries the download,
+              # then raises instead of guessing a week; the nonzero python -c stops the && chain
+              # so the Job fails rather than claiming waivers for the wrong week.
               args:
                 - |
                   WEEK=$(python -c "from src.optimization.lineup_solver import resolve_default_week; print(resolve_default_week())") && \
