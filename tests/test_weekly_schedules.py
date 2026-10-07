@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import re
 import subprocess
 import unittest
 from zoneinfo import ZoneInfo
@@ -12,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CENTRAL = ZoneInfo("America/Chicago")
 CHAIN = (
     "fantasy-weekly-ingestor",
+    "fantasy-sync-actual-scores",
     "fantasy-draft-prep-refresher",
     "fantasy-lineup-optimizer",
     "fantasy-weekly-waiver-trigger",
@@ -77,9 +79,57 @@ class WeeklyScheduleTest(unittest.TestCase):
                 with self.subTest(overlay=overlay, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
                     scan = self.scheduled_time(jobs["trade-scan"], day, "3,5")
-                    refresh = self.scheduled_time(jobs[CHAIN[1]], day - timedelta(days=1), "*")
-                    deadline = jobs[CHAIN[1]]["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
+                    refresh = self.scheduled_time(jobs["fantasy-draft-prep-refresher"], day - timedelta(days=1), "*")
+                    deadline = jobs["fantasy-draft-prep-refresher"]["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
                     self.assertGreater(scan, refresh + timedelta(seconds=deadline))
+
+    def test_score_reconciliation_precedes_friday_trade_scan(self):
+        for overlay, jobs in self.overlays.items():
+            for date in ((2026, 10, 16), (2026, 11, 6)):
+                with self.subTest(overlay=overlay, date=date):
+                    day = datetime(*date, tzinfo=CENTRAL)
+                    job = jobs["fantasy-sync-actual-scores-reconcile"]
+                    start = self.scheduled_time(job, day, "5")
+                    end = start + timedelta(
+                        seconds=job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
+                    self.assertLess(end, self.scheduled_time(jobs["trade-scan"], day, "3,5"))
+                    # Also finishes before that evening's refresher.
+                    refresh = self.scheduled_time(jobs["fantasy-draft-prep-refresher"], day, "*")
+                    self.assertLess(end, refresh)
+
+    def test_score_sync_env_secrets_and_safety(self):
+        secret_refs = {
+            "DB_PASSWORD": ("database-credentials", "postgres-password"),
+            "ESPN_S2": ("espn-session-secrets", "espn_s2"),
+            "ESPN_SWID": ("espn-session-secrets", "swid"),
+        }
+        for overlay, jobs in self.overlays.items():
+            for name in ("fantasy-sync-actual-scores", "fantasy-sync-actual-scores-reconcile"):
+                with self.subTest(overlay=overlay, name=name):
+                    spec = jobs[name]["spec"]
+                    self.assertEqual(spec["concurrencyPolicy"], "Forbid")
+                    job = spec["jobTemplate"]["spec"]
+                    self.assertEqual(job["backoffLimit"], 1)
+                    self.assertEqual(job["activeDeadlineSeconds"], 1800)
+                    pod = job["template"]["spec"]
+                    self.assertEqual(pod["restartPolicy"], "Never")
+                    (container,) = pod["containers"]
+                    self.assertEqual(container["command"], [
+                        "python", "-m", "src.ingestion.sync_actual_scores", "--season", "2026"])
+                    self.assertNotIn("args", container)
+                    self.assertRegex(container["image"],
+                                     r"^ghcr\.io/cvillarr23/fantasy-core-pipeline@sha256:[0-9a-f]{64}$")
+                    self.assertEqual(container["envFrom"],
+                                     [{"configMapRef": {"name": "fantasy-league-config"}}])
+                    env = {item["name"]: item for item in container["env"]}
+                    for var, (secret, key) in secret_refs.items():
+                        self.assertNotIn("value", env[var])
+                        self.assertEqual(env[var]["valueFrom"]["secretKeyRef"],
+                                         {"name": secret, "key": key})
+                    self.assertEqual(env["REDIS_HOST"]["value"],
+                                     "fantasy-cache.default.svc.cluster.local")
+                    self.assertFalse(any(re.search(r"espn_s2|swid", part, re.I)
+                                         for part in container["command"]))
 
 
 if __name__ == "__main__":

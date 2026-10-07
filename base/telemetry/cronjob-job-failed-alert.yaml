@@ -1,5 +1,5 @@
-# Covers all ten base/ CronJobs (fantasy-infra#75); initial slice: #97/#98.
-# Regex groups the eight fantasy- names plus the two browser-worker names.
+# Covers every base/ CronJob (fantasy-infra#75); initial slice: #97/#98.
+# Regex groups the fantasy- names plus the browser-worker names.
 # Fires when the most recent Job of a watched CronJob has failed.
 # Only the latest Job per CronJob counts: failed Jobs linger for failedJobsHistoryLimit,
 # so an old failure followed by successes must not keep firing. The alert resolves on
@@ -48,11 +48,11 @@ data:
                   expr: >
                     (
                       (kube_job_created * on (exported_namespace, job_name) group_left (owner_name)
-                        max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"}))
+                        max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"}))
                       == on (exported_namespace, owner_name) group_left ()
                       max by (exported_namespace, owner_name) (
                         kube_job_created * on (exported_namespace, job_name) group_left (owner_name)
-                          max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"})
+                          max by (exported_namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"})
                       )
                     )
                     and on (exported_namespace, job_name) (kube_job_failed{condition="true"} == 1)
@@ -78,7 +78,7 @@ data:
                 model:
                   expr: >
                     max by (exported_namespace, owner_name) (
-                      label_replace(kube_cronjob_status_last_successful_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"},
+                      label_replace(kube_cronjob_status_last_successful_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rapid-status-syncer|rumor-action-trigger|rumor-syncer|stale-draft-job-sweeper|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"},
                         "owner_name", "$1", "cronjob", "(.*)")
                     )
                   instant: true
