@@ -191,7 +191,7 @@ tests:
         exp_alerts: []
 
   # #75: explicit coverage for the entire base/ CronJob inventory.
-  - name: all ten latest Jobs failed alert
+  - name: every watched CronJob's latest Job failed alerts
     interval: 1m
     start_timestamp: 1791282600
     input_series:
@@ -293,6 +293,34 @@ tests:
       values: 1x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
       values: 1791196200x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-old"}
+      values: 1791196200x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",condition="true"}
+      values: 1x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-new"}
+      values: 1791282540x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-new",condition="true"}
+      values: 1x10
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores"}
+      values: 1791196200x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores-reconcile"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old"}
+      values: 1791196200x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old",condition="true"}
+      values: 1x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores-reconcile"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new"}
+      values: 1791282540x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new",condition="true"}
+      values: 1x10
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores-reconcile"}
+      values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-weekly-ingestor-old",owner_kind="CronJob",owner_name="fantasy-weekly-ingestor"}
       values: 1x10
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-weekly-ingestor-old"}
@@ -369,6 +397,14 @@ tests:
           job_name: fantasy-stale-draft-job-sweeper-new
       - exp_labels:
           exported_namespace: default
+          owner_name: fantasy-sync-actual-scores
+          job_name: fantasy-sync-actual-scores-new
+      - exp_labels:
+          exported_namespace: default
+          owner_name: fantasy-sync-actual-scores-reconcile
+          job_name: fantasy-sync-actual-scores-reconcile-new
+      - exp_labels:
+          exported_namespace: default
           owner_name: fantasy-weekly-ingestor
           job_name: fantasy-weekly-ingestor-new
       - exp_labels:
@@ -379,7 +415,7 @@ tests:
           exported_namespace: default
           owner_name: rumor-digest-bot
           job_name: rumor-digest-bot-new
-  - name: all ten latest Jobs succeeded after old failures stay quiet
+  - name: every watched CronJob's latest Job succeeded after old failures stays quiet
     interval: 1m
     start_timestamp: 1791282600
     input_series:
@@ -466,6 +502,30 @@ tests:
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new"}
       values: 1791282540x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
+      values: 1791196200x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-old"}
+      values: 1791196200x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",condition="true"}
+      values: 1x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-new"}
+      values: 1791282540x10
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores"}
+      values: 1791196200x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores-reconcile"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old"}
+      values: 1791196200x10
+    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-old",condition="true"}
+      values: 1x10
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores-reconcile"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new"}
+      values: 1791282540x10
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores-reconcile"}
       values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-weekly-ingestor-old",owner_kind="CronJob",owner_name="fantasy-weekly-ingestor"}
       values: 1x10
@@ -1129,4 +1189,110 @@ tests:
       eval_time: 5m
       exp_samples:
       - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="trade-scan"}
+        value: 7200
+
+  - name: fantasy-sync-actual-scores missed threshold, suspended and resumed
+    # Tuesday 2026-10-13 17:05 America/Chicago (22:05Z); next is 2026-10-20.
+    interval: 1m
+    start_timestamp: 1791929100
+    input_series:
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores"}
+      values: 1791929100x125 1792533900x5
+    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="fantasy-sync-actual-scores"}
+      values: 1x125 0x5
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores"}
+      values: 1791324300x130
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
+      values: 1x130
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-new"}
+      values: 1791929040x130
+    alert_rule_test:
+    - eval_time: 119m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 120m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 125m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts:
+      - exp_labels:
+          exported_namespace: default
+          cronjob: fantasy-sync-actual-scores
+    - eval_time: 126m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    promql_expr_test:
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 120m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 125m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores"}
+        value: 2
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 126m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:grace
+      eval_time: 5m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-sync-actual-scores"}
+        value: 7200
+
+  - name: fantasy-sync-actual-scores-reconcile missed threshold, suspended and resumed
+    # Friday 2026-10-09 10:00 America/Chicago (15:00Z); next is 2026-10-16.
+    interval: 1m
+    start_timestamp: 1791558000
+    input_series:
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores-reconcile"}
+      values: 1791558000x125 1792162800x5
+    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="fantasy-sync-actual-scores-reconcile"}
+      values: 1x125 0x5
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-sync-actual-scores-reconcile"}
+      values: 1790953200x130
+    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores-reconcile"}
+      values: 1x130
+    - series: kube_job_created{exported_namespace="default",job_name="fantasy-sync-actual-scores-reconcile-new"}
+      values: 1791557940x130
+    alert_rule_test:
+    - eval_time: 119m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 120m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 125m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts:
+      - exp_labels:
+          exported_namespace: default
+          cronjob: fantasy-sync-actual-scores-reconcile
+    - eval_time: 126m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    promql_expr_test:
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 120m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores-reconcile"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 125m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores-reconcile"}
+        value: 2
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 126m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-sync-actual-scores-reconcile"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:grace
+      eval_time: 5m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-sync-actual-scores-reconcile"}
         value: 7200

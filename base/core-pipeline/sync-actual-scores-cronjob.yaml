@@ -1,0 +1,158 @@
+# Stores completed ESPN fantasy scores and schedules (fantasy_matchups,
+# fantasy_team_week_scores) that completed matchup reads and trade-context opponent
+# strength depend on. Each run reprocesses every completed week, so a later run also
+# recovers a week an earlier run missed and picks up ESPN stat corrections.
+#
+# A week ESPN hasn't finished (games not final, stats not yet official) fails the Job
+# instead of being skipped or guessed, so the latest-Job-failed alert reports it and the
+# next scheduled run retries. Weeks before it in the same run stay committed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-sync-actual-scores
+  namespace: default
+spec:
+  # Player actuals only update weekly_stats rows the weekly ingestor creates, so this runs
+  # after the ingestor's one-hour deadline and finishes before the 18:00 refresher.
+  schedule: "5 17 * * 2" # 17:05 Central Tuesday, about 18h after Monday night's games end.
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # Counts Pending time too: a pod that can't schedule (e.g. node CPU requests full) fails
+      # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
+      # silently skips every later run. 1800s is far above its normal runtime (a few bounded
+      # ESPN requests per completed week) and keeps it clear of the 18:00 refresher.
+      activeDeadlineSeconds: 1800
+      # One retry on a fresh pod covers a transient ESPN/HTTP error. Reruns are safe: each
+      # week is written in one transaction under a league/season advisory lock and replaces
+      # that week's rows. Never (not OnFailure) keeps the failed pod and its logs, and stops
+      # container restarts from using up backoffLimit. An incomplete week just fails twice.
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: sync-actual-scores
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: sync-actual-scores
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+              imagePullPolicy: Always
+              # No week arguments: the job resolves completed weeks from ESPN itself.
+              # ESPN cookies come only from the secret env below, never from arguments.
+              command: ["python", "-m", "src.ingestion.sync_actual_scores", "--season", "2026"]
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
+              env:
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                # Each committed week invalidates the league read cache so the gateway stops
+                # serving live-ESPN matchup responses for it.
+                - name: REDIS_HOST
+                  value: "fantasy-cache.default.svc.cluster.local"
+                - name: REDIS_PORT
+                  value: "6379"
+                - name: ESPN_S2
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: espn_s2
+                - name: ESPN_SWID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: swid
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+---
+# Friday reconciliation: picks up a week Tuesday's run couldn't store yet (stats not
+# official, a postponed game) plus ESPN stat corrections, before Friday's 13:00 trade
+# scan scores opponents. Thursday's game belongs to a week ESPN hasn't completed, so it
+# isn't processed or failed on here.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-sync-actual-scores-reconcile
+  namespace: default
+spec:
+  schedule: "0 10 * * 5" # 10:00 Central Friday, before the 13:00 trade scan.
+  timeZone: "America/Chicago"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # Same deadline and retry reasoning as the Tuesday CronJob above.
+      activeDeadlineSeconds: 1800
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: sync-actual-scores-reconcile
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: sync-actual-scores
+              image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+              imagePullPolicy: Always
+              command: ["python", "-m", "src.ingestion.sync_actual_scores", "--season", "2026"]
+              envFrom:
+                - configMapRef:
+                    name: fantasy-league-config
+              env:
+                - name: DB_HOST
+                  value: "fantasy-db.default.svc.cluster.local"
+                - name: DB_NAME
+                  value: "fantasy_football"
+                - name: DB_USER
+                  value: "bot_admin"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: postgres-password
+                - name: REDIS_HOST
+                  value: "fantasy-cache.default.svc.cluster.local"
+                - name: REDIS_PORT
+                  value: "6379"
+                - name: ESPN_S2
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: espn_s2
+                - name: ESPN_SWID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: swid
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"

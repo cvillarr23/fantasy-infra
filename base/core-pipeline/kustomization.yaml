@@ -5,6 +5,7 @@ resources:
   - fastapi-deployment.yaml
   - fastapi-service.yaml
   - weekly-cronjob.yaml
+  - sync-actual-scores-cronjob.yaml
   - rapid-status-syncer-cronjob.yaml
   - fantasy-rumor-syncer-cronjob.yaml
   - stale-draft-job-sweeper-cronjob.yaml

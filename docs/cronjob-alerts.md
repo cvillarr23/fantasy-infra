@@ -1,6 +1,6 @@
 # CronJob alerts runbook
 
-All ten CronJobs in `base/` are covered by [#75](https://github.com/cvillarr23/fantasy-infra/issues/75). The first slices were [#97 / PR #98](https://github.com/cvillarr23/fantasy-infra/pull/98) and [#101](https://github.com/cvillarr23/fantasy-infra/issues/101). Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`; homelab-deployment's Grafana alert sidecar loads them into **Fantasy**. Dashboard: **Fantasy → Fantasy CronJob Health**.
+Every CronJob in `base/` is covered by [#75](https://github.com/cvillarr23/fantasy-infra/issues/75). The first slices were [#97 / PR #98](https://github.com/cvillarr23/fantasy-infra/pull/98) and [#101](https://github.com/cvillarr23/fantasy-infra/issues/101). Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`; homelab-deployment's Grafana alert sidecar loads them into **Fantasy**. Dashboard: **Fantasy → Fantasy CronJob Health**.
 
 Every row has **latest Job failed** and **missed scheduled run** alerts. Schedule fields, not comments that assume UTC, determine local run times.
 
@@ -13,6 +13,8 @@ Every row has **latest Job failed** and **missed scheduled run** alerts. Schedul
 | `fantasy-rumor-action-trigger` | `45 21 * * *`, daily 21:45 | America/Chicago | 2h |
 | `fantasy-rumor-syncer` | `*/30 * * * *`, every 30m | America/Chicago | 60m |
 | `fantasy-stale-draft-job-sweeper` | `*/15 * * * *`, every 15m | America/Chicago | 30m |
+| `fantasy-sync-actual-scores` | `5 17 * * 2`, Tuesday 17:05 | America/Chicago | 2h |
+| `fantasy-sync-actual-scores-reconcile` | `0 10 * * 5`, Friday 10:00 | America/Chicago | 2h |
 | `fantasy-weekly-ingestor` | `0 16 * * 2`, Tuesday 16:00 | America/Chicago | 2h |
 | `fantasy-weekly-waiver-trigger` | `30 20 * * 2`, Tuesday 20:30 | America/Chicago | 2h |
 | `rumor-digest-bot` | `0 11 * * *`, daily 11:00 | America/Chicago | 2h |
@@ -27,7 +29,7 @@ Daily/weekly runs retain the original 2h scheduling grace. Frequent jobs get two
 | Failed Job | Newest owned Job has `kube_job_failed{condition="true"} == 1` | Fantasy CronJob latest Job failed |
 | Succeeded | Latest Job completed and last-success time advanced | none |
 
-The table shows last scheduled/successful/next times, latest Job, active count, and grace for all ten jobs by default. A running Job is not proven successful merely because no failure condition exists: check **Active Jobs** and **Last successful**. Missing input series may leave fields blank; inspect telemetry before interpreting the state.
+The table shows last scheduled/successful/next times, latest Job, active count, and grace for every watched job by default. A running Job is not proven successful merely because no failure condition exists: check **Active Jobs** and **Last successful**. Missing input series may leave fields blank; inspect telemetry before interpreting the state.
 
 A successful optimizer with zero swaps is a normal no-op. Its log panel distinguishes `Lineup already optimal` from `Published N lineup swap(s)`. Missing input fails the Job after [core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178); empty waiver pools fail after [#181](https://github.com/cvillarr23/fantasy-core-pipeline/issues/181).
 
@@ -58,6 +60,7 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 | `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job is not proof of complete application processing; see the application alert below. |
 | `fantasy-rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis; ingestion feeds the digest/action path. |
 | `fantasy-stale-draft-job-sweeper` | `fantasy-core-pipeline` service account and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis, and core API teardown. Verification only reads these resources. |
+| `fantasy-sync-actual-scores` / `-reconcile` | ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID` from `fantasy-league-config`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. Each run reprocesses every completed week. A week ESPN hasn't finished fails the Job with a reason such as `ESPN professional statistics are not official` or `NFL games are missing or not final`; weeks before it stay committed. Wait for the next scheduled run (Friday catches a Tuesday miss). Don't force a week with `--week`; it applies the same completeness checks. A success that logs no `Persisted ... week=N` for the just-finished week means ESPN hadn't rolled its scoring period yet. |
 | `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it does not replace projection/VORP refresh. |
 | `fantasy-weekly-waiver-trigger` | That day's 18:00 refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
 | `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |
@@ -72,9 +75,14 @@ these signals and do not validate partially processed actions.
 ### Tuesday ingestion and decision order
 
 All times below use America/Chicago. Tuesday's sequence is `sync_league` →
-metrics at 16:00 → projections/K/D-ST/VORP at 18:00 → lineup at 19:15 →
-waivers at 20:30 → rumor actions at 21:45. Each gap exceeds the preceding
-Job's one-hour deadline. The daily refresher and rumor actions also use these
+metrics at 16:00 → completed fantasy scores at 17:05 → projections/K/D-ST/VORP
+at 18:00 → lineup at 19:15 → waivers at 20:30 → rumor actions at 21:45. Each
+gap exceeds the preceding Job's deadline (one hour; 30 minutes for scores).
+Score sync follows the ingestor because it mirrors ESPN player actuals only
+into `weekly_stats` rows the ingestor has created. The Friday 10:00
+reconciliation run stores any week Tuesday couldn't (stats not yet official,
+a postponed game) plus ESPN stat corrections before Friday's trade scan; the
+trade context's opponent strength reads these stored scores. The daily refresher and rumor actions also use these
 later slots on other days. The Wednesday/Friday 13:00 trade scan follows the
 previous evening's projection/VORP rebuild.
 
@@ -187,11 +195,11 @@ kube_job_failed * on (exported_namespace,job_name) group_left (owner_name)
 
 Successful Jobs can have **no** `kube_job_failed` series. Confirm their Job conditions read-only and record this as expected absence, not a broken scrape. Never manufacture a failed Job to get a series. `exported_namespace` is the object's namespace; `namespace` is kube-state-metrics' namespace. Retention limits historical verification.
 
-After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all five rule UIDs, their query groups match this inventory, and the dashboard shows all ten rows with the right grace. Only then tick the remaining #75 checkboxes. Do not close #75 until all ten are verified.
+After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all five rule UIDs, their query groups match this inventory, and the dashboard shows a row for every watched CronJob with the right grace. Only then tick the remaining #75 checkboxes. Do not close #75 until all ten are verified.
 
 ## Testing and adding coverage
 
-Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard queries and runs Docker promtool fixtures covering all ten failures, success after historical failures, grace boundaries, suspended/resumed runs, CDT/CST, UTC healthcheck, rapid-status inactive days and unwatched jobs. Dashboard state and grace queries are checked against the same fixtures. Grafana's no-data policy requires live provisioning verification; promtool tests PromQL, not Grafana's evaluator.
+Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard queries and runs Docker promtool fixtures covering every watched job's failure, success after historical failures, grace boundaries, suspended/resumed runs, CDT/CST, UTC healthcheck, rapid-status inactive days and unwatched jobs. Dashboard state and grace queries are checked against the same fixtures. Grafana's no-data policy requires live provisioning verification; promtool tests PromQL, not Grafana's evaluator.
 
 For a new CronJob, update all failure selectors/context, select or add a missed-rule grace group, register new ConfigMaps, update dashboard inventory/grace and this table, then add firing/non-firing fixtures. Keep each rule's provisioning key and UID unique. Validate both production and draft-day renders.
 
