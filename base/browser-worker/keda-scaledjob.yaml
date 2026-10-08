@@ -135,11 +135,9 @@ spec:
         value: "1"
       authenticationRef:
         name: rabbitmq-trigger-auth
-    # The worker also consumes these four (see fantasy-browser-worker src/queue/connection.js),
-    # but without triggers a message on them only got handled if a worker happened to be up for
-    # one of the queues above. Not broker-owned (the worker asserts them durable on startup), so
-    # on a fresh broker these scalers error until the first worker has run; the triggers above
-    # keep working meanwhile.
+    # These consumers also need wake-up triggers when the worker is scaled to zero.
+    # The broker predeclares submission/response queues; the other queues are asserted
+    # durable by the worker and may report scaler errors until its first startup.
     - type: rabbitmq
       metadata:
         queueName: trade_evaluations
@@ -164,6 +162,13 @@ spec:
     - type: rabbitmq
       metadata:
         queueName: trade_submissions
+        mode: QueueLength
+        value: "1"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    - type: rabbitmq
+      metadata:
+        queueName: trade_responses
         mode: QueueLength
         value: "1"
       authenticationRef:

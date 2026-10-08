@@ -1,9 +1,11 @@
 # RabbitMQ queue contract and storage rollout
 
 The broker owns the durable topology for `lineup_updates`, `waiver_actions`, and
-`draft_targets`. Producers and consumers check that these queues exist without
-redeclaring their arguments. A broker policy sends rejected messages to the
-existing `dlx` exchange; each queue's original routing key selects its matching
+`draft_targets`, and predeclares durable `trade_submissions` and `trade_responses`
+with empty arguments for the trade consumers. Producers and consumers check that
+the first three queues exist without redeclaring their arguments. A broker policy
+sends their rejected messages to the existing `dlx` exchange; each queue's original
+routing key selects its matching
 `.dlq`. Existing queues with hardcoded dead-letter arguments continue to use
 those arguments because RabbitMQ gives them precedence over a regular policy.
 
@@ -65,3 +67,25 @@ initContainer creates it, and the broker's startup and readiness probes run
 `rabbitmqctl authenticate_user` with the secret's credentials. If the user is
 missing or its password has drifted, the pod stays `NotReady` instead of
 silently refusing connections.
+
+## Trade queue provisioning
+
+KEDA watches `trade_submissions` and `trade_responses`. Both are predeclared in
+broker startup definitions and are also asserted durable by the worker. Their
+arguments stay empty, matching the worker declaration; they do not join the
+existing dead-letter policy or gain new DLQs.
+
+Updating the definitions ConfigMap does not import definitions into a running
+broker: its rendered file and configuration are mounted with subPath and loaded
+at boot. This change does not force a broker restart. On an existing broker the
+next ordinary worker startup declares these queues; other KEDA triggers continue
+working meanwhile. A fresh broker declares them before workers start. If a queue
+remains absent, let the operator decide when to restart a worker or broker; do not
+publish a synthetic message or restart production resources to establish it.
+
+After sync, inspect the ScaledJob's trigger names and status/conditions read-only
+with `kubectl get scaledjob fantasy-browser-worker-scaler -n default -o yaml`.
+Confirm both queues exist using the broker's read-only management queue inventory
+or existing telemetry. An empty or absent queue is not a reason to enqueue a test
+trade response. Keep `TRADE_RESPONSE_ENABLED` unset and `DRY_RUN` at its safe
+unset default (true). No response is authorized by adding a scaler trigger.

@@ -18,6 +18,7 @@ Every row has **latest Job failed** and **missed scheduled run** alerts. Schedul
 | `fantasy-weekly-ingestor` | `0 16 * * 2`, Tuesday 16:00 | America/Chicago | 2h |
 | `fantasy-weekly-waiver-trigger` | `30 20 * * 2`, Tuesday 20:30 | America/Chicago | 2h |
 | `rumor-digest-bot` | `0 11 * * *`, daily 11:00 | America/Chicago | 2h |
+| `trade-inbox` | `0 8-22/2 * * *`, every two hours 08:00–22:00 | America/Chicago | 2h |
 
 Daily/weekly runs retain the original 2h scheduling grace. Frequent jobs get two cadences: 20m for rapid status, 30m for the high-impact sweeper, and 60m for rumor ingestion. Waiting 2h would hide 12, 8, and 4 missed runs respectively. Rules evaluate every 5m and fire **strictly above** the grace; expect up to another 5m before evaluation. Grace concerns Job creation, not runtime or completion.
 
@@ -63,6 +64,7 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 | `fantasy-sync-actual-scores` / `-reconcile` | ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID` from `fantasy-league-config`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. Each run reprocesses every completed week. A week ESPN hasn't finished fails the Job with a reason such as `ESPN professional statistics are not official` or `NFL games are missing or not final`; weeks before it stay committed. Wait for the next scheduled run (Friday catches a Tuesday miss). Don't force a week with `--week`; it applies the same completeness checks. A success that logs no `Persisted ... week=N` for the just-finished week means ESPN hadn't rolled its scoring period yet. |
 | `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it does not replace projection/VORP refresh. |
 | `fantasy-weekly-waiver-trigger` | That day's 18:00 refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
+| `trade-inbox` | ESPN stored session/cookies, league/team configuration, Postgres inbox/execution logging, and core `POST /v1/trade/score`. No LLM keys. A completed Job can still contain unavailable/stale scores; inspect refresh logs and score outcomes. |
 | `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |
 
 [core-pipeline#140](https://github.com/cvillarr23/fantasy-core-pipeline/issues/140) owns
@@ -267,3 +269,36 @@ failure recovery. Suspend this job after the configured ESPN league trade deadli
 Off-season/duplicate/no-target outcomes are successful no-ops. Failures have no
 automatic retry; inspect trade_scan logs and execution_log claims before recovery.
 The 15-minute process and 16-minute Job deadlines bound execution and Pending time.
+
+## Incoming trade inbox
+
+`trade-inbox` runs eight times daily, 08:00 through 22:00 America/Chicago,
+with `node src/bots/trade_inbox.js --refresh`. It only reads ESPN and persists
+incoming offers in Postgres. The worker CLI defaults to `--check` (no database
+writes); the scheduled command explicitly selects persistence. The process has a
+ten-minute bound and the Job an eleven-minute deadline, with no automatic retry,
+no concurrent scheduled runs, and a thirty-minute late-start allowance.
+
+Wednesday/Friday's 13:00 trade scan also refreshes the inbox, between the noon and
+14:00 inbox runs. There are 56 inbox runs and two additional scan refreshes weekly.
+Each active-season refresh reads pending transactions once, optionally reads history
+for vanished offers, and makes at most ten sequential core score calls. Unchanged
+successful scores are reused. Core can read ESPN for cold scoring context. Offseason
+runs are successful no-ops. These Jobs have separate concurrency policies; manual
+runs or delayed runs are not globally serialized with the trade scan.
+
+Deploy a worker image containing `src/bots/trade_inbox.js` and the `trade_responses`
+consumer before syncing these resources. The production image transformer pins the
+new CronJob to the same digest as the existing worker. The worker's core URL default
+is `http://fantasy-core-pipeline.default.svc.cluster.local:8000`, matching trade-scan.
+The inbox score timeout defaults to 20000 ms; `TRADE_SCORE_TIMEOUT_MS` stays unset.
+`TRADE_RESPONSE_ENABLED` and both shadow thresholds stay unset; unset `DRY_RUN`
+remains true. No accept, decline or counter is enabled by this rollout.
+
+After Argo CD sync, inspect `kubectl get cronjob trade-inbox -n default -o yaml`,
+Jobs/pods and `kubectl logs -n default job/<scheduled-job>`. Confirm the image,
+command, safety configuration, deadlines, last-success time and `Refreshed` outcome
+(including scoreCalls/exits). Verify the dashboard row and latest-failed/missed-run
+alerts; missed-run grace is two hours and the overnight gap is intentional.
+Do not create a manual refresh Job or send test queue messages for verification.
+Core inbox API endpoints are not a prerequisite for this CronJob.

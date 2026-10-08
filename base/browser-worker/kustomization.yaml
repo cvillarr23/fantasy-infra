@@ -7,3 +7,4 @@ resources:
   - rumor-digest-bot-cronjob.yaml
   - rbac.yaml
   - trade-scan-cronjob.yaml
+  - trade-inbox-cronjob.yaml

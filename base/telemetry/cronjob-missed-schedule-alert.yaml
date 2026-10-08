@@ -39,7 +39,7 @@ data:
                 model:
                   expr: >
                     time() - max by (exported_namespace, cronjob) (
-                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"}
+                      kube_cronjob_next_schedule_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan|trade-inbox"}
                     )
                   instant: true
               - refId: B
@@ -62,7 +62,7 @@ data:
                 model:
                   expr: >
                     max by (exported_namespace, cronjob) (
-                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"}
+                      kube_cronjob_status_last_successful_time{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan|trade-inbox"}
                     )
                   instant: true
               - refId: E
@@ -77,7 +77,7 @@ data:
                 model:
                   expr: >
                     max by (exported_namespace, cronjob) (
-                      kube_cronjob_spec_suspend{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan"}
+                      kube_cronjob_spec_suspend{cronjob=~"fantasy-(draft-prep-refresher|lineup-optimizer|rumor-action-trigger|sync-actual-scores|sync-actual-scores-reconcile|weekly-ingestor|weekly-waiver-trigger)|espn-session-healthcheck|rumor-digest-bot|trade-scan|trade-inbox"}
                     )
                   instant: true
               - refId: G

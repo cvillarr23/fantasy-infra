@@ -63,6 +63,8 @@ data:
         {"name": "lineup_updates", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "waiver_actions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "draft_targets", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "trade_submissions", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "trade_responses", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "lineup_updates.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "waiver_actions.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "draft_targets.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
