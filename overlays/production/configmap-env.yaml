@@ -8,3 +8,5 @@ data:
   ESPN_TEAM_ID: "8"
   CURRENT_YEAR: "2026"
   SPORT_TYPE: "nfl"
+  # Unattended IR stashes require deliberate approval before a live waiver week.
+  AUTO_PUBLISH_IR_MOVES: "false"
