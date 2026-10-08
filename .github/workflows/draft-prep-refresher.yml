@@ -3,21 +3,25 @@ on:
   pull_request:
     paths:
       - 'base/core-pipeline/*cronjob.yaml'
+      - 'base/core-pipeline/fastapi-deployment.yaml'
       - 'base/browser-worker/trade-scan-cronjob.yaml'
       - 'overlays/**'
       - 'tests/test_draft_prep_refresher.py'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_weekly_waiver_week.py'
+      - 'tests/test_auto_publish_ir_moves.py'
       - '.github/workflows/draft-prep-refresher.yml'
   push:
     branches: [main]
     paths:
       - 'base/core-pipeline/*cronjob.yaml'
+      - 'base/core-pipeline/fastapi-deployment.yaml'
       - 'base/browser-worker/trade-scan-cronjob.yaml'
       - 'overlays/**'
       - 'tests/test_draft_prep_refresher.py'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_weekly_waiver_week.py'
+      - 'tests/test_auto_publish_ir_moves.py'
       - '.github/workflows/draft-prep-refresher.yml'
 jobs:
   validate:
@@ -34,3 +38,4 @@ jobs:
       - run: python -m unittest discover -s tests -p test_draft_prep_refresher.py
       - run: python -m unittest discover -s tests -p test_weekly_schedules.py
       - run: python -m unittest discover -s tests -p test_weekly_waiver_week.py
+      - run: python -m unittest discover -s tests -p test_auto_publish_ir_moves.py

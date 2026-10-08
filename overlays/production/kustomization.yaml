@@ -12,6 +12,34 @@ images:
   digest: sha256:d41e726f10cdb9ea3d27ed74da5e14ffb0aa9a06d7b9014c17db48a1b18df5ec
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:167c106df264575b2138b26e5903178ee1dbe177f5f3033e5f35f600a69ffc50
+patches:
+# Preserve string quoting when the replacement copies a boolean-looking flag.
+- target:
+    kind: Deployment
+    name: fantasy-core-pipeline
+  patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: fantasy-core-pipeline
+    spec:
+      template:
+        metadata:
+          annotations:
+            fantasy-infra/auto-publish-ir-moves: ""
+replacements:
+# ConfigMap env changes do not refresh running containers. Mirror the flag into
+# the gateway pod template so changing this one shared key also rolls the HTTP publisher.
+- source:
+    kind: ConfigMap
+    name: fantasy-league-config
+    fieldPath: data.AUTO_PUBLISH_IR_MOVES
+  targets:
+  - select:
+      kind: Deployment
+      name: fantasy-core-pipeline
+    fieldPaths:
+    - spec.template.metadata.annotations.fantasy-infra/auto-publish-ir-moves
 # DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
 # draft Jobs at runtime. They are plain env strings, so neither the `images:` transformer above
 # nor Argo CD Image Updater's git write-back can see them: a release digest-pins every real
@@ -22,7 +50,6 @@ images:
 #
 # Sourcing each value from an already-transformed `image:` field keeps them digest-pinned and
 # updated by the same mechanism, with no second place to remember to bump.
-replacements:
 - source:
     kind: Deployment
     name: fantasy-core-pipeline
