@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'base/browser-worker/**'
+      - 'base/databases/rabbitmq-deployment.yaml'
       - 'overlays/**'
       - 'tests/test_worker_triggers.py'
       - '.github/workflows/worker-triggers.yml'
@@ -10,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'base/browser-worker/**'
+      - 'base/databases/rabbitmq-deployment.yaml'
       - 'overlays/**'
       - 'tests/test_worker_triggers.py'
       - '.github/workflows/worker-triggers.yml'

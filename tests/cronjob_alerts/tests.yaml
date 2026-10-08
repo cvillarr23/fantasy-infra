@@ -1296,3 +1296,111 @@ tests:
       exp_samples:
       - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-sync-actual-scores-reconcile"}
         value: 7200
+
+  - name: trade-inbox missed threshold, suspended and resumed
+    interval: 1m
+    start_timestamp: 1791378000
+    input_series:
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1791378000x125 1791392400x5
+    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1x125 0x5
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1791342000x130
+    - series: kube_job_owner{exported_namespace="default",job_name="trade-inbox-new",owner_kind="CronJob",owner_name="trade-inbox"}
+      values: 1x130
+    - series: kube_job_created{exported_namespace="default",job_name="trade-inbox-new"}
+      values: 1791377940x130
+    alert_rule_test:
+    - eval_time: 119m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 120m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    - eval_time: 125m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts:
+      - exp_labels:
+          exported_namespace: default
+          cronjob: trade-inbox
+    - eval_time: 126m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []
+    promql_expr_test:
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 120m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-inbox"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 125m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-inbox"}
+        value: 2
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 126m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-inbox"}
+        value: 0
+    - expr: grafana_dashboard:fantasy_cronjob_health:grace
+      eval_time: 5m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="trade-inbox"}
+        value: 7200
+
+  - name: trade-inbox latest failure clears with newer successful Job
+    interval: 1m
+    start_timestamp: 1791378000
+    input_series:
+    - series: kube_job_owner{exported_namespace="default",job_name="trade-inbox-old",owner_kind="CronJob",owner_name="trade-inbox"}
+      values: 1x10
+    - series: kube_job_created{exported_namespace="default",job_name="trade-inbox-old"}
+      values: 1791370800x10
+    - series: kube_job_failed{exported_namespace="default",job_name="trade-inbox-old",condition="true"}
+      values: 1x10
+    - series: kube_job_owner{exported_namespace="default",job_name="trade-inbox-new",owner_kind="CronJob",owner_name="trade-inbox"}
+      values: _ _ _ _ _ _ 1x4
+    - series: kube_job_created{exported_namespace="default",job_name="trade-inbox-new"}
+      values: _ _ _ _ _ _ 1791378000x4
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1791385200x10
+    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1791363600x5 1791378360x4
+    alert_rule_test:
+    - eval_time: 5m
+      alertname: fantasy-cronjob-job-failed
+      exp_alerts:
+      - exp_labels:
+          exported_namespace: default
+          owner_name: trade-inbox
+          job_name: trade-inbox-old
+    - eval_time: 10m
+      alertname: fantasy-cronjob-job-failed
+      exp_alerts: []
+    promql_expr_test:
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 5m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-inbox"}
+        value: 1
+    - expr: grafana_dashboard:fantasy_cronjob_health:state
+      eval_time: 10m
+      exp_samples:
+      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="trade-inbox"}
+        value: 0
+    - expr: grafana_context:fantasy_cronjob_job_failed:D
+      eval_time: 10m
+      exp_samples:
+      - labels: grafana_context:fantasy_cronjob_job_failed:D{exported_namespace="default",owner_name="trade-inbox"}
+        value: 1791378360
+  - name: trade-inbox overnight quiet period is healthy
+    interval: 1m
+    start_timestamp: 1791435600
+    input_series:
+    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="trade-inbox"}
+      values: 1791464400x120
+    alert_rule_test:
+    - eval_time: 120m
+      alertname: fantasy-cronjob-missed-schedule
+      exp_alerts: []

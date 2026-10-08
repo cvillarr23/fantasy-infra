@@ -1,0 +1,85 @@
+# Persist incoming offers for review; this entrypoint only reads ESPN.
+# The Job deadline leaves startup headroom above the CLI's ten-minute bound.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: trade-inbox
+  namespace: default
+spec:
+  schedule: "0 8-22/2 * * *"
+  timeZone: America/Chicago
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 660
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: fantasy-browser-worker
+            component: trade-inbox
+        spec:
+          restartPolicy: Never
+          serviceAccountName: fantasy-browser-worker
+          imagePullSecrets:
+          - name: ghcr-pull-secret
+          volumes:
+          - name: espn-session-state
+            secret:
+              secretName: espn-session-state
+              optional: true
+          containers:
+          - name: trade-inbox
+            image: ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31
+            imagePullPolicy: IfNotPresent
+            envFrom:
+            - configMapRef:
+                name: fantasy-league-config
+            env:
+            - name: DB_HOST
+              value: fantasy-db.default.svc.cluster.local
+            - name: DB_NAME
+              value: fantasy_football
+            - name: DB_USER
+              value: bot_admin
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.default.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: grpc
+            - name: OTEL_SERVICE_NAME
+              value: browser-worker
+            - name: ESPN_SESSION_STATE_FILE
+              value: /var/run/espn-session/state.json
+            volumeMounts:
+            - name: espn-session-state
+              mountPath: /var/run/espn-session
+              readOnly: true
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 50m
+              limits:
+                memory: 1200Mi
+                cpu: 1000m
+            command:
+            - node
+            - src/bots/trade_inbox.js
+            - --refresh
