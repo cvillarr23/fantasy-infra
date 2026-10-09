@@ -201,6 +201,8 @@ After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all fi
 
 ## Testing and adding coverage
 
+The [CronJob alerts workflow](../.github/workflows/cronjob-alerts.yml) runs this suite in CI on pull requests and pushes to `main` that change telemetry, the CronJob Health dashboard, core-pipeline or browser-worker CronJob manifests, the suite, or the workflow itself. It uses Python 3.11, PyYAML, and Docker with `prom/prometheus:v3.15.0` for promtool.
+
 Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard queries and runs Docker promtool fixtures covering every watched job's failure, success after historical failures, grace boundaries, suspended/resumed runs, CDT/CST, UTC healthcheck, rapid-status inactive days and unwatched jobs. Dashboard state and grace queries are checked against the same fixtures. Grafana's no-data policy requires live provisioning verification; promtool tests PromQL, not Grafana's evaluator.
 
 For a new CronJob, update all failure selectors/context, select or add a missed-rule grace group, register new ConfigMaps, update dashboard inventory/grace and this table, then add firing/non-firing fixtures. Keep each rule's provisioning key and UID unique. Validate both production and draft-day renders.
