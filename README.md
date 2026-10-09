@@ -2,6 +2,8 @@
 
 This GitOps infrastructure repository manages the Kubernetes deployments, network services, stateful stores, and auto-scaling definitions for the automated fantasy football pipeline.
 
+This project is unofficial and not affiliated with ESPN or Disney. It is for personal use on your own leagues. Read the [disclaimer and scope](https://github.com/cvillarr23/fantasy-project/blob/main/DISCLAIMER.md) before using it.
+
 ## Repository Layout
 
 *   `base/`: Core infrastructure configurations agnostic of operational scope.
