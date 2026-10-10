@@ -9,7 +9,7 @@ images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
   digest: sha256:2e62dbde869726aabe731ea525310bdfdafa514617b0498e0adb59438ad3f8a2
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:3c046859455e83047522b0510272e8e5fc0cb161ed4552106faa21f4527afd8a
+  digest: sha256:4919462dc513e9525d23abea9d3e71ddaee23b9688810616e8f0f8af55833e7c
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:390519fb8867f03abb97331c96985ce54a84f376f24ce74904130b1f0b67b1c9
 patches:
