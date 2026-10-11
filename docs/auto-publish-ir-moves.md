@@ -1,4 +1,8 @@
-# Unattended IR publication
+---
+title: Unattended IR publication
+description: Keep unattended IR publication off and verify approved configuration changes.
+sidebar_position: 10
+---
 
 `overlays/production/configmap-env.yaml` owns the shared
 `fantasy-league-config.data.AUTO_PUBLISH_IR_MOVES` key, explicitly set to `"false"`.
@@ -20,6 +24,16 @@ created; its background runner releases it only after the parent IR move is
 verified on ESPN, and cancels it after expiry or terminal parent failure.
 Verification normally takes minutes, so there is no evidence requiring a
 different deadline. This setting is parsed at module import, not per call.
+
+```mermaid
+flowchart LR
+    Config[Shared flag defaults OFF] -->|template annotation| API[New API pods]
+    Config -->|envFrom at startup| Jobs[New publisher Jobs]
+    API --> Guard{IR publishing enabled?}
+    Jobs --> Guard
+    Guard -->|no| Suggestions[Suggestions only]
+    Guard -->|approved yes| Publisher[Guarded IR planner and publisher]
+```
 
 ## Enable only after live-week approval
 

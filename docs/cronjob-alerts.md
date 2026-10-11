@@ -1,26 +1,24 @@
-# CronJob alerts runbook
+---
+title: CronJob alerts
+description: Investigate failed or missed CronJobs and interpret application outcome alerts.
+sidebar_position: 8
+---
 
-Every CronJob in `base/` is covered by [#75](https://github.com/cvillarr23/fantasy-infra/issues/75). The first slices were [#97 / PR #98](https://github.com/cvillarr23/fantasy-infra/pull/98) and [#101](https://github.com/cvillarr23/fantasy-infra/issues/101). Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`; homelab-deployment's Grafana alert sidecar loads them into **Fantasy**. Dashboard: **Fantasy → Fantasy CronJob Health**.
+Every production CronJob has failed-Job and missed-schedule coverage. Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`; homelab-deployment's Grafana alert sidecar loads them into **Fantasy**. Dashboard: **Fantasy → Fantasy CronJob Health**.
 
 Every row has **latest Job failed** and **missed scheduled run** alerts. Schedule fields, not comments that assume UTC, determine local run times.
 
-| CronJob | Schedule | `spec.timeZone` | Missed-run grace |
-|---|---|---|---|
-| `espn-session-healthcheck` | `0 6 * * 1`, Monday 06:00 UTC | unset; controller uses UTC here | 2h |
-| `fantasy-draft-prep-refresher` | `0 18 * * *`, daily 18:00 | America/Chicago | 2h |
-| `fantasy-lineup-optimizer` | `15 19 * * 2`, Tuesday 19:15 | America/Chicago | 2h |
-| `fantasy-rapid-status-syncer` | `*/10 * * * 4,0,1`, every 10m Thu/Sun/Mon | America/Chicago | 20m |
-| `fantasy-rumor-action-trigger` | `45 21 * * *`, daily 21:45 | America/Chicago | 2h |
-| `fantasy-rumor-syncer` | `*/30 * * * *`, every 30m | America/Chicago | 60m |
-| `fantasy-stale-draft-job-sweeper` | `*/15 * * * *`, every 15m | America/Chicago | 30m |
-| `fantasy-sync-actual-scores` | `5 17 * * 2`, Tuesday 17:05 | America/Chicago | 2h |
-| `fantasy-sync-actual-scores-reconcile` | `0 10 * * 5`, Friday 10:00 | America/Chicago | 2h |
-| `fantasy-weekly-ingestor` | `0 16 * * 2`, Tuesday 16:00 | America/Chicago | 2h |
-| `fantasy-weekly-waiver-trigger` | `30 20 * * 2`, Tuesday 20:30 | America/Chicago | 2h |
-| `rumor-digest-bot` | `0 11 * * *`, daily 11:00 | America/Chicago | 2h |
-| `trade-inbox` | `0 8-22/2 * * *`, every two hours 08:00–22:00 | America/Chicago | 2h |
+See the generated [schedule inventory](schedules.md) for every CronJob, command, timezone and alert UID.
 
 Daily/weekly runs retain the original 2h scheduling grace. Frequent jobs get two cadences: 20m for rapid status, 30m for the high-impact sweeper, and 60m for rumor ingestion. Waiting 2h would hide 12, 8, and 4 missed runs respectively. Rules evaluate every 5m and fire **strictly above** the grace; expect up to another 5m before evaluation. Grace concerns Job creation, not runtime or completion.
+
+```mermaid
+flowchart LR
+    Cron[CronJob and owned Jobs] -->|object state| Metrics[kube-state-metrics]
+    Metrics -->|scrape| Prom[Prometheus]
+    Prom -->|failed and missed queries| Grafana[Grafana alerts and health dashboard]
+    Outcome[Application execution outcomes] -->|Postgres reader| Grafana
+```
 
 ## States and alert meaning
 
@@ -155,7 +153,7 @@ write to the database. Print counts and week identifiers, never session credenti
 
 ## Fantasy CronJob missed its scheduled run
 
-Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against its group's grace. The seven daily/weekly jobs retain UID `fantasy-cronjob-missed-schedule`; three additional rules use suffixes `rapid`, `sweeper`, and `rumor` (UIDs stay within Grafana's 40-character limit). Each provisioning file/group has one rule, matching the Grafana convention and test renderer.
+Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against its group's grace. Daily/weekly jobs share UID `fantasy-cronjob-missed-schedule`; three additional rules use suffixes `rapid`, `sweeper`, and `rumor` (UIDs stay within Grafana's 40-character limit). Each provisioning file/group has one rule, matching the Grafana convention and test renderer.
 
 kube-state-metrics calculates the next timestamp from the schedule and timezone, advancing from the last scheduled run. The optimizer's missing 19:15 Tuesday run alerts after 21:15 Central in both CDT and CST. Rapid status naturally advances to the next Thu/Sun/Mon slot: a long inactive-day gap alone does not alert. A missed active-day slot remains overdue even if the grace crosses midnight.
 
@@ -197,7 +195,7 @@ kube_job_failed * on (exported_namespace,job_name) group_left (owner_name)
 
 Successful Jobs can have **no** `kube_job_failed` series. Confirm their Job conditions read-only and record this as expected absence, not a broken scrape. Never manufacture a failed Job to get a series. `exported_namespace` is the object's namespace; `namespace` is kube-state-metrics' namespace. Retention limits historical verification.
 
-After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all five rule UIDs, their query groups match this inventory, and the dashboard shows a row for every watched CronJob with the right grace. Only then tick the remaining #75 checkboxes. Do not close #75 until all ten are verified.
+After merge, let ArgoCD apply the PR. Verify read-only that Grafana lists all failed/missed rule UIDs, their query groups match this inventory, and the dashboard shows a row for every watched CronJob with the right grace. Verify every job in the generated inventory; retained history limits the evidence available.
 
 ## Testing and adding coverage
 

@@ -1,4 +1,8 @@
-# RabbitMQ queue contract and storage rollout
+---
+title: RabbitMQ rollout
+description: Verify broker queue contracts and safely migrate persistent queue storage.
+sidebar_position: 9
+---
 
 The broker owns the durable topology for `lineup_updates`, `waiver_actions`, and
 `draft_targets`, and predeclares durable `trade_submissions` and `trade_responses`
@@ -9,13 +13,27 @@ routing key selects its matching
 `.dlq`. Existing queues with hardcoded dead-letter arguments continue to use
 those arguments because RabbitMQ gives them precedence over a regular policy.
 
+```mermaid
+flowchart LR
+    Template[Queue definitions] --> Render[Startup renderer]
+    Secret[Broker credentials] --> Render
+    Render -->|definitions and user| Broker[RabbitMQ]
+    Broker -->|persistent messages| PVC[Broker PVC]
+    Broker -->|rejected source messages| DLX[dlx exchange]
+    DLX -->|original routing key| DLQ[Matching DLQ]
+```
+
 ## Operator approval gate
 
-Merging the infra PR can trigger Argo CD to replace the RabbitMQ pod. The current
-Deployment has no data volume, so that replacement can discard every message
-still in the pod. **Do not merge or sync the infra PR until the operator approves
-this gate.** The six live queues had zero ready and zero unacknowledged messages
-when inspected on 2026-09-27; that observation must be repeated at rollout.
+:::warning[First persistent-storage migration]
+This gate is a maintenance procedure for an older ephemeral deployment, not a routine queue-definition update. Keep persistent storage mounted on subsequent rollouts.
+:::
+
+Merging the infra PR can trigger Argo CD to replace the RabbitMQ pod. This gate applies when migrating an older broker without a data volume.
+The current manifest mounts a 2 Gi `fantasy-broker-data` PVC and uses `Recreate`;
+verify the deployed pod before deciding whether a migration is needed. A
+replacement of an older ephemeral broker can discard every message still in it. **Do not merge or sync the infra PR until the operator approves
+this gate.** Never reuse an earlier empty-queue observation as evidence for a new rollout.
 
 1. Pause all AMQP publishers and consumers, including the core API, producer
    CronJobs, and browser-worker Jobs. Wait for active Jobs and deliveries to

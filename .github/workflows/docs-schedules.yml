@@ -1,0 +1,33 @@
+name: Docs schedules
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'base/**'
+      - 'overlays/**'
+      - 'scripts/generate-schedules.py'
+      - '.github/workflows/docs-schedules.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'base/**'
+      - 'overlays/**'
+      - 'scripts/generate-schedules.py'
+      - '.github/workflows/docs-schedules.yml'
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: 'v1.35.0'
+      - run: pip install PyYAML
+      - run: python3 scripts/generate-schedules.py --check
