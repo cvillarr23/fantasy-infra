@@ -9,9 +9,9 @@ images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
   digest: sha256:dd00fff09757a28e68c81e60578dfdaac99f31f0f580e32acbcd7b7b34daaf80
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:ecc94e2779a03b7ab1919abf22c7a014b3c4db0800151a0a4d78e2047e6351ca
+  digest: sha256:a115dfd607d3806186bf4ff9fa0198ec997baa91aabbc6efb9ee5d9bd7a27a23
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
-  digest: sha256:ddf5d0e08e01d725cca1d669d9c4eedbfa23859a894b407f8e33cd18a28b9987
+  digest: sha256:d5ca13f5ea0350a546cd825311e41bc2652b94bdc8d6130e7dacfdd72909cde4
 patches:
 # Preserve string quoting when the replacement copies a boolean-looking flag.
 - target:
