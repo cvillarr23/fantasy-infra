@@ -78,6 +78,16 @@ spec:
                     secretKeyRef:
                       name: espn-session-secrets
                       key: swid
+                - name: ESPN_LEAGUE_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_LEAGUE_ID
+                - name: ESPN_TEAM_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_TEAM_ID
               resources:
                 requests:
                   memory: "256Mi"
@@ -149,6 +159,16 @@ spec:
                     secretKeyRef:
                       name: espn-session-secrets
                       key: swid
+                - name: ESPN_LEAGUE_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_LEAGUE_ID
+                - name: ESPN_TEAM_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_TEAM_ID
               resources:
                 requests:
                   memory: "256Mi"

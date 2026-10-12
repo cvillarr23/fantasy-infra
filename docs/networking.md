@@ -51,6 +51,8 @@ This repository defines no NetworkPolicies. ClusterIP and headless Services do n
 
 `oauth2-proxy` fronts both the SPA and its proxied API. Keep its redirect URI, cookie domain, OAuth provider registration and public DNS aligned. Its `--reverse-proxy` setting trusts forwarded protocol headers from the upstream proxy that terminates TLS.
 
+The redirect URI, cookie domain and approved-email file come from a required Secret managed by External Secrets Operator. Provision them using [private deployment values](deployment.md#supply-private-deployment-values). OAuth admission uses the file allow-list alone; `--email-domain` would also admit every account in that domain.
+
 The tunnel connects directly to a pinned UI ClusterIP because its host-network deployment uses node DNS, not cluster DNS. Coordinate any UI Service address change with the tunnel route. Public domain examples should use `ui.example.com` and `draft.example.com`; tailnet examples should use `<private-ui>.<tailnet>.ts.net`.
 
 ## Trace DNS ownership

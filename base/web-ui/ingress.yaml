@@ -5,7 +5,7 @@
 # the auth boundary. Reachable from any device with the Tailscale app installed, including
 # while traveling internationally on draft day (the original rationale for this ticket,
 # CORE-11) - a VPN client works the same way a laptop would, no separate login flow.
-# A second, public path exists at fantasy.roo-net.cc via homelab-deployment's cloudflared
+# A second, public path exists at ui.example.com via homelab-deployment's cloudflared
 # tunnel (apps/cloudflared/), gated by Cloudflare Access - see the pinned clusterIP in
 # service.yaml.
 apiVersion: networking.k8s.io/v1

@@ -4,8 +4,6 @@ metadata:
   name: fantasy-league-config
   namespace: default
 data:
-  ESPN_LEAGUE_ID: "1248158344"
-  ESPN_TEAM_ID: "8"
   CURRENT_YEAR: "2026"
   SPORT_TYPE: "nfl"
   # Unattended IR stashes require deliberate approval before a live waiver week.

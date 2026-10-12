@@ -119,6 +119,16 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: "fastapi-gateway"
 
+            - name: ESPN_LEAGUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_LEAGUE_ID
+            - name: ESPN_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_TEAM_ID
           livenessProbe:
             httpGet:
               path: /v1/health

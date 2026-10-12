@@ -81,6 +81,16 @@ spec:
                   value: "grpc"
                 - name: OTEL_SERVICE_NAME
                   value: "browser-worker"
+                - name: ESPN_LEAGUE_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_LEAGUE_ID
+                - name: ESPN_TEAM_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: ESPN_TEAM_ID
               resources:
                 requests:
                   memory: "256Mi"

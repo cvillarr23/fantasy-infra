@@ -29,3 +29,6 @@ jobs:
 
       - name: Run draft-sync env preflight
         run: ./scripts/preflight-draft-sync-env.sh
+
+      - name: Validate private deployment configuration
+        run: python -m unittest discover -s tests -p test_deployment_values.py

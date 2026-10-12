@@ -1,7 +1,4 @@
-# NodePort (not ClusterIP) so homelab-deployment's nginx-proxy-manager can
-# forward draft.roo-net.cc's public traffic straight to this Service's node
-# port, same "Adding a new exposed service" pattern every other roo-net.cc
-# host uses (see homelab-deployment/README.md) - CORE-29.
+# The external TLS reverse proxy routes public UI traffic to this node port.
 apiVersion: v1
 kind: Service
 metadata:

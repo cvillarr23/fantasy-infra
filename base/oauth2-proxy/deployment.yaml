@@ -38,10 +38,7 @@ spec:
             - --provider=google
             - --http-address=0.0.0.0:4180
             - --upstream=http://fantasy-web-ui.default.svc.cluster.local:80
-            - --email-domain=gmail.com
             - --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails-list
-            - --redirect-url=https://draft.roo-net.cc/oauth2/callback
-            - --cookie-domain=draft.roo-net.cc
             - --cookie-secure=true
             # Trusts X-Forwarded-Proto from nginx-proxy-manager, which terminates TLS in
             # front of this pod - without this, oauth2-proxy builds http:// redirect URIs
@@ -51,6 +48,16 @@ spec:
             - containerPort: 4180
               name: http
           env:
+            - name: OAUTH2_PROXY_REDIRECT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-deployment-config
+                  key: redirect-url
+            - name: OAUTH2_PROXY_COOKIE_DOMAINS
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-deployment-config
+                  key: cookie-domain
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -91,5 +98,8 @@ spec:
               cpu: "250m"
       volumes:
         - name: authenticated-emails
-          configMap:
-            name: oauth2-proxy-authenticated-emails
+          secret:
+            secretName: oauth2-proxy-deployment-config
+            items:
+              - key: authenticated-emails-list
+                path: authenticated-emails-list
