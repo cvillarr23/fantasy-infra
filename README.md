@@ -46,3 +46,8 @@ python3 scripts/generate-schedules.py --check
 Rendered configuration is deployment-specific; keep it private. For a full docs build,
 follow the site's
 [local build instructions](https://github.com/cvillarr23/fantasy-project/blob/main/docs/contributing/docs-site-deploys.md).
+
+## License
+
+Code, configuration and documentation are licensed under the [MIT License](LICENSE).
+Third-party dependencies retain their own licenses.
