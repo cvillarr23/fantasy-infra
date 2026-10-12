@@ -22,7 +22,9 @@ flowchart TD
 
 | Detail runbook | Use it for |
 |---|---|
-| [CronJob alerts](cronjob-alerts.md) | Failure/missed-run semantics, per-job dependencies and application outcome alerts |
+| [CronJob alerts](cronjob-alerts.md) | Failure/missed-run semantics and per-job dependencies |
+| [Schedule order and refresh horizon](cronjob-schedule-order.md) | Tuesday job ordering and the daily projection/VORP refresh |
+| [Application outcomes and trade jobs](cronjob-application-outcomes.md) | Rumor-action outcome alert, trade scan and trade inbox |
 | [RabbitMQ rollout](rabbitmq-queue-rollout.md) | Durable topology, storage migration gate and queue provisioning |
 | [Unattended IR publication](auto-publish-ir-moves.md) | Shared OFF flag, rollout verification and rollback limitations |
 | [Schedules](schedules.md) | Complete generated inventory and alert UIDs |
