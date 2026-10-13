@@ -24,6 +24,49 @@ flowchart LR
 | `overlays/production/` | Base plus configuration, ExternalSecrets and application image digests |
 | `overlays/draft-day/` | Inherits production; increases API resources and Postgres buffers/connections, keeps one worker warm and disables its idle exit |
 
+## Supply private deployment values
+
+League/team IDs, the approved-email list and public OAuth domain live in OpenBao. The public overlays contain references only; DNS, tunnel routes and OAuth provider registration stay in your private deployment configuration.
+
+```mermaid
+flowchart LR
+    Private[Private operator configuration] -->|KV fields| Bao[OpenBao]
+    Public[Public ExternalSecret definitions] -->|field mappings| ESO[External Secrets Operator]
+    Bao -->|private values| ESO
+    ESO -->|IDs and session cookies| ESPN[ESPN Secret]
+    ESO -->|allow-list and domain| OAuth[OAuth deployment Secret]
+    ESPN -->|env references| Jobs[API and scheduled or runtime Jobs]
+    OAuth -->|env and mounted file| Proxy[OAuth proxy]
+```
+
+| OpenBao KV v2 path | Required properties | Kubernetes target |
+|---|---|---|
+| `secret/fantasy/deployment` | `ESPN_LEAGUE_ID`, `ESPN_TEAM_ID` (strings) | `espn-session-secrets`, alongside existing session keys |
+| `secret/fantasy/oauth2-proxy-deployment` | `authenticated-emails-list` (one email per line), `redirect-url`, `cookie-domain` | `oauth2-proxy-deployment-config` |
+
+Keep `CURRENT_YEAR`, `SPORT_TYPE` and `AUTO_PUBLISH_IR_MOVES` in the public `fantasy-league-config` ConfigMap. Every workload consuming that ConfigMap reads the IDs through required Secret references; runtime draft Jobs inherit the same IDs through `DRAFT_SYNC_ENV_SECRET`.
+
+For a new installation, provision both private paths through your authenticated operator workflow before the first sync. Use `https://draft.example.com/oauth2/callback` and `draft.example.com` as domain examples, and `operator@example.com` as a synthetic email; supply your actual league/team IDs privately. Register the exact callback with Google and align the cookie domain, TLS proxy route and DNS.
+
+:::warning[Provision before merging the migration]
+Missing private fields make ExternalSecrets fail reconciliation and new pods fail startup. The existing ESPN cookie fields must remain in `secret/fantasy/espn`; do not replace that record with deployment IDs. Ensure the shared store's policy permits reading both new paths.
+:::
+
+For an existing deployment, run the migration while the old ConfigMap and OAuth arguments still exist:
+
+```bash
+# Read and validate live configuration and destinations; performs no writes.
+python3 scripts/migrate-deployment-values.py
+# Create missing paths with CAS=0, then verify without printing values.
+python3 scripts/migrate-deployment-values.py --apply
+```
+
+The helper requires authenticated `kubectl` and `bao` access. It sends values through stdin, refuses to overwrite different destination data, and leaves the cluster untouched. Keep any manual inspection private; the helper suppresses raw CLI errors and values.
+
+After provisioning, merge the manifests and let Argo CD reconcile. Verify both ExternalSecrets report Ready, the API and OAuth Deployment rollouts complete, and `fantasy-infra` is Synced and Healthy. Confirm an approved account can log in and an unlisted account cannot; the proxy uses only the file allow-list, with no domain-wide admission flag.
+
+When IDs or OAuth settings change later, wait for Secret reconciliation and restart the API/OAuth deployments through your normal operator workflow. Environment variables refresh in new pods, and future scheduled/runtime Jobs read the new Secret values. Existing Jobs keep their initial environment; account for them before changing identity.
+
 :::note[Draft-day is an explicit switch]
 The registered Application selects production. Merging draft-day patches does not select that overlay. Coordinate any Application path change in the cluster repository, then return it to production after the window.
 :::
@@ -57,7 +100,7 @@ Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+ for
    ./scripts/preflight-draft-sync-env.sh
    ```
 
-2. Review the rendered images, runtime Job image variables and resource changes. Treat rendered configuration as private: it contains deployment-specific settings.
+2. Review the rendered images, runtime Job image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
 3. Merge the reviewed infra change. Argo CD applies it automatically; Image Updater may subsequently commit newer application digests.
 4. Verify the Application revision, health and workload image evidence below.
 

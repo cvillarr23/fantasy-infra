@@ -43,7 +43,9 @@ kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
 python3 scripts/generate-schedules.py --check
 ```
 
-Rendered configuration is deployment-specific; keep it private. For a full docs build,
+Provision [private deployment values](docs/deployment.md#supply-private-deployment-values)
+before syncing: league/team IDs, the OAuth allow-list and domain are Secret-backed.
+Public renders contain references only; keep live values and private overrides private. For a full docs build,
 follow the site's
 [local build instructions](https://github.com/cvillarr23/fantasy-project/blob/main/docs/contributing/docs-site-deploys.md).
 

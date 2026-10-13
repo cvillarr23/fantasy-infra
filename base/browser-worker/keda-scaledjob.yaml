@@ -90,6 +90,16 @@ spec:
               # above. If the secret is absent the file is missing and auth falls back to cookies.
               - name: ESPN_SESSION_STATE_FILE
                 value: "/var/run/espn-session/state.json"
+              - name: ESPN_LEAGUE_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: espn-session-secrets
+                    key: ESPN_LEAGUE_ID
+              - name: ESPN_TEAM_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: espn-session-secrets
+                    key: ESPN_TEAM_ID
             volumeMounts:
               - name: espn-session-state
                 mountPath: /var/run/espn-session
