@@ -7,11 +7,11 @@ resources:
 - argocd-image-updater-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
-  digest: sha256:7cce7ab814997fed5fbdadb3f96ae44ea8377c260dcfe0a8e5b57c56fe59555a
+  digest: sha256:e4f2c559ba10afa3372c9cbd55eacfeb0ba2ee5c690cb35d210f0a0de2e58626
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:a115dfd607d3806186bf4ff9fa0198ec997baa91aabbc6efb9ee5d9bd7a27a23
+  digest: sha256:ebaadf28340d98097e4d35510ea3d29426908ec79ee5fe764ef812700e23daf8
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
-  digest: sha256:5d1bab3c5d864dfd181d6fae90cb39afb157dd20d9638fc04f13e545f33de93b
+  digest: sha256:81706b45be5ae8e62edc5ef5ab2dcebc7547d45aacc3ffb3770399994df01b78
 patches:
 # Preserve string quoting when the replacement copies a boolean-looking flag.
 - target:

@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   check-epic:
-    runs-on: ubuntu-latest
+    runs-on: fantasy-runners
     # This repo's default workflow token is read-only, under which every issues call below
     # fails (403 on writes, NOT_FOUND on reads of a private repo's issues). issues: write
     # covers both the reads and the label/comment writes.

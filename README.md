@@ -48,3 +48,8 @@ before syncing: league/team IDs, the OAuth allow-list and domain are Secret-back
 Public renders contain references only; keep live values and private overrides private. For a full docs build,
 follow the site's
 [local build instructions](https://github.com/cvillarr23/fantasy-project/blob/main/docs/contributing/docs-site-deploys.md).
+
+## License
+
+Code, configuration and documentation are licensed under the [MIT License](LICENSE).
+Third-party dependencies retain their own licenses.
