@@ -76,8 +76,10 @@ class WorkerTriggerTest(unittest.TestCase):
                 self.assertEqual(container['envFrom'], scan_pod['containers'][0]['envFrom'])
                 env = {e['name']: e for e in container['env']}
                 scan_env = {e['name']: e for e in scan_pod['containers'][0]['env']}
+                # RUN_CRONJOB names each Job's own CronJob for the run audit log.
                 expected_env = {name: value for name, value in scan_env.items()
-                                if name not in {'GROQ_API_KEY', 'GEMINI_API_KEY'}}
+                                if name not in {'GROQ_API_KEY', 'GEMINI_API_KEY', 'RUN_CRONJOB'}}
+                self.assertEqual(env.pop('RUN_CRONJOB')['value'], 'trade-inbox')
                 self.assertEqual(env, expected_env)
                 self.assertNotIn('GROQ_API_KEY', env)
                 self.assertNotIn('GEMINI_API_KEY', env)

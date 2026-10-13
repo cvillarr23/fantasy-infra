@@ -11,6 +11,9 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
+      # Finished Jobs (and their pods' logs) are removed after 7 days, so failures from
+      # weeks ago stop cluttering `kubectl get jobs`; the run audit log keeps the history.
+      ttlSecondsAfterFinished: 604800
       # Counts Pending time too: a pod that can't schedule (e.g. node CPU requests full) fails
       # the Job instead of sitting Pending forever, which under concurrencyPolicy: Forbid
       # silently skips every later run. 540s is just under the schedule interval.
@@ -31,6 +34,13 @@ spec:
               imagePullPolicy: Always
               command: ["python", "-m", "src.ingestion.sync_players"]
               env:
+                # Run audit log: which CronJob and Job this run belongs to (scheduled vs manual).
+                - name: RUN_CRONJOB
+                  value: "fantasy-rapid-status-syncer"
+                - name: RUN_K8S_JOB
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['batch.kubernetes.io/job-name']
                 - name: DB_HOST
                   value: "fantasy-db.default.svc.cluster.local"
                 - name: DB_NAME
