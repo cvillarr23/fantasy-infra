@@ -33,6 +33,13 @@ spec:
             envFrom:
               - configMapRef:
                   name: fantasy-league-config
+              - configMapRef:
+                  name: fantasy-notify-config
+              # NTFY_TOKEN for failure and trade-approval pushes; optional so the worker still
+              # runs before the secret exists.
+              - secretRef:
+                  name: ntfy-credentials
+                  optional: true
             env:
               # Must stay env[0]: overlays/draft-day patches it by index (guarded by a JSON
               # patch `test` op, so moving it fails the build instead of silently patching the

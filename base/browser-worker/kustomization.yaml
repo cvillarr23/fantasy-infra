@@ -8,3 +8,4 @@ resources:
   - rbac.yaml
   - trade-scan-cronjob.yaml
   - trade-inbox-cronjob.yaml
+  - notify-config.yaml

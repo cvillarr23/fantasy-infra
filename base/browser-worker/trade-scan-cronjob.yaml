@@ -41,6 +41,12 @@ spec:
             envFrom:
             - configMapRef:
                 name: fantasy-league-config
+            - configMapRef:
+                name: fantasy-notify-config
+            # NTFY_TOKEN for failure pushes; optional so the Job still runs before it exists.
+            - secretRef:
+                name: ntfy-credentials
+                optional: true
             env:
             # Run audit log: which CronJob and Job this run belongs to (scheduled vs manual).
             - name: RUN_CRONJOB
