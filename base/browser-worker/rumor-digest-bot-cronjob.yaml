@@ -36,6 +36,13 @@ spec:
               image: ghcr.io/cvillarr23/fantasy-browser-worker:929083b992e3d2f95e74ee421ebcd75306f6ee31
               imagePullPolicy: Always
               command: ["node", "src/bots/rumor_digest_bot.js"]
+              envFrom:
+                - configMapRef:
+                    name: fantasy-notify-config
+                # NTFY_TOKEN for failure pushes; optional so the Job still runs before it exists.
+                - secretRef:
+                    name: ntfy-credentials
+                    optional: true
               env:
                 # Run audit log: which CronJob and Job this run belongs to (scheduled vs manual).
                 - name: RUN_CRONJOB

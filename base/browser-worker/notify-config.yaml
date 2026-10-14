@@ -1,0 +1,13 @@
+# Phone pushes from fantasy-browser-worker to homelab-deployment's ntfy server (apps/ntfy/).
+# Every worker container reads this plus the optional ntfy-credentials Secret (NTFY_TOKEN, from
+# overlays/production/externalsecrets.yaml); nothing is sent until that Secret exists. Links in
+# each push open pages under WEB_UI_BASE_URL.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-notify-config
+  namespace: default
+data:
+  NTFY_URL: "https://ntfy.roo-net.cc"
+  NTFY_TOPIC: "fantasy"
+  WEB_UI_BASE_URL: "https://fantasy.roo-net.cc"
