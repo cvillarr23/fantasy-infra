@@ -131,6 +131,25 @@ class WeeklyScheduleTest(unittest.TestCase):
                     self.assertFalse(any(re.search(r"espn_s2|swid", part, re.I)
                                          for part in container["command"]))
 
+    def test_roster_refreshing_jobs_get_espn_session_cookies(self):
+        # These refresh rosters through sync_league first; without the cookies that refresh
+        # is skipped with a warning and they decide on a stale roster snapshot.
+        secret_refs = {
+            "ESPN_S2": ("espn-session-secrets", "espn_s2"),
+            "ESPN_SWID": ("espn-session-secrets", "swid"),
+        }
+        for overlay, jobs in self.overlays.items():
+            for name in ("fantasy-lineup-optimizer", "fantasy-weekly-waiver-trigger",
+                         "fantasy-rumor-action-trigger"):
+                with self.subTest(overlay=overlay, name=name):
+                    (container,) = jobs[name]["spec"]["jobTemplate"]["spec"]["template"][
+                        "spec"]["containers"]
+                    env = {item["name"]: item for item in container["env"]}
+                    for var, (secret, key) in secret_refs.items():
+                        self.assertNotIn("value", env[var])
+                        self.assertEqual(env[var]["valueFrom"]["secretKeyRef"],
+                                         {"name": secret, "key": key})
+
 
 if __name__ == "__main__":
     unittest.main()
