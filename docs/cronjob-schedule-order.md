@@ -26,8 +26,20 @@ Each gap exceeds the preceding Job's deadline: one hour, or 30 minutes for score
 |---|---|
 | Score sync (17:05) | Mirrors ESPN player actuals only into `weekly_stats` rows the ingestor has created, so it follows the ingestor. |
 | Friday 10:00 reconciliation | Stores any week Tuesday couldn't (stats not yet official, a postponed game) plus ESPN stat corrections, before Friday's trade scan. The trade context's opponent strength reads these stored scores. |
-| Wednesday/Friday 13:00 trade scan | Follows the previous evening's projection/VORP rebuild. |
+| Daily 07:00 trade candidates | Follows the previous evening's 18:00 projection/VORP rebuild and the most recent weekly metrics ingestion. |
+| Wednesday/Friday 12:30 trade candidates | Refreshes stored candidates after Friday's 10:00 score reconciliation and before the 13:00 scan. |
+| Wednesday/Friday 13:00 trade scan | Follows the previous evening's projection/VORP rebuild and the 12:30 candidate run. |
 | Daily refresher and rumor actions | Also use these later slots on other days. |
+
+### Trade-candidate rollout and verification
+
+Deploy a core API image containing the trade-candidate module and migrations first. Its startup `run_migrations()` must create `trade_candidate_runs` and `trade_candidates` before either CronJob runs. Both jobs inherit the core image digest from the overlay, just like the API deployment.
+
+`fantasy-trade-candidates` runs daily at 07:00 and `fantasy-trade-candidates-prescan` runs Wednesday/Friday at 12:30, all in America/Chicago across DST. They run `python -m src.jobs.trade_candidates`, resolving the upcoming week from the configured season without a fixed week argument. The daily slot uses the previous evening's refresh; there is no morning metrics refresh.
+
+Both jobs forbid overlapping runs within their own CronJob, allow at most two minutes of scheduling delay and have a 25-minute deadline including Pending time. There are no automatic retries. Finished Jobs expire after seven days. The two schedules cannot overlap under these bounds; late runs are skipped rather than replayed near a scan. The pre-scan run has three minutes of headroom before 13:00. Scheduling provides spacing, not a success dependency: a failed refresh or candidate run does not stop the scan.
+
+After rollout, check the Job logs and the `trade_candidates` run audit entry, tagged with `RUN_CRONJOB` and the actual Kubernetes Job name through `RUN_K8S_JOB`. Verify a fresh stored candidate run for the upcoming week lands before each scan. An unresolved week or unavailable trade context exits 1 and triggers the latest-Job-failed alert; offseason exits successfully without writing candidates. Failed and missed-run alerts and the CronJob health dashboard cover both schedules, with the standard two-hour missed-run grace; these alerts do not guarantee readiness by 13:00.
 
 ### Ingestion timing
 

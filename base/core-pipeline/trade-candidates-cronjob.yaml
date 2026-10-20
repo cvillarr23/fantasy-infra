@@ -1,0 +1,190 @@
+# Daily candidates follow the previous evening's projection/VORP refresh.
+# The additional Wed/Fri run refreshes candidates before the 13:00 trade scan.
+# Deploy the core API with trade-candidate migrations before enabling these jobs.
+# A two-minute start window plus a 25-minute deadline keeps even a delayed run
+# clear of the scan. No automatic replay of the expensive league-wide scoring.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-trade-candidates
+  namespace: default
+spec:
+  schedule: 0 7 * * *
+  timeZone: America/Chicago
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 604800
+      activeDeadlineSeconds: 1500
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: trade-candidates
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: ghcr-pull-secret
+          containers:
+          - name: trade-candidates
+            image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+            imagePullPolicy: Always
+            command:
+            - python
+            - -m
+            - src.jobs.trade_candidates
+            envFrom:
+            - configMapRef:
+                name: fantasy-league-config
+            env:
+            - name: RUN_CRONJOB
+              value: fantasy-trade-candidates
+            - name: RUN_K8S_JOB
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['batch.kubernetes.io/job-name']
+            - name: DB_HOST
+              value: fantasy-db.default.svc.cluster.local
+            - name: DB_NAME
+              value: fantasy_football
+            - name: DB_USER
+              value: bot_admin
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: REDIS_HOST
+              value: fantasy-cache.default.svc.cluster.local
+            - name: REDIS_PORT
+              value: '6379'
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: ESPN_SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+            - name: ESPN_LEAGUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_LEAGUE_ID
+            - name: ESPN_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_TEAM_ID
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.default.svc.cluster.local:4318
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_SERVICE_NAME
+              value: trade-candidates
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 100m
+              limits:
+                memory: 512Mi
+                cpu: 500m
+  startingDeadlineSeconds: 120
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fantasy-trade-candidates-prescan
+  namespace: default
+spec:
+  schedule: 30 12 * * 3,5
+  timeZone: America/Chicago
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 604800
+      activeDeadlineSeconds: 1500
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: fantasy-core-pipeline
+            component: trade-candidates
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: ghcr-pull-secret
+          containers:
+          - name: trade-candidates
+            image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+            imagePullPolicy: Always
+            command:
+            - python
+            - -m
+            - src.jobs.trade_candidates
+            envFrom:
+            - configMapRef:
+                name: fantasy-league-config
+            env:
+            - name: RUN_CRONJOB
+              value: fantasy-trade-candidates-prescan
+            - name: RUN_K8S_JOB
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['batch.kubernetes.io/job-name']
+            - name: DB_HOST
+              value: fantasy-db.default.svc.cluster.local
+            - name: DB_NAME
+              value: fantasy_football
+            - name: DB_USER
+              value: bot_admin
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: REDIS_HOST
+              value: fantasy-cache.default.svc.cluster.local
+            - name: REDIS_PORT
+              value: '6379'
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: ESPN_SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+            - name: ESPN_LEAGUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_LEAGUE_ID
+            - name: ESPN_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_TEAM_ID
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.default.svc.cluster.local:4318
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_SERVICE_NAME
+              value: trade-candidates
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 100m
+              limits:
+                memory: 512Mi
+                cpu: 500m
+  startingDeadlineSeconds: 120
