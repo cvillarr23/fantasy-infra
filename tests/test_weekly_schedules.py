@@ -97,6 +97,27 @@ class WeeklyScheduleTest(unittest.TestCase):
                     refresh = self.scheduled_time(jobs["fantasy-draft-prep-refresher"], day, "*")
                     self.assertLess(end, refresh)
 
+    def test_trade_candidates_finish_before_consumers_across_dst(self):
+        for overlay, jobs in self.overlays.items():
+            self.assertIn("fantasy-trade-candidates", jobs)
+            self.assertIn("fantasy-trade-candidates-prescan", jobs)
+            for date in ((2026, 10, 14), (2026, 10, 16), (2026, 11, 4), (2026, 11, 6)):
+                with self.subTest(overlay=overlay, date=date):
+                    day = datetime(*date, tzinfo=CENTRAL)
+                    daily = self.scheduled_time(jobs["fantasy-trade-candidates"], day, "*")
+                    prescan_job = jobs["fantasy-trade-candidates-prescan"]
+                    prescan = self.scheduled_time(prescan_job, day, "3,5")
+                    self.assertEqual((daily.hour, daily.minute), (7, 0))
+                    self.assertEqual((prescan.hour, prescan.minute), (12, 30))
+                    refresh_job = jobs["fantasy-draft-prep-refresher"]
+                    refresh = self.scheduled_time(refresh_job, day - timedelta(days=1), "*")
+                    refresh_end = refresh + timedelta(seconds=refresh_job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
+                    self.assertGreater(daily, refresh_end)
+                    latest_finish = prescan + timedelta(
+                        seconds=prescan_job["spec"]["startingDeadlineSeconds"]
+                        + prescan_job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
+                    self.assertLess(latest_finish, self.scheduled_time(jobs["trade-scan"], day, "3,5"))
+
     def test_score_sync_env_secrets_and_safety(self):
         secret_refs = {
             "DB_PASSWORD": ("database-credentials", "postgres-password"),

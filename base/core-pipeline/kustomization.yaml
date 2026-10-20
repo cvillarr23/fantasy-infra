@@ -11,6 +11,7 @@ resources:
   - stale-draft-job-sweeper-cronjob.yaml
   - draft-prep-refresher-cronjob.yaml
   - lineup-optimizer-cronjob.yaml
+  - trade-candidates-cronjob.yaml
   - weekly-waiver-cronjob.yaml
   - rumor-action-trigger-cronjob.yaml
   - fantasy-traces-dashboard.yaml
