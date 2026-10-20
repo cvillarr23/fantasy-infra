@@ -102,6 +102,16 @@ spec:
                   value: "http/protobuf"
                 - name: OTEL_SERVICE_NAME
                   value: "optimization-waiver-evaluator"
+                - name: ESPN_S2
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: espn_s2
+                - name: ESPN_SWID
+                  valueFrom:
+                    secretKeyRef:
+                      name: espn-session-secrets
+                      key: swid
                 - name: ESPN_LEAGUE_ID
                   valueFrom:
                     secretKeyRef:
