@@ -129,23 +129,28 @@ spec:
                 secretKeyRef:
                   name: espn-session-secrets
                   key: ESPN_TEAM_ID
+          # Liveness only asks whether the event loop is serving, so a Postgres or RabbitMQ blip
+          # takes the pod out of rotation (readiness) instead of restarting it. Timeouts allow
+          # for this node being shared with CPU-heavy dev workloads.
           livenessProbe:
             httpGet:
-              path: /v1/health
+              path: /v1/livez
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /v1/health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
 
           resources:
             requests:
               memory: "256Mi"
-              cpu: "100m"
+              cpu: "250m"
             limits:
               memory: "512Mi"
               cpu: "1000m"
