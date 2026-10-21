@@ -125,6 +125,8 @@ Core can read ESPN for cold scoring context. Offseason runs are successful no-op
 
 :::warning[No responses are enabled]
 `TRADE_RESPONSE_ENABLED` and both shadow thresholds stay unset, and unset `DRY_RUN` remains true. No accept, decline or counter is enabled by this rollout.
+
+The trade CronJobs carry no `TRADE_DRY_RUN` or `TRADE_SUBMIT_ENABLED` either, so scans keep dry-filling. Live trade submission is armed only on the queue worker (the `fantasy-browser-worker-scaler` ScaledJob) and still needs a matching human approval.
 :::
 
 ### Roll out and verify

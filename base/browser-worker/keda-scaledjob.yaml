@@ -107,6 +107,15 @@ spec:
                   secretKeyRef:
                     name: espn-session-secrets
                     key: ESPN_TEAM_ID
+              # Arms live trade submission on this queue worker only. TRADE_DRY_RUN is read by
+              # trade_builder alone, so the shared DRY_RUN stays unset and waivers, the draft
+              # clicker and trade responses stay dry. A send still needs a matching human
+              # approval. Keep these off the shared ConfigMap and the trade CronJobs: scans must
+              # keep dry-filling. A worker image that predates TRADE_DRY_RUN ignores it and stays dry.
+              - name: TRADE_DRY_RUN
+                value: "false"
+              - name: TRADE_SUBMIT_ENABLED
+                value: "true"
             volumeMounts:
               - name: espn-session-state
                 mountPath: /var/run/espn-session

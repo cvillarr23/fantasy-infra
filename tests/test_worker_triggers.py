@@ -8,6 +8,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 QUEUES = {'lineup_updates', 'waiver_actions', 'draft_targets', 'trade_evaluations',
           'trade_negotiations', 'llm_requests', 'trade_submissions', 'trade_responses'}
+# Set only on the ScaledJob worker container: trade_builder reads TRADE_DRY_RUN, so DRY_RUN stays
+# unset everywhere and no other bot is armed.
+TRADE_ARMING = {'TRADE_DRY_RUN': 'false', 'TRADE_SUBMIT_ENABLED': 'true'}
 
 
 class WorkerTriggerTest(unittest.TestCase):
@@ -79,14 +82,27 @@ class WorkerTriggerTest(unittest.TestCase):
                 # RUN_CRONJOB names each Job's own CronJob for the run audit log.
                 expected_env = {name: value for name, value in scan_env.items()
                                 if name not in {'GROQ_API_KEY', 'GEMINI_API_KEY', 'RUN_CRONJOB'}}
+                worker_env = {e['name']: e for e in worker['env']}
+                config = docs['ConfigMap', 'fantasy-league-config']
                 self.assertEqual(env.pop('RUN_CRONJOB')['value'], 'trade-inbox')
                 self.assertEqual(env, expected_env)
                 self.assertNotIn('GROQ_API_KEY', env)
                 self.assertNotIn('GEMINI_API_KEY', env)
+                # TRADE_DRY_RUN / TRADE_SUBMIT_ENABLED arm trade submissions on the queue worker only.
+                self.assertTrue(TRADE_ARMING.keys() <= worker_env.keys())
+                self.assertFalse(TRADE_ARMING.keys() & env.keys())
+                self.assertFalse(TRADE_ARMING.keys() & scan_env.keys())
+                self.assertFalse(TRADE_ARMING.keys() & config['data'].keys())
+                for (kind, _), doc in docs.items():
+                    if kind != 'CronJob':
+                        continue
+                    for cron in doc['spec']['jobTemplate']['spec']['template']['spec']['containers']:
+                        self.assertFalse(TRADE_ARMING.keys() & {e['name'] for e in cron.get('env', [])})
+                for name, value in TRADE_ARMING.items():
+                    self.assertEqual(worker_env[name], {'name': name, 'value': value})
                 safe_defaults = {'DRY_RUN', 'TRADE_RESPONSE_ENABLED',
                                  'TRADE_INBOX_SHADOW_ACCEPT_MIN_SCORE',
                                  'TRADE_INBOX_SHADOW_DECLINE_MAX_SCORE'}
-                config = docs['ConfigMap', 'fantasy-league-config']
                 self.assertFalse(safe_defaults & config['data'].keys())
                 for workload in (container, worker, scan_pod['containers'][0]):
                     self.assertFalse(safe_defaults & {e['name'] for e in workload['env']})
