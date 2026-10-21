@@ -171,6 +171,20 @@ class WeeklyScheduleTest(unittest.TestCase):
                         self.assertEqual(env[var]["valueFrom"]["secretKeyRef"],
                                          {"name": secret, "key": key})
 
+    def test_action_publishing_jobs_get_the_trigger_api_key(self):
+        # These publish through the gateway's /v1/trigger/* routes, which reject requests
+        # without X-API-Key. A missing key only surfaces once a run proposes an action.
+        for overlay, jobs in self.overlays.items():
+            for name in ("fantasy-lineup-optimizer", "fantasy-weekly-waiver-trigger",
+                         "fantasy-rumor-action-trigger"):
+                with self.subTest(overlay=overlay, name=name):
+                    (container,) = jobs[name]["spec"]["jobTemplate"]["spec"]["template"][
+                        "spec"]["containers"]
+                    env = {item["name"]: item for item in container["env"]}
+                    self.assertNotIn("value", env["TRIGGER_API_KEY"])
+                    self.assertEqual(env["TRIGGER_API_KEY"]["valueFrom"]["secretKeyRef"],
+                                     {"name": "trigger-api-key", "key": "trigger-api-key"})
+
 
 if __name__ == "__main__":
     unittest.main()
