@@ -11,7 +11,7 @@ images:
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
   digest: sha256:dd5a6d20579f62897ee20c539dd561c1056c8d9ebd822de0c1657dc1de00da35
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
-  digest: sha256:8190b3eae7e08eaf65076e0e52550f0d02ed3718cc547ccf01568eec52fc3508
+  digest: sha256:1dfbd2f25fddd505f6e0412171c619da91c3910f23ef9ea04d18891fd6f8f4d4
 patches:
 # Preserve string quoting when the replacement copies a boolean-looking flag.
 - target:
