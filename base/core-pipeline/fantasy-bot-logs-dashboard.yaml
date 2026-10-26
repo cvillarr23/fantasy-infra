@@ -1,6 +1,6 @@
 # Loki log panels for the fantasy bots' stdout/stderr, alongside the traces
-# dashboard. Bot identity (botName) lives inside each pino-style JSON log line,
-# not as an indexed Loki label, so panels parse it with `| json`.
+# dashboard. Bot identity (botName) and log level are Loki structured metadata,
+# so panels filter those fields directly.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -32,7 +32,7 @@ data:
             {
               "refId": "A",
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | json | botName=~\"$bot_name\" | botName != \"\" | level >= 50 [$__interval]))"
+              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | botName=~\"$bot_name\" | botName != \"\" | level=~\"error|fatal\" [$__interval]))"
             }
           ]
         },
@@ -47,7 +47,7 @@ data:
             {
               "refId": "A",
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | json | botName=~\"$bot_name\" | botName != \"\" [$__interval]))"
+              "expr": "sum by (botName) (count_over_time({namespace=\"default\"} | botName=~\"$bot_name\" | botName != \"\" [$__interval]))"
             }
           ]
         },
@@ -61,7 +61,7 @@ data:
             {
               "refId": "A",
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "{namespace=\"default\"} | json | botName=~\"$bot_name\""
+              "expr": "{namespace=\"default\"} | botName=~\"$bot_name\""
             }
           ]
         }
