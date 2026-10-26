@@ -26,6 +26,7 @@ flowchart LR
 | Back up, restore or inspect database access | [Databases](databases.md) |
 | Look up every CronJob and its alert | [Schedules](schedules.md) |
 | Recover a failed job, session, queue or release | [Operations](operations.md) |
+| Understand how jobs start and why CronJobs are going away | [ADR 0001: Unified job launcher](adr/0001-unified-job-launcher.md) |
 | Understand credential delivery and rotation | [Secrets](secrets.md) |
 
 :::note[Repository boundary]
