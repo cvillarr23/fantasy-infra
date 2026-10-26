@@ -52,7 +52,7 @@ def render_catalog(path):
         schedule = chain.get('schedule', {})
         schedule_text = (f'`{schedule["cron"]}` ({schedule["tz"]})'
                          if schedule else 'Event driven')
-        sections.extend(['', f'## {chain_name}', '', f'Schedule: {schedule_text}', '',
+        sections.extend(['', f'### Chain: {chain_name}', '', f'Schedule: {schedule_text}', '',
                          '```mermaid', 'flowchart LR'])
         steps = chain.get('steps', {})
         for step_name, step in steps.items():
@@ -68,13 +68,8 @@ def render_catalog(path):
     return '\n'.join(sections)
 
 
-def inventory(catalog_only=False, catalog_path=None):
-    catalog_path = Path(catalog_path or ROOT / 'base/launcher/catalog.yaml')
-    if catalog_only:
-        if not catalog_path.exists():
-            raise FileNotFoundError(f'catalog not found: {catalog_path}')
-        return '\n'.join([START, render_catalog(catalog_path), END])
-
+def inventory():
+    catalog_path = ROOT / 'base/launcher/catalog.yaml'
     catalog_jobs = {}
     if catalog_path.exists():
         catalog_jobs = yaml.load(
@@ -146,15 +141,11 @@ def inventory(catalog_only=False, catalog_path=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Fail if the committed table is stale')
-    parser.add_argument(
-        '--catalog-only', action='store_true',
-        help='Generate from the catalog without rendering legacy CronJobs',
-    )
     args = parser.parse_args()
     original = PAGE.read_text()
     before, remaining = original.split(START, 1)
     _, after = remaining.split(END, 1)
-    updated = before + inventory(catalog_only=args.catalog_only) + after
+    updated = before + inventory() + after
     if args.check:
         if updated != original:
             parser.exit(1, 'Schedule table is stale; run python3 scripts/generate-schedules.py\n')

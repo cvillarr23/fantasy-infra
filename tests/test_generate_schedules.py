@@ -16,18 +16,9 @@ class CatalogScheduleTest(unittest.TestCase):
 
         self.assertIn("`projections-refresh` | `0 18 * * *` (America/Chicago)", page)
         self.assertIn("`metrics-extractor` | — |", page)
-        self.assertIn("## tuesday-weekly", page)
+        self.assertIn("### Chain: tuesday-weekly", page)
         self.assertIn("sync-league -->|success| metrics-extractor", page)
         self.assertIn("lineup-optimizer (latest 19:15)", page)
-
-    def test_catalog_only_inventory_does_not_render_legacy_cronjobs(self):
-        page = generator.inventory(
-            catalog_only=True,
-            catalog_path=ROOT / "tests/fixtures/job-catalog.yaml",
-        )
-
-        self.assertIn("### Catalog jobs", page)
-        self.assertNotIn("Legacy CronJobs", page)
 
     def test_legacy_cronjob_names_map_to_catalog_jobs_during_cutover(self):
         catalog_jobs = {
