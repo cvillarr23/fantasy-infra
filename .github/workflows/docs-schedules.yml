@@ -30,4 +30,5 @@ jobs:
         with:
           version: 'v1.35.0'
       - run: pip install PyYAML
+      - run: python3 -m unittest tests.test_generate_schedules
       - run: python3 scripts/generate-schedules.py --check
