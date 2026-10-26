@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the public CronJob inventory from production manifests and alert rules."""
+"""Generate the public job schedule inventory from the catalog and production manifests."""
 import argparse
 import re
 import subprocess
@@ -11,9 +11,70 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / 'docs/schedules.md'
 START = '<!-- BEGIN GENERATED SCHEDULES -->'
 END = '<!-- END GENERATED SCHEDULES -->'
+LEGACY_CATALOG_ALIASES = {
+    'draft-prep-refresher': 'projections-refresh',
+    'weekly-ingestor': 'sync-league',
+    'weekly-waiver-trigger': 'waiver-trigger',
+    'sync-actual-scores-reconcile': 'sync-actual-scores',
+    'trade-candidates-prescan': 'trade-candidates',
+}
+
+
+def is_catalog_backed_cronjob(name, catalog_jobs):
+    normalized = name.removeprefix('fantasy-')
+    catalog_name = LEGACY_CATALOG_ALIASES.get(normalized, normalized)
+    return catalog_name in catalog_jobs
+
+
+def render_catalog(path):
+    """Render catalog jobs and dependency chains without consulting legacy alerts."""
+    catalog = yaml.load(Path(path).read_text(), Loader=yaml.BaseLoader)
+    jobs = catalog.get('jobs', {})
+    rows = []
+    for name, job in sorted(jobs.items()):
+        command = ' '.join(job.get('command', [])) or '—'
+        schedules = job.get('schedules', [])
+        if schedules:
+            schedule_text = '<br/>'.join(
+                f'`{item["cron"]}` ({item["tz"]})' for item in schedules
+            )
+        else:
+            schedule_text = '—'
+        rows.append(f'| `{name}` | {schedule_text} | `{command}` |')
+
+    sections = [
+        '### Catalog jobs',
+        '| Job | Schedule | Command |',
+        '|---|---|---|',
+        *rows,
+    ]
+    for chain_name, chain in sorted(catalog.get('chains', {}).items()):
+        schedule = chain.get('schedule', {})
+        schedule_text = (f'`{schedule["cron"]}` ({schedule["tz"]})'
+                         if schedule else 'Event driven')
+        sections.extend(['', f'### Chain: {chain_name}', '', f'Schedule: {schedule_text}', '',
+                         '```mermaid', 'flowchart LR'])
+        steps = chain.get('steps', {})
+        for step_name, step in steps.items():
+            latest = step.get('latest')
+            label = f'{step_name} (latest {latest})' if latest else step_name
+            sections.append(f'    {step_name}["{label}"]')
+        for step_name, step in steps.items():
+            for dependency in step.get('after', []):
+                sections.append(
+                    f'    {dependency["step"]} -->|{dependency["on"]}| {step_name}'
+                )
+        sections.append('```')
+    return '\n'.join(sections)
 
 
 def inventory():
+    catalog_path = ROOT / 'base/launcher/catalog.yaml'
+    catalog_jobs = {}
+    if catalog_path.exists():
+        catalog_jobs = yaml.load(
+            catalog_path.read_text(), Loader=yaml.BaseLoader
+        ).get('jobs', {})
     rendered = subprocess.check_output(
         ['kubectl', 'kustomize', str(ROOT / 'overlays/production')], text=True
     )
@@ -45,7 +106,7 @@ def inventory():
             else:
                 label = 'Latest Job failed'
             alerts.append(f'{label} (`{uid}`)')
-        if len(alerts) != 2:
+        if len(alerts) != 2 and not is_catalog_backed_cronjob(name, catalog_jobs):
             raise ValueError(f'{name}: expected failed and missed alerts, got {alerts}')
         pod = spec['jobTemplate']['spec']['template']['spec']
         commands = []
@@ -63,13 +124,18 @@ def inventory():
                 raise ValueError(f'{name}: add a public summary for {container["name"]}')
         timezone = spec.get('timeZone', 'Unset (controller timezone; UTC in this deployment)')
         rows.append(f'| `{name}` | `{spec["schedule"]}` | {timezone} | {" → ".join(commands)} | {"<br/>".join(alerts)} |')
-    return '\n'.join([
-        START,
-        '| CronJob | Cron expression | Timezone | What runs | Alerts |',
-        '|---|---|---|---|---|',
-        *rows,
-        END,
-    ])
+    sections = [START]
+    if catalog_path.exists():
+        sections.extend([render_catalog(catalog_path), ''])
+    if rows:
+        sections.extend([
+            '### Legacy CronJobs',
+            '| CronJob | Cron expression | Timezone | What runs | Alerts |',
+            '|---|---|---|---|---|',
+            *rows,
+        ])
+    sections.append(END)
+    return '\n'.join(sections)
 
 
 def main():

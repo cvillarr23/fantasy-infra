@@ -1,16 +1,17 @@
 ---
 title: Schedules
-description: Generated inventory of every production CronJob, command, timezone and alert.
+description: Generated inventory of production schedules, commands, timezones and alerts.
 sidebar_position: 5
 ---
 
-This inventory comes from the rendered production overlay and committed Grafana alert selectors. Draft-day inherits the same schedules.
+When present, catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. During cutover, the inventory also includes live CronJobs rendered from the production overlay and their committed Grafana alert selectors. Draft-day inherits the same CronJob schedules.
 
 :::note[Timezones and alerts]
 An unset `spec.timeZone` uses the controller's timezone; this deployment uses UTC for the ESPN healthcheck. America/Chicago jobs follow daylight saving time. Missed-run grace measures Job creation, not completion.
 :::
 
 <!-- BEGIN GENERATED SCHEDULES -->
+### Legacy CronJobs
 | CronJob | Cron expression | Timezone | What runs | Alerts |
 |---|---|---|---|---|
 | `espn-session-healthcheck` | `0 6 * * 1` | Unset (controller timezone; UTC in this deployment) | `src/bots/check_espn_session.js` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
@@ -40,7 +41,7 @@ python3 scripts/generate-schedules.py
 python3 scripts/generate-schedules.py --check
 ```
 
-The `Docs schedules` workflow checks this table on documentation, manifest and alert changes. The generator fails if any production CronJob lacks either failed-Job or missed-schedule coverage. It extracts schedules, timezones, commands and rule UIDs without copying league configuration, credentials or inline environment values.
+The `Docs schedules` workflow checks this section on documentation, catalog, manifest and alert changes. CronJobs represented by catalog jobs do not need legacy failed-Job and missed-schedule alerts; other live CronJobs must keep both. Chain edges show whether a step waits for its predecessor to succeed or finish, and latest times are shown on the relevant steps.
 
 ## Read the weekly order
 
