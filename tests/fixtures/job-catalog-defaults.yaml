@@ -1,0 +1,13 @@
+# Minimal catalog that leans on schema defaults: the chain has no schedule and
+# its edge omits `on`, which the catalog schema defaults to `success`.
+version: 1
+jobs:
+  sync-league:
+    command: [python, -m, src.ingestion.sync_league]
+  metrics-extractor:
+    command: [python, -m, src.ingestion.metrics_extractor]
+chains:
+  manual-refresh:
+    steps:
+      sync-league: {}
+      metrics-extractor: {after: [{step: sync-league}]}

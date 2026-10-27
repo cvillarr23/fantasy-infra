@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / 'docs/schedules.md'
 START = '<!-- BEGIN GENERATED SCHEDULES -->'
 END = '<!-- END GENERATED SCHEDULES -->'
+# TODO: Maps legacy CronJob names to catalog job names; remove it when cutover
+# batch C (cvillarr23/fantasy-infra#182) deletes the last CronJob.
 LEGACY_CATALOG_ALIASES = {
     'draft-prep-refresher': 'projections-refresh',
     'weekly-ingestor': 'sync-league',
@@ -51,7 +53,7 @@ def render_catalog(path):
     for chain_name, chain in sorted(catalog.get('chains', {}).items()):
         schedule = chain.get('schedule', {})
         schedule_text = (f'`{schedule["cron"]}` ({schedule["tz"]})'
-                         if schedule else 'Event driven')
+                         if schedule else 'Manual only')
         sections.extend(['', f'### Chain: {chain_name}', '', f'Schedule: {schedule_text}', '',
                          '```mermaid', 'flowchart LR'])
         steps = chain.get('steps', {})
@@ -62,7 +64,7 @@ def render_catalog(path):
         for step_name, step in steps.items():
             for dependency in step.get('after', []):
                 sections.append(
-                    f'    {dependency["step"]} -->|{dependency["on"]}| {step_name}'
+                    f'    {dependency["step"]} -->|{dependency.get("on", "success")}| {step_name}'
                 )
         sections.append('```')
     return '\n'.join(sections)

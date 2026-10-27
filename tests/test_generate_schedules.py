@@ -20,6 +20,17 @@ class CatalogScheduleTest(unittest.TestCase):
         self.assertIn("sync-league -->|success| metrics-extractor", page)
         self.assertIn("lineup-optimizer (latest 19:15)", page)
 
+    def test_chain_edge_without_on_defaults_to_success(self):
+        page = generator.render_catalog(ROOT / "tests/fixtures/job-catalog-defaults.yaml")
+
+        self.assertIn("sync-league -->|success| metrics-extractor", page)
+
+    def test_unscheduled_chain_is_labelled_manual_only(self):
+        page = generator.render_catalog(ROOT / "tests/fixtures/job-catalog-defaults.yaml")
+
+        self.assertIn("### Chain: manual-refresh\n\nSchedule: Manual only\n", page)
+        self.assertNotIn("Event driven", page)
+
     def test_legacy_cronjob_names_map_to_catalog_jobs_during_cutover(self):
         catalog_jobs = {
             "projections-refresh": {},
