@@ -1,0 +1,50 @@
+name: Launcher alerts
+on:
+  pull_request:
+    paths:
+      - 'base/telemetry/launcher-*-alert.yaml'
+      - 'base/launcher/**'
+      - 'overlays/production/kustomization.yaml'
+      - 'base/databases/rabbitmq-deployment.yaml'
+      - 'base/core-pipeline/fastapi-deployment.yaml'
+      - 'base/telemetry/kustomization.yaml'
+      - 'base/kustomization.yaml'
+      - 'tests/fixtures/job-catalog.yaml'
+      - 'tests/launcher_alerts/**'
+      - 'tests/test_generate_launcher_alerts.py'
+      - 'tests/test_launcher_manifests.py'
+      - 'scripts/generate-launcher-alerts.py'
+      - '.github/workflows/launcher-alerts.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'base/telemetry/launcher-*-alert.yaml'
+      - 'base/launcher/**'
+      - 'overlays/production/kustomization.yaml'
+      - 'base/databases/rabbitmq-deployment.yaml'
+      - 'base/core-pipeline/fastapi-deployment.yaml'
+      - 'base/telemetry/kustomization.yaml'
+      - 'base/kustomization.yaml'
+      - 'tests/fixtures/job-catalog.yaml'
+      - 'tests/launcher_alerts/**'
+      - 'tests/test_generate_launcher_alerts.py'
+      - 'tests/test_launcher_manifests.py'
+      - 'scripts/generate-launcher-alerts.py'
+      - '.github/workflows/launcher-alerts.yml'
+permissions:
+  contents: read
+
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
+        with:
+          version: 'v1.35.0'
+      - run: pip install PyYAML
+      - run: python3 -m unittest tests.test_generate_launcher_alerts tests.test_launcher_manifests
+      - run: ./tests/launcher_alerts/run.sh

@@ -70,3 +70,26 @@ replacements:
       name: fantasy-core-pipeline
     fieldPaths:
     - spec.template.spec.containers.[name=gateway].env.[name=BROWSER_WORKER_IMAGE].value
+# The launcher resolves the CORE_IMAGE and WORKER_IMAGE placeholders in its catalog profiles from
+# its own env. Same reasoning as DRAFT_SYNC_IMAGE above: source them from already digest-pinned
+# `image:` fields so a release updates them with no second place to bump.
+- source:
+    kind: Deployment
+    name: fantasy-job-launcher
+    fieldPath: spec.template.spec.containers.[name=launcher].image
+  targets:
+  - select:
+      kind: Deployment
+      name: fantasy-job-launcher
+    fieldPaths:
+    - spec.template.spec.containers.[name=launcher].env.[name=CORE_IMAGE].value
+- source:
+    kind: ScaledJob
+    name: fantasy-browser-worker-scaler
+    fieldPath: spec.jobTargetRef.template.spec.containers.[name=worker].image
+  targets:
+  - select:
+      kind: Deployment
+      name: fantasy-job-launcher
+    fieldPaths:
+    - spec.template.spec.containers.[name=launcher].env.[name=WORKER_IMAGE].value

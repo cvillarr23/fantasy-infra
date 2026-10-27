@@ -1,0 +1,47 @@
+name: Job catalog
+on:
+  pull_request:
+    paths:
+      - 'base/launcher/catalog.yaml'
+      - 'base/telemetry/launcher-run-failed-*-alert.yaml'
+      - 'scripts/generate-launcher-alerts.py'
+      - '.github/workflows/job-catalog.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'base/launcher/catalog.yaml'
+      - 'base/telemetry/launcher-run-failed-*-alert.yaml'
+      - 'scripts/generate-launcher-alerts.py'
+      - '.github/workflows/job-catalog.yml'
+permissions:
+  contents: read
+
+env:
+  # Core commit whose catalog schema this repo validates against. Bump it with a catalog
+  # schema change, so an unrelated core commit can't break this repo's CI.
+  CORE_REF: 9f98048cc88d764f9fc10ac7253f18b93b988614
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: cvillarr23/fantasy-core-pipeline
+          ref: ${{ env.CORE_REF }}
+          path: core
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - run: pip install -r core/requirements.txt check-jsonschema PyYAML
+      # The JSON schema catches structure; core's own check adds the rules pydantic enforces
+      # that the schema can't express (references between jobs, profiles and chains).
+      - name: Validate against core's exported schema
+        working-directory: core
+        run: |
+          python -m src.launcher.catalog --json-schema > "$RUNNER_TEMP/catalog-schema.json"
+          check-jsonschema --schemafile "$RUNNER_TEMP/catalog-schema.json" "$GITHUB_WORKSPACE/base/launcher/catalog.yaml"
+          python -m src.launcher.catalog --check "$GITHUB_WORKSPACE/base/launcher/catalog.yaml"
+      - name: Generated alert rules match the catalog
+        run: python3 scripts/generate-launcher-alerts.py --check
