@@ -1,0 +1,11 @@
+# Job catalog read by the launcher at startup (docs/adr/0001-unified-job-launcher.md).
+# Deliberately empty: the live CronJobs still run everything, so adding a job here before
+# its CronJob is removed would run it twice. Cutover PRs add jobs and chains alongside the
+# CronJob removal.
+version: 1
+global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
+profiles:
+  core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api]}
+  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, volumes: [espn-session-state]}
+defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
+jobs: {}

@@ -1,0 +1,90 @@
+# The unified job launcher: scheduler, consumer, watcher and heartbeat in one process.
+# One replica with Recreate, so two launchers never admit the same run. It has no HTTP port;
+# health is the `launcher_heartbeat` row, alerted on in base/telemetry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-job-launcher
+  labels:
+    app: fantasy-job-launcher
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fantasy-job-launcher
+  template:
+    metadata:
+      labels:
+        app: fantasy-job-launcher
+    spec:
+      serviceAccountName: fantasy-job-launcher
+      # Longer than core's inline KILL_GRACE_SECONDS (30s), so a running inline job is killed
+      # by the launcher rather than by SIGKILL from the kubelet.
+      terminationGracePeriodSeconds: 45
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: launcher
+          image: ghcr.io/cvillarr23/fantasy-core-pipeline:e3536eea5cedb1f0c646db1b38e008aa7d630940
+          imagePullPolicy: Always
+          command: ["python", "-m", "src.launcher"]
+          env:
+            - name: JOB_CATALOG_PATH
+              value: "/etc/fantasy-job-catalog/catalog.yaml"
+            # PLACEHOLDERS ONLY: overlays/production/kustomization.yaml replaces both with the
+            # digest-pinned images, the same way as DRAFT_SYNC_IMAGE on the gateway.
+            - name: CORE_IMAGE
+              value: "ghcr.io/cvillarr23/fantasy-core-pipeline:placeholder-set-by-kustomize-replacement"
+            - name: WORKER_IMAGE
+              value: "ghcr.io/cvillarr23/fantasy-browser-worker:placeholder-set-by-kustomize-replacement"
+            # Copied into every launched pod, so they match the gateway's settings.
+            - name: DB_HOST
+              value: "fantasy-db.default.svc.cluster.local"
+            - name: DB_NAME
+              value: "fantasy_football"
+            - name: DB_USER
+              value: "bot_admin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: AMQP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: amqp-url
+            - name: REDIS_HOST
+              value: "fantasy-cache.default.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: CORE_API_BASE_URL
+              value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
+            # Core pods export OTLP over HTTP; the Node worker exports gRPC on another port.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tempo.default.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "job-launcher"
+            - name: WORKER_OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tempo.default.svc.cluster.local:4317"
+          volumeMounts:
+            - name: job-catalog
+              mountPath: /etc/fantasy-job-catalog
+              readOnly: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+      volumes:
+        # The launcher reads the catalog only at startup. The generated ConfigMap name carries
+        # a content hash, so editing catalog.yaml changes this reference and restarts the pod.
+        - name: job-catalog
+          configMap:
+            name: fantasy-job-catalog

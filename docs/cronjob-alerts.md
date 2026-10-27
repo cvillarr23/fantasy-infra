@@ -204,6 +204,53 @@ To add a CronJob:
 4. Add firing and non-firing fixtures.
 5. Keep each rule's provisioning key and UID unique, and validate both production and draft-day renders.
 
+## Launcher alerts
+
+The [unified job launcher](adr/0001-unified-job-launcher.md) alerts from Postgres, not kube-state-metrics. Rules query `run_log` and `launcher_heartbeat` through the `FantasyFootballDB` datasource, load into the **Fantasy** folder like the rules above and route to the ntfy contact point. They read columns (`status`, `job_name`, `end_reason`, `attempt`, `chain_root_id`, `finished_at`), never keys inside `run_log.trigger`.
+
+| Alert | Fires when | First check |
+|---|---|---|
+| Job launcher heartbeat stale | `launcher_heartbeat.at` is older than 5m, or there is no row | [Heartbeat stale](#launcher-heartbeat-stale) |
+| Job launcher dead-letter queue not empty | `queue_depths->>'job_runs.dlq'` is above 0 | [DLQ not empty](#launcher-dlq-not-empty) |
+| Launcher run failed (critical / warning jobs) | A run of a job at that `alert` level ended `failure` or `timeout`, or `skipped` for a reason other than `paused` or `chain_step`, in the last 10m | [Run failed](#launcher-run-failed) |
+| Job launcher chain ran past max_duration | A chain root ended `timeout` with `end_reason = 'max_duration'` in the last 10m | [Chain past max_duration](#launcher-chain-past-max-duration) |
+
+### Launcher heartbeat stale
+
+The launcher writes the row every 15s on its own thread, so a stale row means the process is down or stalled, or the database is unreachable from it. Nothing scheduled or on-demand starts meanwhile; catch-up windows cover short outages.
+
+```bash
+kubectl get deploy,pod -l app=fantasy-job-launcher -n default
+kubectl logs deploy/fantasy-job-launcher -n default --tail=100
+```
+
+A launcher that refuses to start logs `Job catalog is not usable`; fix the catalog or the env it names.
+
+### Launcher DLQ not empty
+
+`job_runs.dlq` holds run commands the broker dead-lettered, such as a message that waited past the 6h TTL while the launcher was down. Inspect without consuming:
+
+```bash
+kubectl exec -n default deploy/fantasy-broker -c rabbitmq -- \
+  rabbitmqctl list_queues -p / name messages_ready messages_unacknowledged
+```
+
+Decide with the owner whether each run is still wanted before replaying or purging; don't purge to silence the alert.
+
+### Launcher run failed
+
+Rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
+
+A run the launcher will retry doesn't alert until its last attempt ends. `skipped` with `end_reason` `paused` or `chain_step` is expected and excluded. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
+
+### Launcher chain past max_duration
+
+The scheduler ended a chain run because it outlasted the chain's `max_duration`, and skipped its unstarted steps. Look at the chain's `run_log` rows (`chain_root_id` = the root's `id`) for the step that was slow or never started.
+
+### Testing launcher alerts
+
+`./tests/launcher_alerts/run.sh` loads the committed SQL into a disposable `postgres:16` and asserts fire and no-fire cases for every rule, including the generated ones rendered from a fixture catalog. `python3 -m unittest tests.test_generate_launcher_alerts` checks the committed rules match the catalog.
+
 ## Related
 
 - [Schedule order and refresh horizon](cronjob-schedule-order.md) for Tuesday ordering and the projection/VORP refresh.

@@ -11,6 +11,10 @@ An unset `spec.timeZone` uses the controller's timezone; this deployment uses UT
 :::
 
 <!-- BEGIN GENERATED SCHEDULES -->
+### Catalog jobs
+| Job | Schedule | Command |
+|---|---|---|
+
 ### Legacy CronJobs
 | CronJob | Cron expression | Timezone | What runs | Alerts |
 |---|---|---|---|---|

@@ -29,6 +29,18 @@ flowchart LR
 Existing queues with hardcoded dead-letter arguments keep using those arguments, because RabbitMQ gives them precedence over a regular policy.
 :::
 
+## What does the launcher add?
+
+The [job launcher](adr/0001-unified-job-launcher.md) uses two more queues and an exchange, all declared in the broker definitions.
+
+| Name | Declared as | Notes |
+|---|---|---|
+| `job_runs` | Durable queue | Launcher commands. The `fantasy-job-runs` policy sets a 6h message TTL and dead-letters to `dlx`. |
+| `job_runs.dlq` | Durable queue | Bound to `dlx` with routing key `job_runs`. No TTL; depth above 0 alerts. |
+| `job_events` | Durable topic exchange | Facts such as `rumor.signal_created`. No queue yet. |
+
+The launcher declares queues passively, so they must exist before it starts. Definitions load only at boot, so the next broker restart creates them. Treat that restart like any other: follow the operator approval gate below and don't restart the production broker without approval.
+
 ## Operator approval gate
 
 :::warning[First persistent-storage migration]

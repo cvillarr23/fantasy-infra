@@ -9,3 +9,8 @@ resources:
   - cronjob-missed-schedule-stale-draft-job-sweeper-alert.yaml
   - cronjob-missed-schedule-rumor-syncer-alert.yaml
   - rumor-action-outcome-alert.yaml
+  - launcher-heartbeat-alert.yaml
+  - launcher-dlq-alert.yaml
+  - launcher-chain-max-duration-alert.yaml
+  - launcher-run-failed-critical-alert.yaml
+  - launcher-run-failed-warning-alert.yaml

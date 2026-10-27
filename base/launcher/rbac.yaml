@@ -1,0 +1,35 @@
+# The launcher creates and deletes Jobs and watches their pods, in this namespace only.
+# RBAC can't scope `create` by resourceNames (see core-pipeline/rbac.yaml), and Job names
+# are generated per run, so the Job rules are namespace-wide.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fantasy-job-launcher
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fantasy-job-launcher
+  namespace: default
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fantasy-job-launcher
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: fantasy-job-launcher
+    namespace: default
+roleRef:
+  kind: Role
+  name: fantasy-job-launcher
+  apiGroup: rbac.authorization.k8s.io

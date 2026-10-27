@@ -1,0 +1,56 @@
+# The scheduler ends a chain root (chain_root_id = id) as timeout/max_duration once it passes the chain's max_duration
+# and skips its unstarted steps. Matches on columns, not run_log.trigger.
+# Runbook: docs/cronjob-alerts.md#launcher-chain-past-max-duration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-launcher-chain-max-duration-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  launcher-chain-max-duration.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: launcher-chain-max-duration
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: launcher-chain-max-duration
+            title: Job launcher chain ran past max_duration
+            condition: C
+            for: 0m
+            noDataState: OK
+            execErrState: Error
+            annotations:
+              summary: '{{ $values.B.Value }} chain run(s) ended past their max_duration in the last 10 minutes.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-chain-past-max-duration
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: |-
+                      SELECT COUNT(*)::double precision AS value
+                      FROM run_log
+                      WHERE chain_root_id = id
+                        AND status = 'timeout'
+                        AND end_reason = 'max_duration'
+                        AND finished_at > now() - interval '10 minutes';
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}

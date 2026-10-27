@@ -67,18 +67,23 @@ data:
         {"name": "trade_responses", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "lineup_updates.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
         {"name": "waiver_actions.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
-        {"name": "draft_targets.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+        {"name": "draft_targets.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "job_runs", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+        {"name": "job_runs.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
       ],
       "exchanges": [
-        {"name": "dlx", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+        {"name": "dlx", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+        {"name": "job_events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
       ],
       "bindings": [
         {"source": "dlx", "vhost": "/", "destination": "lineup_updates.dlq", "destination_type": "queue", "routing_key": "lineup_updates", "arguments": {}},
         {"source": "dlx", "vhost": "/", "destination": "waiver_actions.dlq", "destination_type": "queue", "routing_key": "waiver_actions", "arguments": {}},
-        {"source": "dlx", "vhost": "/", "destination": "draft_targets.dlq", "destination_type": "queue", "routing_key": "draft_targets", "arguments": {}}
+        {"source": "dlx", "vhost": "/", "destination": "draft_targets.dlq", "destination_type": "queue", "routing_key": "draft_targets", "arguments": {}},
+        {"source": "dlx", "vhost": "/", "destination": "job_runs.dlq", "destination_type": "queue", "routing_key": "job_runs", "arguments": {}}
       ],
       "policies": [
-        {"vhost": "/", "name": "fantasy-dead-letter", "pattern": "^(lineup_updates|waiver_actions|draft_targets)$", "apply-to": "queues", "definition": {"dead-letter-exchange": "dlx"}, "priority": 10}
+        {"vhost": "/", "name": "fantasy-dead-letter", "pattern": "^(lineup_updates|waiver_actions|draft_targets)$", "apply-to": "queues", "definition": {"dead-letter-exchange": "dlx"}, "priority": 10},
+        {"vhost": "/", "name": "fantasy-job-runs", "pattern": "^job_runs$", "apply-to": "queues", "definition": {"dead-letter-exchange": "dlx", "message-ttl": 21600000}, "priority": 10}
       ]
     }
   load_definitions.conf: |

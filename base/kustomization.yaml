@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - databases
   - core-pipeline
+  - launcher
   - browser-worker
   - web-ui
   - oauth2-proxy

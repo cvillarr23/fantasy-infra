@@ -1,0 +1,55 @@
+# job_runs.dlq holds run commands the broker dead-lettered (the 6h message TTL expired or a delivery was rejected).
+# Depth comes from the heartbeat row, since the cluster doesn't scrape RabbitMQ. A null depth (queue unreadable)
+# counts as 0 here; the heartbeat alert covers a launcher that stops writing.
+# Runbook: docs/cronjob-alerts.md#launcher-dlq-not-empty
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-launcher-dlq-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  launcher-dlq-depth.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: launcher-dlq-depth
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: launcher-dlq-depth
+            title: Job launcher dead-letter queue not empty
+            condition: C
+            for: 0m
+            noDataState: OK
+            execErrState: Error
+            annotations:
+              summary: '{{ $values.B.Value }} run command(s) are in job_runs.dlq.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-dlq-not-empty
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: |-
+                      SELECT COALESCE(
+                        (SELECT (queue_depths->>'job_runs.dlq')::int FROM launcher_heartbeat WHERE id = 1),
+                        0
+                      )::double precision AS value;
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}
