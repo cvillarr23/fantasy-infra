@@ -23,6 +23,8 @@ data:
             for: 0m
             noDataState: Alerting
             execErrState: Error
+            labels:
+              severity: critical
             annotations:
               summary: 'Job launcher has not sent a heartbeat for {{ $values.B.Value }} seconds. Scheduled and on-demand runs are not starting.'
               runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-heartbeat-stale

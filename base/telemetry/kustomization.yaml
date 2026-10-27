@@ -11,6 +11,8 @@ resources:
   - rumor-action-outcome-alert.yaml
   - launcher-heartbeat-alert.yaml
   - launcher-dlq-alert.yaml
+  - launcher-queue-depth-unknown-alert.yaml
+  - launcher-job-runs-backlog-alert.yaml
   - launcher-chain-max-duration-alert.yaml
   - launcher-run-failed-critical-alert.yaml
   - launcher-run-failed-warning-alert.yaml

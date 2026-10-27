@@ -72,6 +72,27 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(catalog["jobs"], {})
         self.assertFalse(catalog.get("chains"))
 
+    def test_gateway_mounts_the_same_catalog(self):
+        # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                pod = one(docs, "Deployment", "fantasy-core-pipeline")["spec"]["template"]["spec"]
+                (gateway,) = pod["containers"]
+                self.assertEqual(env(gateway)["JOB_CATALOG_PATH"], "/etc/fantasy-job-catalog/catalog.yaml")
+                (mount,) = [m for m in gateway["volumeMounts"] if m["name"] == "job-catalog"]
+                self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
+                launcher = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]
+                (gateway_volume,) = [v for v in pod["volumes"] if v["name"] == "job-catalog"]
+                self.assertEqual(gateway_volume["configMap"], launcher["volumes"][0]["configMap"])
+
+    def test_core_profile_has_the_bundles_cronjobs_rely_on(self):
+        # CURRENT_YEAR comes from league-config and publishing from amqp (k8s.BUNDLES in core).
+        docs = self.rendered["production"]
+        (volume,) = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]["volumes"]
+        catalog = yaml.safe_load(one(docs, "ConfigMap", volume["configMap"]["name"])["data"]["catalog.yaml"])
+        for bundle in ("db", "espn", "redis", "trigger-api", "amqp", "league-config"):
+            self.assertIn(bundle, catalog["profiles"]["core"]["secrets"])
+
     def test_rbac_is_namespaced_and_minimal(self):
         docs = self.rendered["production"]
         role = one(docs, "Role", "fantasy-job-launcher")
@@ -108,7 +129,8 @@ class LauncherManifestTest(unittest.TestCase):
 
     def test_alerts_are_provisioned(self):
         names = {d["metadata"]["name"] for d in self.rendered["production"] if d["kind"] == "ConfigMap"}
-        for alert in ("heartbeat", "dlq", "chain-max-duration", "run-failed-critical", "run-failed-warning"):
+        for alert in ("heartbeat", "dlq", "queue-depth-unknown", "job-runs-backlog", "chain-max-duration",
+                      "run-failed-critical", "run-failed-warning"):
             self.assertIn(f"fantasy-launcher-{alert}-alert", names)
 
 

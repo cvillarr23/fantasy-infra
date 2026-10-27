@@ -212,7 +212,9 @@ The [unified job launcher](adr/0001-unified-job-launcher.md) alerts from Postgre
 |---|---|---|
 | Job launcher heartbeat stale | `launcher_heartbeat.at` is older than 5m, or there is no row | [Heartbeat stale](#launcher-heartbeat-stale) |
 | Job launcher dead-letter queue not empty | `queue_depths->>'job_runs.dlq'` is above 0 | [DLQ not empty](#launcher-dlq-not-empty) |
-| Launcher run failed (critical / warning jobs) | A run of a job at that `alert` level ended `failure` or `timeout`, or `skipped` for a reason other than `paused` or `chain_step`, in the last 10m | [Run failed](#launcher-run-failed) |
+| Job launcher cannot read its queues | The heartbeat is fresh but `job_runs` or its DLQ depth is null, for 2m | [Queue depth unknown](#launcher-queue-depth-unknown) |
+| Job launcher job_runs backlog | `job_runs` depth stays above 0 for 15m | [Backlog](#launcher-job-runs-backlog) |
+| Launcher run failed (critical / warning jobs) | A job at that `alert` level had a run end `failure` or `timeout` on its last attempt, or `skipped` for a reason that needs a person, in the last 10m. One series per job | [Run failed](#launcher-run-failed) |
 | Job launcher chain ran past max_duration | A chain root ended `timeout` with `end_reason = 'max_duration'` in the last 10m | [Chain past max_duration](#launcher-chain-past-max-duration) |
 
 ### Launcher heartbeat stale
@@ -237,11 +239,19 @@ kubectl exec -n default deploy/fantasy-broker -c rabbitmq -- \
 
 Decide with the owner whether each run is still wanted before replaying or purging; don't purge to silence the alert.
 
+### Launcher queue depth unknown
+
+The heartbeat is arriving but the launcher couldn't read a queue's depth: `job_runs` or `job_runs.dlq` is missing (the broker definitions didn't load) or the broker is unreachable from the launcher. It can't consume either way. Check `rabbitmqctl list_queues` as above and the launcher log for `Launcher queue depths unavailable`.
+
+### Launcher job_runs backlog
+
+`job_runs` has had messages for 15 minutes, though the launcher takes them promptly. The heartbeat thread is alive but the consumer is stalled or blocked. Check the launcher log and `run_log` rows stuck in `queued`.
+
 ### Launcher run failed
 
-Rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
+Rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names and `max_attempts` at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
 
-A run the launcher will retry doesn't alert until its last attempt ends. `skipped` with `end_reason` `paused` or `chain_step` is expected and excluded. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
+Each rule returns one series per job, so the page names the job, and carries a `severity` label (`critical` or `warning`) to route on. A failure or timeout alerts only on a job's last attempt (`attempt >= max_attempts`), or when a chain step's root has already ended, since the watcher can no longer retry it. Skips with `end_reason` `paused`, `chain_step`, `max_duration` or `chain_ended` are excluded: a chain timeout alerts once, on the chain rule. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
 
 ### Launcher chain past max_duration
 

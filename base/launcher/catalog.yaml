@@ -5,7 +5,7 @@
 version: 1
 global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
 profiles:
-  core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api]}
+  core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api, amqp, league-config]}
   worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, volumes: [espn-session-state]}
 defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
 jobs: {}

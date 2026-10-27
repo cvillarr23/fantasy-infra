@@ -2,6 +2,7 @@
 
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 import yaml
@@ -18,24 +19,47 @@ def rule_sql(rendered):
 
 
 class GenerateLauncherAlertsTest(unittest.TestCase):
-    def test_jobs_split_by_alert_level_with_default(self):
+    def test_jobs_split_by_alert_level_with_defaults(self):
         catalog = {
-            "defaults": {"alert": "warning"},
-            "jobs": {"a": {"alert": "critical"}, "b": {}, "c": {"alert": "none"}, "d": {"alert": "warning"}},
+            "defaults": {"alert": "warning", "max_attempts": "2"},
+            "jobs": {
+                "a": {"alert": "critical", "max_attempts": "3"},
+                "b": {},
+                "c": {"alert": "none"},
+                "d": {"alert": "warning", "max_attempts": "1"},
+            },
         }
-        self.assertEqual(generator.jobs_at_level(catalog, "critical"), ["a"])
-        self.assertEqual(generator.jobs_at_level(catalog, "warning"), ["b", "d"])
+        self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("a", 3)])
+        self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("b", 2), ("d", 1)])
 
     def test_empty_catalog_lists_no_jobs(self):
         self.assertEqual(generator.jobs_at_level({"jobs": {}}, "critical"), [])
         self.assertEqual(generator.jobs_at_level({}, "warning"), [])
 
+    def test_null_defaults_and_job_bodies_fall_back(self):
+        # BaseLoader reads `defaults:` and a bare `job:` as '' rather than None or a mapping.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "catalog.yaml"
+            path.write_text("version: 1\ndefaults:\njobs:\n  bare:\n  full: {alert: critical, max_attempts: 3}\n")
+            catalog = generator._load_catalog(path)
+            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("bare", 1)])
+            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("full", 3)])
+            generator.render(path, "warning")
+
+    def test_yaml_1_1_booleans_stay_strings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "catalog.yaml"
+            path.write_text("jobs:\n  on: {alert: critical}\n  no: {}\n")
+            catalog = generator._load_catalog(path)
+            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("on", 1)])
+            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("no", 1)])
+
     def test_job_names_are_quoted_safely(self):
-        self.assertEqual(generator._job_array(["it's"]), "ARRAY['it''s']::text[]")
+        self.assertIn("ARRAY['it''s']::text[]", generator._job_attempts([("it's", 1)]))
 
     def test_rendered_sql_names_the_level_jobs(self):
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "critical"))
-        self.assertIn("'lineup-optimizer'", sql)
+        self.assertIn("ARRAY['lineup-optimizer', 'waiver-trigger']::text[], ARRAY[3, 3]::int[]", sql)
         self.assertNotIn("'sync-league'", sql)
 
     def test_committed_rules_match_the_catalog(self):

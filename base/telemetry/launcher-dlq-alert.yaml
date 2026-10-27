@@ -1,6 +1,6 @@
 # job_runs.dlq holds run commands the broker dead-lettered (the 6h message TTL expired or a delivery was rejected).
-# Depth comes from the heartbeat row, since the cluster doesn't scrape RabbitMQ. A null depth (queue unreadable)
-# counts as 0 here; the heartbeat alert covers a launcher that stops writing.
+# Depth comes from the heartbeat row, since the cluster doesn't scrape RabbitMQ. A null depth (queue missing or
+# broker unreachable) counts as 0 here; launcher-queue-depth-unknown covers that.
 # Runbook: docs/cronjob-alerts.md#launcher-dlq-not-empty
 apiVersion: v1
 kind: ConfigMap
@@ -24,6 +24,8 @@ data:
             for: 0m
             noDataState: OK
             execErrState: Error
+            labels:
+              severity: warning
             annotations:
               summary: '{{ $values.B.Value }} run command(s) are in job_runs.dlq.'
               runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-dlq-not-empty

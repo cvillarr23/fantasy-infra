@@ -23,6 +23,8 @@ data:
             for: 0m
             noDataState: OK
             execErrState: Error
+            labels:
+              severity: warning
             annotations:
               summary: '{{ $values.B.Value }} chain run(s) ended past their max_duration in the last 10 minutes.'
               runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-chain-past-max-duration
