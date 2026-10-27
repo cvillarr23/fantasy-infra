@@ -9,7 +9,7 @@ This project is unofficial and not affiliated with ESPN or Disney. Read the
 
 ## Documentation
 
-Start with the [infrastructure guide](docs/index.md). The shared docs site imports
+Start with the [infrastructure guide](docs/index.md). The [shared docs site](https://fantasy-docs.roo-net.cc) imports
 this repository's `docs/` under `/infra` and rebuilds after docs changes land on `main`.
 
 | Topic | Guide |
