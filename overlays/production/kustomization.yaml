@@ -5,6 +5,7 @@ resources:
 - configmap-env.yaml
 - externalsecrets.yaml
 - argocd-image-updater-externalsecret.yaml
+- argocd-repo-ssh-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
   digest: sha256:91967929663123100a2d5e932fd7cd0ddbd4ded47daf168c342c59d17b835740
