@@ -70,7 +70,7 @@ spec:
                   key: swid
             # Set directly - llm_client.py's OpenBao fallback shells out to `bao`, which isn't
             # on this image and has no pod route to OpenBao anyway (no Vault agent sidecar).
-            # Same fix as browser-worker's rumor-digest-bot-cronjob.yaml.
+            # Same fix as the rumor-digest-bot launcher job's llm bundle.
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -195,20 +195,6 @@ tests:
     interval: 1m
     start_timestamp: 1791282600
     input_series:
-    - series: kube_job_owner{exported_namespace="default",job_name="espn-session-healthcheck-old",owner_kind="CronJob",owner_name="espn-session-healthcheck"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="espn-session-healthcheck-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="espn-session-healthcheck-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="espn-session-healthcheck-new",owner_kind="CronJob",owner_name="espn-session-healthcheck"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="espn-session-healthcheck-new"}
-      values: 1791282540x10
-    - series: kube_job_failed{exported_namespace="default",job_name="espn-session-healthcheck-new",condition="true"}
-      values: 1x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-draft-prep-refresher-old",owner_kind="CronJob",owner_name="fantasy-draft-prep-refresher"}
       values: 1x10
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-draft-prep-refresher-old"}
@@ -237,20 +223,6 @@ tests:
       values: 1x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-lineup-optimizer"}
       values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old",owner_kind="CronJob",owner_name="fantasy-rapid-status-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new",owner_kind="CronJob",owner_name="fantasy-rapid-status-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new"}
-      values: 1791282540x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new",condition="true"}
-      values: 1x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-action-trigger-old",owner_kind="CronJob",owner_name="fantasy-rumor-action-trigger"}
       values: 1x10
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-action-trigger-old"}
@@ -264,34 +236,6 @@ tests:
     - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rumor-action-trigger-new",condition="true"}
       values: 1x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rumor-action-trigger"}
-      values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-syncer-old",owner_kind="CronJob",owner_name="fantasy-rumor-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-syncer-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rumor-syncer-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-syncer-new",owner_kind="CronJob",owner_name="fantasy-rumor-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-syncer-new"}
-      values: 1791282540x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rumor-syncer-new",condition="true"}
-      values: 1x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rumor-syncer"}
-      values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old",owner_kind="CronJob",owner_name="fantasy-stale-draft-job-sweeper"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new",owner_kind="CronJob",owner_name="fantasy-stale-draft-job-sweeper"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new"}
-      values: 1791282540x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new",condition="true"}
-      values: 1x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
       values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
       values: 1x10
@@ -349,28 +293,10 @@ tests:
       values: 1x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-weekly-waiver-trigger"}
       values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="rumor-digest-bot-old",owner_kind="CronJob",owner_name="rumor-digest-bot"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="rumor-digest-bot-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="rumor-digest-bot-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="rumor-digest-bot-new",owner_kind="CronJob",owner_name="rumor-digest-bot"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="rumor-digest-bot-new"}
-      values: 1791282540x10
-    - series: kube_job_failed{exported_namespace="default",job_name="rumor-digest-bot-new",condition="true"}
-      values: 1x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="rumor-digest-bot"}
-      values: 1791196200x10
     alert_rule_test:
     - eval_time: 5m
       alertname: fantasy-cronjob-job-failed
       exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          owner_name: espn-session-healthcheck
-          job_name: espn-session-healthcheck-new
       - exp_labels:
           exported_namespace: default
           owner_name: fantasy-draft-prep-refresher
@@ -381,20 +307,8 @@ tests:
           job_name: fantasy-lineup-optimizer-new
       - exp_labels:
           exported_namespace: default
-          owner_name: fantasy-rapid-status-syncer
-          job_name: fantasy-rapid-status-syncer-new
-      - exp_labels:
-          exported_namespace: default
           owner_name: fantasy-rumor-action-trigger
           job_name: fantasy-rumor-action-trigger-new
-      - exp_labels:
-          exported_namespace: default
-          owner_name: fantasy-rumor-syncer
-          job_name: fantasy-rumor-syncer-new
-      - exp_labels:
-          exported_namespace: default
-          owner_name: fantasy-stale-draft-job-sweeper
-          job_name: fantasy-stale-draft-job-sweeper-new
       - exp_labels:
           exported_namespace: default
           owner_name: fantasy-sync-actual-scores
@@ -411,26 +325,10 @@ tests:
           exported_namespace: default
           owner_name: fantasy-weekly-waiver-trigger
           job_name: fantasy-weekly-waiver-trigger-new
-      - exp_labels:
-          exported_namespace: default
-          owner_name: rumor-digest-bot
-          job_name: rumor-digest-bot-new
   - name: every watched CronJob's latest Job succeeded after old failures stays quiet
     interval: 1m
     start_timestamp: 1791282600
     input_series:
-    - series: kube_job_owner{exported_namespace="default",job_name="espn-session-healthcheck-old",owner_kind="CronJob",owner_name="espn-session-healthcheck"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="espn-session-healthcheck-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="espn-session-healthcheck-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="espn-session-healthcheck-new",owner_kind="CronJob",owner_name="espn-session-healthcheck"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="espn-session-healthcheck-new"}
-      values: 1791282540x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-draft-prep-refresher-old",owner_kind="CronJob",owner_name="fantasy-draft-prep-refresher"}
       values: 1x10
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-draft-prep-refresher-old"}
@@ -455,18 +353,6 @@ tests:
       values: 1791282540x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-lineup-optimizer"}
       values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old",owner_kind="CronJob",owner_name="fantasy-rapid-status-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rapid-status-syncer-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new",owner_kind="CronJob",owner_name="fantasy-rapid-status-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new"}
-      values: 1791282540x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-action-trigger-old",owner_kind="CronJob",owner_name="fantasy-rumor-action-trigger"}
       values: 1x10
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-action-trigger-old"}
@@ -478,30 +364,6 @@ tests:
     - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-action-trigger-new"}
       values: 1791282540x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rumor-action-trigger"}
-      values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-syncer-old",owner_kind="CronJob",owner_name="fantasy-rumor-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-syncer-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-rumor-syncer-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-syncer-new",owner_kind="CronJob",owner_name="fantasy-rumor-syncer"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-syncer-new"}
-      values: 1791282540x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rumor-syncer"}
-      values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old",owner_kind="CronJob",owner_name="fantasy-stale-draft-job-sweeper"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new",owner_kind="CronJob",owner_name="fantasy-stale-draft-job-sweeper"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new"}
-      values: 1791282540x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
       values: 1791196200x10
     - series: kube_job_owner{exported_namespace="default",job_name="fantasy-sync-actual-scores-old",owner_kind="CronJob",owner_name="fantasy-sync-actual-scores"}
       values: 1x10
@@ -551,73 +413,10 @@ tests:
       values: 1791282540x10
     - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-weekly-waiver-trigger"}
       values: 1791196200x10
-    - series: kube_job_owner{exported_namespace="default",job_name="rumor-digest-bot-old",owner_kind="CronJob",owner_name="rumor-digest-bot"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="rumor-digest-bot-old"}
-      values: 1791196200x10
-    - series: kube_job_failed{exported_namespace="default",job_name="rumor-digest-bot-old",condition="true"}
-      values: 1x10
-    - series: kube_job_owner{exported_namespace="default",job_name="rumor-digest-bot-new",owner_kind="CronJob",owner_name="rumor-digest-bot"}
-      values: 1x10
-    - series: kube_job_created{exported_namespace="default",job_name="rumor-digest-bot-new"}
-      values: 1791282540x10
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="rumor-digest-bot"}
-      values: 1791196200x10
     alert_rule_test:
     - eval_time: 5m
       alertname: fantasy-cronjob-job-failed
       exp_alerts: []
-  - name: espn-session-healthcheck missed threshold, suspended and resumed
-    interval: 1m
-    start_timestamp: 1791180000
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1791180000x125 1791266400x5
-    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1x125 0x5
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1791093600x130
-    - series: kube_job_owner{exported_namespace="default",job_name="espn-session-healthcheck-new",owner_kind="CronJob",owner_name="espn-session-healthcheck"}
-      values: 1x130
-    - series: kube_job_created{exported_namespace="default",job_name="espn-session-healthcheck-new"}
-      values: 1791179940x130
-    alert_rule_test:
-    - eval_time: 119m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    - eval_time: 120m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    - eval_time: 125m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: espn-session-healthcheck
-    - eval_time: 126m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    promql_expr_test:
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 120m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="espn-session-healthcheck"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 125m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="espn-session-healthcheck"}
-        value: 2
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 126m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="espn-session-healthcheck"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:grace
-      eval_time: 5m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="espn-session-healthcheck"}
-        value: 7200
   - name: fantasy-draft-prep-refresher missed threshold, suspended and resumed
     interval: 1m
     start_timestamp: 1791280800
@@ -720,57 +519,6 @@ tests:
       exp_samples:
       - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-lineup-optimizer"}
         value: 7200
-  - name: fantasy-rapid-status-syncer missed threshold, suspended and resumed
-    interval: 1m
-    start_timestamp: 1790830800
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1790830800x25 1790917200x5
-    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1x25 0x5
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1790744400x30
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new",owner_kind="CronJob",owner_name="fantasy-rapid-status-syncer"}
-      values: 1x30
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rapid-status-syncer-new"}
-      values: 1790830740x30
-    alert_rule_test:
-    - eval_time: 19m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
-    - eval_time: 20m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
-    - eval_time: 25m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: fantasy-rapid-status-syncer
-    - eval_time: 26m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
-    promql_expr_test:
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 20m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rapid-status-syncer"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 25m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rapid-status-syncer"}
-        value: 2
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 26m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rapid-status-syncer"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:grace
-      eval_time: 5m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-rapid-status-syncer"}
-        value: 1200
   - name: fantasy-rumor-action-trigger missed threshold, suspended and resumed
     interval: 1m
     start_timestamp: 1791306000
@@ -822,108 +570,6 @@ tests:
       exp_samples:
       - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-rumor-action-trigger"}
         value: 7200
-  - name: fantasy-rumor-syncer missed threshold, suspended and resumed
-    interval: 1m
-    start_timestamp: 1791282600
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-rumor-syncer"}
-      values: 1791282600x65 1791369000x5
-    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="fantasy-rumor-syncer"}
-      values: 1x65 0x5
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-rumor-syncer"}
-      values: 1791196200x70
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-rumor-syncer-new",owner_kind="CronJob",owner_name="fantasy-rumor-syncer"}
-      values: 1x70
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-rumor-syncer-new"}
-      values: 1791282540x70
-    alert_rule_test:
-    - eval_time: 59m
-      alertname: fantasy-cronjob-missed-schedule-rumor
-      exp_alerts: []
-    - eval_time: 60m
-      alertname: fantasy-cronjob-missed-schedule-rumor
-      exp_alerts: []
-    - eval_time: 65m
-      alertname: fantasy-cronjob-missed-schedule-rumor
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: fantasy-rumor-syncer
-    - eval_time: 66m
-      alertname: fantasy-cronjob-missed-schedule-rumor
-      exp_alerts: []
-    promql_expr_test:
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 60m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rumor-syncer"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 65m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rumor-syncer"}
-        value: 2
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 66m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-rumor-syncer"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:grace
-      eval_time: 5m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-rumor-syncer"}
-        value: 3600
-  - name: fantasy-stale-draft-job-sweeper missed threshold, suspended and resumed
-    interval: 1m
-    start_timestamp: 1791282600
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
-      values: 1791282600x35 1791369000x5
-    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
-      values: 1x35 0x5
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="fantasy-stale-draft-job-sweeper"}
-      values: 1791196200x40
-    - series: kube_job_owner{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new",owner_kind="CronJob",owner_name="fantasy-stale-draft-job-sweeper"}
-      values: 1x40
-    - series: kube_job_created{exported_namespace="default",job_name="fantasy-stale-draft-job-sweeper-new"}
-      values: 1791282540x40
-    alert_rule_test:
-    - eval_time: 29m
-      alertname: fantasy-cronjob-missed-schedule-sweeper
-      exp_alerts: []
-    - eval_time: 30m
-      alertname: fantasy-cronjob-missed-schedule-sweeper
-      exp_alerts: []
-    - eval_time: 35m
-      alertname: fantasy-cronjob-missed-schedule-sweeper
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: fantasy-stale-draft-job-sweeper
-    - eval_time: 36m
-      alertname: fantasy-cronjob-missed-schedule-sweeper
-      exp_alerts: []
-    promql_expr_test:
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 30m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-stale-draft-job-sweeper"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 35m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-stale-draft-job-sweeper"}
-        value: 2
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 36m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="fantasy-stale-draft-job-sweeper"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:grace
-      eval_time: 5m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-stale-draft-job-sweeper"}
-        value: 1800
   - name: fantasy-weekly-ingestor missed threshold, suspended and resumed
     interval: 1m
     start_timestamp: 1791273600
@@ -1026,67 +672,6 @@ tests:
       exp_samples:
       - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="fantasy-weekly-waiver-trigger"}
         value: 7200
-  - name: rumor-digest-bot missed threshold, suspended and resumed
-    interval: 1m
-    start_timestamp: 1791302400
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="rumor-digest-bot"}
-      values: 1791302400x125 1791388800x5
-    - series: kube_cronjob_spec_suspend{exported_namespace="default",cronjob="rumor-digest-bot"}
-      values: 1x125 0x5
-    - series: kube_cronjob_status_last_successful_time{exported_namespace="default",cronjob="rumor-digest-bot"}
-      values: 1791216000x130
-    - series: kube_job_owner{exported_namespace="default",job_name="rumor-digest-bot-new",owner_kind="CronJob",owner_name="rumor-digest-bot"}
-      values: 1x130
-    - series: kube_job_created{exported_namespace="default",job_name="rumor-digest-bot-new"}
-      values: 1791302340x130
-    alert_rule_test:
-    - eval_time: 119m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    - eval_time: 120m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    - eval_time: 125m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: rumor-digest-bot
-    - eval_time: 126m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    promql_expr_test:
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 120m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="rumor-digest-bot"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 125m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="rumor-digest-bot"}
-        value: 2
-    - expr: grafana_dashboard:fantasy_cronjob_health:state
-      eval_time: 126m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:state{cronjob="rumor-digest-bot"}
-        value: 0
-    - expr: grafana_dashboard:fantasy_cronjob_health:grace
-      eval_time: 5m
-      exp_samples:
-      - labels: grafana_dashboard:fantasy_cronjob_health:grace{cronjob="rumor-digest-bot"}
-        value: 7200
-  - name: rapid status quiet between Monday and Thursday
-    interval: 1m
-    start_timestamp: 1790673000
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1790830800x10
-    alert_rule_test:
-    - eval_time: 5m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
   - name: unwatched missed schedule does not alert
     interval: 1m
     start_timestamp: 1791282600
@@ -1097,48 +682,6 @@ tests:
     - eval_time: 5m
       alertname: fantasy-cronjob-missed-schedule
       exp_alerts: []
-    - eval_time: 5m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
-    - eval_time: 5m
-      alertname: fantasy-cronjob-missed-schedule-sweeper
-      exp_alerts: []
-    - eval_time: 5m
-      alertname: fantasy-cronjob-missed-schedule-rumor
-      exp_alerts: []
-  - name: healthcheck missed Monday 06:00 UTC run
-    interval: 1m
-    start_timestamp: 1791180000
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="espn-session-healthcheck"}
-      values: 1791180000x125
-    alert_rule_test:
-    - eval_time: 120m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts: []
-    - eval_time: 125m
-      alertname: fantasy-cronjob-missed-schedule
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: espn-session-healthcheck
-  - name: rapid status missed last Monday slot alerts across inactive Tuesday boundary
-    interval: 1m
-    start_timestamp: 1791262200
-    input_series:
-    - series: kube_cronjob_next_schedule_time{exported_namespace="default",cronjob="fantasy-rapid-status-syncer"}
-      values: 1791262200x25
-    alert_rule_test:
-    - eval_time: 20m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts: []
-    - eval_time: 25m
-      alertname: fantasy-cronjob-missed-schedule-rapid
-      exp_alerts:
-      - exp_labels:
-          exported_namespace: default
-          cronjob: fantasy-rapid-status-syncer
-
   - name: trade-scan missed threshold, suspended and resumed
     interval: 1m
     start_timestamp: 1791302400

@@ -4,7 +4,7 @@ description: Investigate failed or missed CronJobs and interpret application out
 sidebar_position: 8
 ---
 
-Every production CronJob has failed-Job and missed-schedule coverage. Use this page to triage an alert, find what a job depends on and run read-only checks.
+Every production CronJob has failed-Job and missed-schedule coverage. Jobs already moved to the launcher catalog alert from `run_log` instead; see [Launcher alerts](#launcher-alerts). Use this page to triage an alert, find what a job depends on and run read-only checks.
 
 Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`. homelab-deployment's Grafana alert sidecar loads them into the **Fantasy** folder. The dashboard is **Fantasy → Fantasy CronJob Health**.
 
@@ -46,12 +46,7 @@ A successful optimizer with zero swaps is a normal no-op. Its log panel distingu
 
 Grace concerns Job creation, not runtime or completion. Rules evaluate every 5m and fire **strictly above** the grace, so expect up to another 5m before evaluation.
 
-| Group | Grace | Why not 2h |
-|---|---|---|
-| Daily and weekly runs | 2h | Original scheduling grace. |
-| Rapid status (`rapid`) | 20m | 2h would hide 12 missed runs. |
-| High-impact sweeper (`sweeper`) | 30m | 2h would hide 8 missed runs. |
-| Rumor ingestion (`rumor`) | 60m | 2h would hide 4 missed runs. |
+Every remaining CronJob runs daily or weekly and shares a 2h grace. The frequent syncers and the stale draft Job sweeper, which needed 20m to 60m graces, now run on the launcher.
 
 ## Fantasy CronJob latest Job failed
 
@@ -77,19 +72,14 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 
 | CronJob | Check first |
 |---|---|
-| `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
 | `fantasy-draft-prep-refresher` | `draft-prep-refresher` container: Sleeper skill-position projections, ESPN K/D-ST projections (needs `espn-session-secrets` `espn_s2`/`swid`), then VORP for each horizon week. Check season/week/team configuration and Postgres credentials. It supplies target-week VORP for optimizer and waiver decisions and later-week VORP for trade scoring. See the [refresh horizon](cronjob-schedule-order.md#projection-and-vorp-refresh-horizon). |
 | `fantasy-lineup-optimizer` | That day's 18:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
-| `fantasy-rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity. Thu/Sun/Mon are the only scheduled days. |
 | `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job isn't proof of complete application processing; see [application outcome](cronjob-application-outcomes.md#rumor-action-application-outcome). |
-| `fantasy-rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis. Ingestion feeds the digest/action path. |
-| `fantasy-stale-draft-job-sweeper` | `fantasy-core-pipeline` service account and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis and core API teardown. Verification only reads these resources. |
 | `fantasy-sync-actual-scores` / `-reconcile` | ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID` from `espn-session-secrets`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. See [score sync failures](#score-sync-failures). |
 | `fantasy-trade-candidates` / `-prescan` | Core API startup migrations must create the candidate tables first. Needs league/team/season configuration, week resolution, trade context and refreshed projection/VORP inputs, Postgres and ESPN session secrets. Unresolved week or unavailable context fails the Job. Check the stored run's freshness before the scan; see [rollout and verification](cronjob-schedule-order.md#trade-candidate-rollout-and-verification). |
 | `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it doesn't replace projection/VORP refresh. |
 | `fantasy-weekly-waiver-trigger` | That day's 18:00 refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
 | `trade-inbox` | ESPN stored session/cookies, league/team configuration, Postgres inbox/execution logging, and core `POST /v1/trade/score`. No LLM keys. A completed Job can still contain unavailable or stale scores; inspect refresh logs and score outcomes. |
-| `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |
 
 #### Score sync failures
 
@@ -111,10 +101,9 @@ Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against it
 
 | Detail | Behavior |
 |---|---|
-| Rule UIDs | Daily/weekly jobs share `fantasy-cronjob-missed-schedule`. Three more rules use suffixes `rapid`, `sweeper` and `rumor`, which keeps UIDs within Grafana's 40-character limit. |
+| Rule UIDs | Every watched CronJob shares `fantasy-cronjob-missed-schedule`. |
 | Provisioning | Each provisioning file/group has one rule, matching the Grafana convention and test renderer. |
 | Optimizer example | A missing 19:15 Tuesday run alerts after 21:15 Central, in both CDT and CST. |
-| Rapid status | Advances to the next Thu/Sun/Mon slot. A long inactive-day gap alone doesn't alert, but a missed active-day slot stays overdue even if the grace crosses midnight. |
 | Suspended jobs | Alert once overdue, on purpose. Summaries show overdue duration, last success and suspension. |
 | No data | `noDataState: Alerting` when the group's query has no series, and `execErrState: Error`. Missing one member of a multi-job group doesn't itself create a per-job no-data alert. |
 
@@ -187,7 +176,7 @@ Run `./tests/cronjob_alerts/run.sh`. It renders committed alert and dashboard qu
 
 - every watched job's failure, and success after historical failures
 - grace boundaries, and suspended or resumed runs
-- CDT/CST, the UTC healthcheck, and rapid-status inactive days
+- CDT/CST
 - unwatched jobs
 
 Dashboard state and grace queries are checked against the same fixtures.
@@ -252,6 +241,23 @@ The heartbeat is arriving but the launcher couldn't read a queue's depth: `job_r
 Rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names and `max_attempts` at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
 
 Each rule returns one series per job, so the page names the job, and carries a `severity` label (`critical` or `warning`) to route on. A failure or timeout alerts only on a job's last attempt (`attempt >= max_attempts`), or when a chain step's root has already ended, since the watcher can no longer retry it. Skips with `end_reason` `paused`, `chain_step`, `max_duration` or `chain_ended` are excluded: a chain timeout alerts once, on the chain rule. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
+
+```bash
+kubectl get jobs -n default -l fantasy.job=<job> --sort-by=.metadata.creationTimestamp
+kubectl logs -n default -l fantasy.job=<job> --tail=200
+```
+
+A `skipped` run with `end_reason` `overlap` means the previous run, or its retry, was still running at the next slot. `expired` means the run couldn't start inside its schedule's `catch_up` window.
+
+#### What each launcher job depends on
+
+| Job | Check first |
+|---|---|
+| `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
+| `rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity. Thu/Sun/Mon are the only scheduled days. |
+| `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |
+| `rumor-syncer` | External rumor sources, ingestion logs, Postgres and Redis. Ingestion feeds the digest/action path. |
+| `stale-draft-job-sweeper` | `fantasy-core-pipeline` service account (the `core-ops` profile) and draft-sync-orchestrator RBAC for listing/deleting Jobs, Postgres, RabbitMQ, Redis and core API teardown. Verification only reads these resources. |
 
 ### Launcher chain past max_duration
 

@@ -6,7 +6,7 @@
 # Placeholder trace search view for INFRA-10 (fantasy-infra#23): panels will
 # show empty until fantasy-core-pipeline/fantasy-browser-worker actually
 # export spans (CORE-12/WORKER-09) using the OTEL_SERVICE_NAME values wired
-# in fastapi-deployment.yaml, rapid-status-syncer-cronjob.yaml,
+# in fastapi-deployment.yaml, the launcher (base/launcher/deployment.yaml),
 # weekly-cronjob.yaml, and keda-scaledjob.yaml.
 apiVersion: v1
 kind: ConfigMap

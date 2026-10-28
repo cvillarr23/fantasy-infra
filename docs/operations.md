@@ -50,7 +50,7 @@ Do not create a replacement Job blindly. Check execution records, queue state an
 
 ## Recover an expired ESPN session
 
-1. Check the latest `espn-session-healthcheck` logs and application authentication errors. Separate ESPN/network outages from rejected or expired authentication.
+1. Check the latest `espn-session-healthcheck` run (`kubectl logs -n default -l fantasy.job=espn-session-healthcheck --tail=200`) and application authentication errors. Separate ESPN/network outages from rejected or expired authentication.
 2. Have the operator refresh the ESPN login using the worker's private login workflow. Update the cookie pair and, when used, browser storage state together through OpenBao; never attach them to an issue.
 3. Verify ExternalSecret synchronization. Workers prefer stored browser state when present; a stale state file can matter even after the cookie pair changes.
 4. Refresh affected consumers under the operator's maintenance plan and observe the next healthcheck or normal authenticated read. Existing environment variables and active Jobs retain their prior values; subPath-mounted state requires a new pod.
