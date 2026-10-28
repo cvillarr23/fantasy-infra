@@ -45,6 +45,11 @@ spec:
             # Health check endpoint
             - name: ARGOCD_IMAGE_UPDATER_HEALTH_PORT
               value: "8080"
+            # Write-back over Argo CD's SSH repository credential runs ssh with strict host
+            # key checking against $ARGOCD_SSH_DATA_PATH/ssh_known_hosts, not ~/.ssh. The
+            # default (/app/config/ssh) would sit inside the read-only config ConfigMap.
+            - name: ARGOCD_SSH_DATA_PATH
+              value: /app/ssh
           ports:
             - containerPort: 8080
               name: metrics
@@ -66,6 +71,9 @@ spec:
             - name: ssh-known-hosts
               mountPath: /home/argocd/.ssh/known_hosts
               subPath: known_hosts
+              readOnly: true
+            - name: argocd-known-hosts
+              mountPath: /app/ssh
               readOnly: true
           livenessProbe:
             httpGet:
@@ -102,3 +110,8 @@ spec:
           configMap:
             name: argocd-image-updater-ssh-config
             defaultMode: 0644
+        # Argo CD's own known hosts (key ssh_known_hosts), the same list its repo-server
+        # verifies github.com against when syncing this repo.
+        - name: argocd-known-hosts
+          configMap:
+            name: argocd-ssh-known-hosts-cm
