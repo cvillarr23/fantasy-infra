@@ -24,6 +24,20 @@ def env(container):
     return {e["name"]: e.get("value") for e in container["env"]}
 
 
+def catalog(docs):
+    (volume,) = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]["volumes"]
+    return yaml.safe_load(one(docs, "ConfigMap", volume["configMap"]["name"])["data"]["catalog.yaml"])
+
+
+def cronjob_commands(docs):
+    """Every container and init container command the rendered CronJobs run."""
+    commands = []
+    for cronjob in (d for d in docs if d["kind"] == "CronJob"):
+        pod = cronjob["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+        commands += [c.get("command") for c in pod["containers"] + pod.get("initContainers", [])]
+    return commands
+
+
 class LauncherManifestTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -58,19 +72,34 @@ class LauncherManifestTest(unittest.TestCase):
                          "WORKER_OTEL_EXPORTER_OTLP_ENDPOINT", "JOB_CATALOG_PATH"):
             self.assertIn(required, names)
 
-    def test_catalog_is_empty_and_mounted_where_the_launcher_reads_it(self):
+    def test_catalog_holds_the_cutover_jobs_and_is_mounted_where_the_launcher_reads_it(self):
         docs = self.rendered["production"]
         deployment = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]
         (container,) = deployment["containers"]
         self.assertEqual(env(container)["JOB_CATALOG_PATH"], "/etc/fantasy-job-catalog/catalog.yaml")
         (mount,) = container["volumeMounts"]
         self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
-        (volume,) = deployment["volumes"]
-        config_map = one(docs, "ConfigMap", volume["configMap"]["name"])
-        catalog = yaml.safe_load(config_map["data"]["catalog.yaml"])
-        # Nothing may double-run with the live CronJobs until a cutover PR adds jobs.
-        self.assertEqual(catalog["jobs"], {})
-        self.assertFalse(catalog.get("chains"))
+        jobs = catalog(docs)["jobs"]
+        self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer", "stale-draft-job-sweeper",
+                                     "espn-session-healthcheck", "rumor-digest-bot"})
+        self.assertFalse(catalog(docs).get("chains"))
+
+    def test_no_catalog_job_still_has_a_cronjob(self):
+        # A command both scheduled here and in a CronJob runs twice per slot.
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                for name, job in catalog(docs)["jobs"].items():
+                    self.assertNotIn(job["command"], cronjob_commands(docs), name)
+
+    def test_cutover_profiles_match_what_their_cronjobs_carried(self):
+        profiles = catalog(self.rendered["production"])["profiles"]
+        # The sweeper lists and deletes draft Jobs through this SA's draft-sync-orchestrator Role.
+        self.assertEqual(profiles["core-ops"]["serviceAccount"], "fantasy-core-pipeline")
+        for name in ("core-ops", "worker-session-check", "worker-llm"):
+            self.assertIn("db", profiles[name]["secrets"])
+        self.assertEqual(set(profiles["worker-session-check"]["secrets"]), {"db", "espn", "notify", "league-config"})
+        self.assertNotIn("espn", profiles["worker-llm"]["secrets"])
+        self.assertIn("llm", profiles["worker-llm"]["secrets"])
 
     def test_gateway_mounts_the_same_catalog(self):
         # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.

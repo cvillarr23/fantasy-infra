@@ -14,24 +14,24 @@ An unset `spec.timeZone` uses the controller's timezone; this deployment uses UT
 ### Catalog jobs
 | Job | Schedule | Command |
 |---|---|---|
+| `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
+| `rapid-status-syncer` | `*/10 * * * 4,0,1` (America/Chicago) | `python -m src.ingestion.sync_players` |
+| `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
+| `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |
+| `stale-draft-job-sweeper` | `*/15 * * * *` (America/Chicago) | `python -m src.ops.sweep_stale_draft_jobs` |
 
 ### Legacy CronJobs
 | CronJob | Cron expression | Timezone | What runs | Alerts |
 |---|---|---|---|---|
-| `espn-session-healthcheck` | `0 6 * * 1` | Unset (controller timezone; UTC in this deployment) | `src/bots/check_espn_session.js` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-draft-prep-refresher` | `0 18 * * *` | America/Chicago | Projection → K/D-ST → VORP supervisor (up to four weeks) | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-lineup-optimizer` | `15 19 * * 2` | America/Chicago | `src.optimization.lineup_solver` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `fantasy-rapid-status-syncer` | `*/10 * * * 4,0,1` | America/Chicago | `src.ingestion.sync_players` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 20m (`fantasy-cronjob-missed-schedule-rapid`) |
 | `fantasy-rumor-action-trigger` | `45 21 * * *` | America/Chicago | `src.services.rumor_action_service` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `fantasy-rumor-syncer` | `*/30 * * * *` | America/Chicago | `src.ingestion.sync_rumors` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 60m (`fantasy-cronjob-missed-schedule-rumor`) |
-| `fantasy-stale-draft-job-sweeper` | `*/15 * * * *` | America/Chicago | `src.ops.sweep_stale_draft_jobs` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 30m (`fantasy-cronjob-missed-schedule-sweeper`) |
 | `fantasy-sync-actual-scores` | `5 17 * * 2` | America/Chicago | `src.ingestion.sync_actual_scores` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-sync-actual-scores-reconcile` | `0 10 * * 5` | America/Chicago | `src.ingestion.sync_actual_scores` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-trade-candidates` | `0 7 * * *` | America/Chicago | `src.jobs.trade_candidates` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-trade-candidates-prescan` | `30 12 * * 3,5` | America/Chicago | `src.jobs.trade_candidates` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-weekly-ingestor` | `0 16 * * 2` | America/Chicago | `src.ingestion.sync_league` → `src.ingestion.metrics_extractor` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `fantasy-weekly-waiver-trigger` | `30 20 * * 2` | America/Chicago | `src.optimization.waiver_evaluator` (resolves upcoming week) | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `rumor-digest-bot` | `0 11 * * *` | America/Chicago | `src/bots/rumor_digest_bot.js` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `trade-inbox` | `0 8-22/2 * * *` | America/Chicago | `src/bots/trade_inbox.js --refresh` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 | `trade-scan` | `0 13 * * 3,5` | America/Chicago | `src/bots/trade_scan.js --stage` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 <!-- END GENERATED SCHEDULES -->

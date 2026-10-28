@@ -189,9 +189,17 @@ print(run('r1', 'not-in-catalog', 'failure', attempt=9))
 fires_for(WARNING, 'unknown job is ignored', [])
 fires_for(CRITICAL, 'unknown job is ignored', [])
 
-# The committed (empty-catalog) rules match nothing, even with failures present.
+# The committed rules cover only the jobs already cut over, so jobs not yet in the catalog never match.
 reset()
 print(run('r1', 'lineup-optimizer', 'failure', attempt=9) + run('r2', 'sync-league', 'timeout', attempt=9))
 for level in generator.LEVELS:
-    fires(load_rule(f'launcher-run-failed-{level}-alert.yaml'), f'empty catalog {level}', False)
+    fires(load_rule(f'launcher-run-failed-{level}-alert.yaml'), f'job not yet in the catalog {level}', False)
+# A cut-over job alerts on its last attempt; its first may still be retried.
+COMMITTED_WARNING = load_rule('launcher-run-failed-warning-alert.yaml')
+reset()
+print(run('r1', 'rumor-syncer', 'failure', attempt=1))
+fires_for(COMMITTED_WARNING, 'committed rule, retryable rumor-syncer failure', [])
+reset()
+print(run('r1', 'rumor-syncer', 'failure', attempt=2) + run('r2', 'rapid-status-syncer', 'skipped', end_reason='overlap'))
+fires_for(COMMITTED_WARNING, 'committed rule, final failure and overlap skip', ['rapid-status-syncer', 'rumor-syncer'])
 print('ROLLBACK;')

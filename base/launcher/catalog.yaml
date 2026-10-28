@@ -1,11 +1,53 @@
 # Job catalog read by the launcher at startup (docs/adr/0001-unified-job-launcher.md).
-# Deliberately empty: the live CronJobs still run everything, so adding a job here before
-# its CronJob is removed would run it twice. Cutover PRs add jobs and chains alongside the
-# CronJob removal.
+# A job is added here in the same PR that removes its CronJob: a job in both places runs twice.
 version: 1
 global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
 profiles:
   core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api, amqp, league-config]}
+  # The fantasy-core-pipeline SA is bound to draft-sync-orchestrator (jobs get/list/delete),
+  # which the stale draft Job sweeper needs; as `default` every run 403s listing jobs.batch.
+  core-ops: {image: CORE_IMAGE, serviceAccount: fantasy-core-pipeline, secrets: [db, redis, trigger-api, amqp]}
   worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, volumes: [espn-session-state]}
+  # Worker bots that never drive a browser, so no browser-worker SA or stored session state.
+  worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
+  worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify]}
 defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
-jobs: {}
+# Deadlines sit just under each schedule interval, as the CronJobs' activeDeadlineSeconds did,
+# and max_attempts: 2 keeps their backoffLimit: 1. Frequent jobs never fire a missed slot.
+jobs:
+  rumor-syncer:
+    profile: core
+    command: [python, -m, src.ingestion.sync_rumors]
+    deadline: 25m
+    max_attempts: 2
+    schedules:
+      - {cron: '*/30 * * * *', tz: America/Chicago, catch_up: 0s}
+  rapid-status-syncer:
+    profile: core
+    command: [python, -m, src.ingestion.sync_players]
+    deadline: 9m
+    max_attempts: 2
+    schedules:
+      - {cron: '*/10 * * * 4,0,1', tz: America/Chicago, catch_up: 0s}
+  stale-draft-job-sweeper:
+    profile: core-ops
+    command: [python, -m, src.ops.sweep_stale_draft_jobs]
+    deadline: 14m
+    max_attempts: 2
+    schedules:
+      - {cron: '*/15 * * * *', tz: America/Chicago, catch_up: 0s}
+  espn-session-healthcheck:
+    profile: worker-session-check
+    command: [node, src/bots/check_espn_session.js]
+    max_attempts: 2
+    resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
+    schedules:
+      # 06:00 UTC Monday, the CronJob's controller-timezone slot.
+      - {cron: '0 6 * * 1', tz: UTC, catch_up: 2h}
+  rumor-digest-bot:
+    profile: worker-llm
+    command: [node, src/bots/rumor_digest_bot.js]
+    max_attempts: 2
+    resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
+    schedules:
+      - {cron: '0 11 * * *', tz: America/Chicago, catch_up: 2h}
