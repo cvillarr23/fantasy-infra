@@ -8,12 +8,12 @@ Use this page to confirm unattended IR publication is off, to enable it after ap
 
 ## How is the flag wired?
 
-`overlays/production/configmap-env.yaml` owns the shared `fantasy-league-config.data.AUTO_PUBLISH_IR_MOVES` key, explicitly set to `"false"`. Three workloads import it through their existing `envFrom` references:
+`overlays/production/configmap-env.yaml` owns the shared `fantasy-league-config.data.AUTO_PUBLISH_IR_MOVES` key, explicitly set to `"false"`. Three workloads import it through `envFrom`:
 
 | Workload | Kind |
 |---|---|
-| `fantasy-weekly-waiver-trigger` | Weekly waiver CronJob |
-| `fantasy-rumor-action-trigger` | Rumor-action CronJob |
+| `waiver-trigger` | Launcher job; its `core` profile's `league-config` bundle adds the `envFrom` |
+| `rumor-action-trigger` | Launcher job; same profile |
 | `fantasy-core-pipeline` | FastAPI Deployment |
 
 Other consumers of this ConfigMap inherit the key but don't read the flag. The draft-day overlay inherits the same OFF value; it isn't a separate environment switch.
@@ -57,14 +57,14 @@ The production kustomization copies the shared flag into the Deployment's `spec.
 | Pod type | When it sees the new value |
 |---|---|
 | Gateway (Deployment) | After the rollout the annotation triggers. |
-| New CronJob pods | At start. |
-| Existing CronJob pods | Never. They keep their original environment until they exit. |
+| New launched pods | At start. |
+| Existing launched pods | Never. They keep their original environment until they exit. |
 
 ## Roll back
 
 1. Change the same shared key back to `"false"` through a reviewed GitOps PR.
 2. Restore the safety test's OFF expectation.
-3. The gateway rolls again, and new CronJob pods load OFF.
+3. The gateway rolls again, and new launched pods load OFF.
 4. Inspect any older active publisher pods. Their process environments don't change during a ConfigMap update.
 
 :::warning[Rollback limits]
@@ -87,7 +87,7 @@ These kustomize commands render locally without contacting the cluster. Alerts a
 
 ```sh
 kubectl get configmap fantasy-league-config -n default -o yaml
-kubectl get cronjob fantasy-weekly-waiver-trigger fantasy-rumor-action-trigger -n default -o yaml
+kubectl get pods -n default -l 'fantasy.job in (waiver-trigger,rumor-action-trigger)' -o yaml
 kubectl get deployment fantasy-core-pipeline -n default -o yaml
 kubectl get replicasets -n default -l app=fantasy-core-pipeline -o yaml
 kubectl get pods -n default -l app=fantasy-core-pipeline -o yaml
@@ -96,7 +96,7 @@ kubectl get pods -n default -l app=fantasy-core-pipeline -o yaml
 | Check | Expected |
 |---|---|
 | ConfigMap key | The string `"false"`. |
-| Gateway and both CronJob container templates | Import only `fantasy-league-config` via `envFrom`, with no explicit flag override. |
+| Gateway template and both jobs' launched pods | Import only `fantasy-league-config` via `envFrom`, with no explicit flag override. |
 | Deployment template annotation | `"false"`. |
 | Deployment rollout | Observed generation matches generation, and all desired replicas are updated and available. |
 | Gateway pods | Belong to the current ReplicaSet, carry that annotation and started after the ConfigMap change (use the Argo CD sync time or ConfigMap managed-fields update time). |

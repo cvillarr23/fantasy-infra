@@ -1,6 +1,6 @@
 ---
 title: Schedule order and refresh horizon
-description: Why the Tuesday CronJobs run in their order, and how the daily projection and VORP refresh behaves when a week fails.
+description: How the tuesday-weekly chain orders the Tuesday jobs, and how the daily projection and VORP refresh behaves when a week fails.
 sidebar_position: 9
 ---
 
@@ -8,28 +8,35 @@ Use this page to understand the dependency order of the Tuesday jobs and what th
 
 ## Why do Tuesday jobs run in this order?
 
-All times use America/Chicago.
+The launcher's `tuesday-weekly` chain (`base/launcher/catalog.yaml`) starts at 16:00 America/Chicago each regular-season Tuesday. Each step starts when its parent ends, so a slow step delays the rest instead of overlapping them. The generated [schedule inventory](schedules.md#chain-tuesday-weekly) draws the chain from the catalog.
 
 ```mermaid
 flowchart LR
-    A[sync_league<br/>initContainer] --> B[Metrics<br/>16:00]
-    B --> C[Completed scores<br/>17:05]
-    C --> D[Projections, K/D-ST, VORP<br/>18:00]
-    D --> E[Lineup<br/>19:15]
-    E --> F[Waivers<br/>20:30]
-    F --> G[Rumor actions<br/>21:45]
+    A[sync-league<br/>16:00] -->|success| B[metrics-extractor]
+    B -->|success| C[sync-actual-scores]
+    C -->|finish| D[projections-refresh]
+    D -->|finish| E[lineup-optimizer<br/>by 19:15]
+    E -->|finish| F[waiver-trigger<br/>by 20:30]
+    F -->|finish| G[rumor-action-trigger<br/>by 21:45]
 ```
 
-Each gap exceeds the preceding Job's deadline: one hour, or 30 minutes for scores. Only spacing is enforced. CronJobs don't wait for the previous job to succeed.
+| Edge | Behavior |
+|---|---|
+| `success` | Data steps. The step runs only if its parent succeeded; otherwise it's skipped (`dependency_failed`), and so is every `success` step after it. |
+| `finish` | The refresh and the acting steps. The step runs once its parent ends, whatever its status, as the CronJobs did. A failed ingestion still refreshes projections and still sets the lineup. |
+| `latest` | The old CronJob times stay as upper bounds: lineup, waivers and rumor actions start by then even if their parent is still running. |
+
+Each step keeps its CronJob's deadline and retries. The chain ends after 8 hours (`max_duration`), skipping any step that hasn't started. On Tuesday, the refresh's own 18:00 slot and rumor actions' 21:45 slot are skipped (`chain_step`) while the chain covers them. If the chain skipped the refresh, the 18:00 slot still runs it.
 
 | Job | Placement reason |
 |---|---|
-| Score sync (17:05) | Mirrors ESPN player actuals only into `weekly_stats` rows the ingestor has created, so it follows the ingestor. |
+| `sync-league` first | Refreshes `league_rosters` before metrics and that day's decisions. It's the only scheduled place rosters refresh after a draft, trade or waiver. |
+| Score sync | Mirrors ESPN player actuals only into `weekly_stats` rows the ingestor has created, so it follows the ingestor. |
 | Friday 10:00 reconciliation | Stores any week Tuesday couldn't (stats not yet official, a postponed game) plus ESPN stat corrections, before Friday's trade scan. The trade context's opponent strength reads these stored scores. |
 | Daily 07:00 trade candidates | Follows the previous evening's 18:00 projection/VORP rebuild and the most recent weekly metrics ingestion. |
 | Wednesday/Friday 12:30 trade candidates | Refreshes stored candidates after Friday's 10:00 score reconciliation and before the 13:00 scan. |
 | Wednesday/Friday 13:00 trade scan | Follows the previous evening's projection/VORP rebuild and the 12:30 candidate run. |
-| Daily refresher and rumor actions | Also use these later slots on other days. |
+| Daily refresher and rumor actions | Also run at 18:00 and 21:45 on other days. |
 
 ### Trade-candidate rollout and verification
 
@@ -43,7 +50,7 @@ After rollout, check the Job logs and the `trade_candidates` run audit entry, ta
 
 ### Ingestion timing
 
-The ingestor runs at 21:00Z during daylight saving time and 22:00Z during standard time. The later slot gives publication headroom after Monday-night games.
+The chain starts at 21:00Z during daylight saving time and 22:00Z during standard time. The later slot gives publication headroom after Monday-night games.
 
 | Evidence (2026-10-06) | Timestamp |
 |---|---|
@@ -58,22 +65,22 @@ Release APIs expose only current asset timestamps. Four Tuesdays of upstream pbp
 There is no second ingestion window. A successful partial ingestion doesn't trigger an automatic retry, and a later correction needs another VORP rebuild before dependent decisions.
 :::
 
-- The roster sync stays in the initContainer so it finishes before metrics and that day's scheduled decisions. No early-Tuesday scheduled consumer requires it.
+- The roster sync is the chain's first step, so it finishes before metrics and that day's scheduled decisions. No early-Tuesday scheduled consumer requires it.
 - Inspect ingestion counts and refresher logs before trusting a run's data.
-- The failed and missed Job alerts don't detect a successful partial ingestion.
+- The launcher's run-failed alert doesn't detect a successful partial ingestion.
 
 ## Projection and VORP refresh horizon
 
-The daily 18:00 America/Chicago refresher resolves the target week W once. For each week from W through min(W+3, 18) it runs `sync_projections` → `sync_kicker_dst` → `vorp_matrix`, and it always finishes W before future weeks. Every command receives the same configured season and its own week.
+The refresh (`projections-refresh`, daily at 18:00 America/Chicago and in Tuesday's chain) resolves the target week W once. For each week from W through min(W+3, 18) it runs `sync_projections` → `sync_kicker_dst` → `vorp_matrix`, and it always finishes W before future weeks. Every command receives the same configured season and its own week.
 
 ```mermaid
 flowchart LR
     W[Resolve target week W] --> S1[W: projections, K/D-ST, VORP]
-    S1 -->|failure or timeout| Stop[Stop run, Job fails]
+    S1 -->|failure or timeout| Stop[Stop, run fails]
     S1 --> S2[W+1 ... min W+3, 18]
     S2 -->|failure| Skip[Skip that week's remaining stages]
     Skip --> Next[Refresh other weeks]
-    Next --> Fail[Job fails after processing]
+    Next --> Fail[Run fails after processing]
 ```
 
 | Case | Behavior |
@@ -81,23 +88,22 @@ flowchart LR
 | Target above week 18 | Offseason no-op. |
 | Target below week 1 | Fails. |
 | Per-week budget | Shared 600-second subprocess budget per week. Four weeks total 2400 seconds. |
-| Job deadline | Stays 3600 seconds, which also bounds Pending time and leaves headroom for startup and scheduling. |
+| Deadline | Stays one hour, which also bounds Pending time and leaves headroom for startup and scheduling. |
 | Resources | Existing CPU/memory requests and limits are unchanged. Work is sequential, so four weeks increase runtime without multiplying peak demand. |
 | Failure in W | Stops the run immediately. |
 | Failure in a future week | Skips that week's remaining stages but allows the other weeks to refresh. |
-| Any failed week | The Job fails after processing finishes, so the latest-Job-failed alert also reports an incomplete horizon. |
-| Retries | `restartPolicy: Never` and `backoffLimit: 0` prevent an automatic whole-run replay. Ingestion's internal retries remain. |
+| Any failed week | The run fails after processing finishes, so the launcher's run-failed alert also reports an incomplete horizon. |
+| Retries | `max_attempts: 1` prevents an automatic whole-run replay. Ingestion's internal retries remain. |
 
-Scheduling delays can still affect the Tuesday consumers. Completed W writes remain committed and usable even when the Job fails later. Steps commit independently, so a failed week can retain partial writes.
+In the chain, lineup waits for the refresh to end, up to 19:15. Completed W writes remain committed and usable even when the run fails later. Steps commit independently, so a failed week can retain partial writes.
 
 To recover, investigate the failed stage and let the next daily run refresh the horizon.
 
 ### What to read in the logs and dashboard
 
 - Logs include season, week, stage, elapsed time and a `Refresh summary` with `completed_weeks` and `failed_weeks`.
-- A failed horizon doesn't advance the CronJob's last-success timestamp, even when W completed.
-- The health dashboard shows whole-Job state, not individual-week readiness.
-- Missed-run grace still measures Job creation, not completion or data availability.
+- A failed horizon ends the run `failure`, even when W completed.
+- Each stage is a child run of the refresh in `run_log`, so its status shows which stage failed. The run's status covers the whole horizon, not individual-week readiness.
 
 ### Future-week data
 
@@ -113,8 +119,8 @@ Future-week rows feed two consumers when populated: the lineup optimizer's targe
 
 | Check | How |
 |---|---|
-| Supervisor and production/draft-day renders (offline) | `python3 -m unittest discover -s tests -p test_draft_prep_refresher.py` |
-| Dependency spacing, roster-sync placement, DST coverage | `python3 -m unittest discover -s tests -p test_weekly_schedules.py` |
+| Supervisor (offline) | core's `tests/test_draft_prep_refresh.py`, for `src/jobs/draft_prep_refresh.py` |
+| Chain edges and `latest` times, roster-sync placement, DST coverage | `python3 -m unittest tests.test_launcher_manifests tests.test_weekly_schedules` |
 | A scheduled run, read-only | Verify W completes before the Tuesday consumers, compare each week's ingestion/VORP counts and inspect the scorer's per-week coverage. |
 | Provider availability | Verify nonempty Sleeper `stats.pts_ppr` and ESPN `kona_player_info` target-period projected stats, not player counts alone. |
 

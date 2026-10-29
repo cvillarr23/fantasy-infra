@@ -40,8 +40,6 @@ The dashboard table shows last scheduled, successful and next times, latest Job,
 A running Job isn't proven successful just because no failure condition exists. Check **Active Jobs** and **Last successful**.
 :::
 
-A successful optimizer with zero swaps is a normal no-op. Its log panel distinguishes `Lineup already optimal` from `Published N lineup swap(s)`. Missing input fails the Job after [core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178), and empty waiver pools fail after [#181](https://github.com/cvillarr23/fantasy-core-pipeline/issues/181).
-
 ### Scheduling grace
 
 Grace concerns Job creation, not runtime or completion. Rules evaluate every 5m and fire **strictly above** the grace, so expect up to another 5m before evaluation.
@@ -61,9 +59,6 @@ Only the newest Job per CronJob counts. It is selected by creation time and join
 ```bash
 kubectl describe job <job_name> -n default
 kubectl logs job/<job_name> -n default --all-containers
-# Init containers can fail before the main container starts:
-kubectl logs job/<job_name> -n default -c sync-league       # weekly ingestor
-kubectl logs job/<job_name> -n default -c draft-prep-refresher
 ```
 
 If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix the dependency and let the next scheduled run recover. This procedure doesn't create Jobs or rerun workloads.
@@ -72,20 +67,15 @@ If pods are gone, use Loki `{namespace="default", pod=~"<job_name>-.*"}`. Fix th
 
 | CronJob | Check first |
 |---|---|
-| `fantasy-draft-prep-refresher` | `draft-prep-refresher` container: Sleeper skill-position projections, ESPN K/D-ST projections (needs `espn-session-secrets` `espn_s2`/`swid`), then VORP for each horizon week. Check season/week/team configuration and Postgres credentials. It supplies target-week VORP for optimizer and waiver decisions and later-week VORP for trade scoring. See the [refresh horizon](cronjob-schedule-order.md#projection-and-vorp-refresh-horizon). |
-| `fantasy-lineup-optimizer` | That day's 18:00 refresher, roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success. |
-| `fantasy-rumor-action-trigger` | Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful Job isn't proof of complete application processing; see [application outcome](cronjob-application-outcomes.md#rumor-action-application-outcome). |
-| `fantasy-sync-actual-scores` / `-reconcile` | ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID` from `espn-session-secrets`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. See [score sync failures](#score-sync-failures). |
+| `fantasy-sync-actual-scores-reconcile` | ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID` from `espn-session-secrets`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. See [score sync failures](#score-sync-failures). |
 | `fantasy-trade-candidates` / `-prescan` | Core API startup migrations must create the candidate tables first. Needs league/team/season configuration, week resolution, trade context and refreshed projection/VORP inputs, Postgres and ESPN session secrets. Unresolved week or unavailable context fails the Job. Check the stored run's freshness before the scan; see [rollout and verification](cronjob-schedule-order.md#trade-candidate-rollout-and-verification). |
-| `fantasy-weekly-ingestor` | `sync-league` init container, ESPN cookies and league config, external play-by-play source, Postgres. It refreshes rosters and historical metrics; it doesn't replace projection/VORP refresh. |
-| `fantasy-weekly-waiver-trigger` | That day's 18:00 refresher and exact-week bench/free-agent pools, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback. |
 | `trade-inbox` | ESPN stored session/cookies, league/team configuration, Postgres inbox/execution logging, and core `POST /v1/trade/score`. No LLM keys. A completed Job can still contain unavailable or stale scores; inspect refresh logs and score outcomes. |
 
 #### Score sync failures
 
-Each `fantasy-sync-actual-scores` run reprocesses every completed week. A week ESPN hasn't finished fails the Job with a reason such as `ESPN professional statistics are not official` or `NFL games are missing or not final`. Weeks before it stay committed.
+Each score sync run (the `tuesday-weekly` chain's `sync-actual-scores` step and the Friday `fantasy-sync-actual-scores-reconcile` CronJob) reprocesses every completed week. A week ESPN hasn't finished fails the Job with a reason such as `ESPN professional statistics are not official` or `NFL games are missing or not final`. Weeks before it stay committed.
 
-- Wait for the next scheduled run. Friday catches a Tuesday miss.
+- Wait for the next scheduled run. Friday catches a Tuesday miss. On Tuesday the failed step doesn't hold up the chain: the projection refresh, lineup, waivers and rumor actions still run.
 - Don't force a week with `--week`; it applies the same completeness checks.
 - A success that logs no `Persisted ... week=N` for the just-finished week means ESPN hadn't rolled its scoring period yet.
 
@@ -103,7 +93,7 @@ Each missed rule evaluates `time() - kube_cronjob_next_schedule_time` against it
 |---|---|
 | Rule UIDs | Every watched CronJob shares `fantasy-cronjob-missed-schedule`. |
 | Provisioning | Each provisioning file/group has one rule, matching the Grafana convention and test renderer. |
-| Optimizer example | A missing 19:15 Tuesday run alerts after 21:15 Central, in both CDT and CST. |
+| Example | A missing 22:00 trade-inbox run alerts after 00:00 Central, in both CDT and CST. |
 | Suspended jobs | Alert once overdue, on purpose. Summaries show overdue duration, last success and suspension. |
 | No data | `noDataState: Alerting` when the group's query has no series, and `execErrState: Error`. Missing one member of a multi-job group doesn't itself create a per-job no-data alert. |
 
@@ -247,12 +237,19 @@ kubectl get jobs -n default -l fantasy.job=<job> --sort-by=.metadata.creationTim
 kubectl logs -n default -l fantasy.job=<job> --tail=200
 ```
 
-A `skipped` run with `end_reason` `overlap` means the previous run, or its retry, was still running at the next slot. `expired` means the run couldn't start inside its schedule's `catch_up` window.
+A `skipped` run with `end_reason` `overlap` means the previous run, or its retry, was still running at the next slot. `expired` means the run couldn't start inside its schedule's `catch_up` window, or a chain step couldn't start within 30 minutes of its `latest` time. `dependency_failed` means a chain step's `on: success` parent didn't succeed; fix that parent first, since the skip is only its consequence.
 
 #### What each launcher job depends on
 
 | Job | Check first |
 |---|---|
+| `sync-league` | First `tuesday-weekly` step. ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`), league configuration, Postgres. If it fails, `metrics-extractor` and `sync-actual-scores` are skipped (`dependency_failed`) and the rest of the chain still runs. |
+| `metrics-extractor` | Runs after `sync-league` succeeds. External play-by-play source and Postgres. It refreshes historical metrics; it doesn't replace the projection/VORP refresh. |
+| `sync-actual-scores` | Runs after `metrics-extractor` succeeds. Same dependencies as the reconcile CronJob; see [score sync failures](#score-sync-failures). |
+| `projections-refresh` | Runs daily at 18:00 and in the chain once `sync-actual-scores` finishes. Sleeper skill-position projections, ESPN K/D-ST projections (needs `espn-session-secrets` `espn_s2`/`swid`), then VORP for each horizon week. Check season/week/team configuration and Postgres credentials. It supplies target-week VORP for lineup and waiver decisions and later-week VORP for trade scoring. Its stages are child runs in `run_log`. See the [refresh horizon](cronjob-schedule-order.md#projection-and-vorp-refresh-horizon). |
+| `lineup-optimizer` | Critical. Runs once the refresh finishes, or at 19:15 at the latest. Roster/weekly-stat rows, target-week VORP and prior-week fallback, Postgres, core API, trigger API key and downstream lineup processing. Zero swaps is success: its dashboard log panel distinguishes `Lineup already optimal` from `Published N lineup swap(s)`. Missing input fails the run after [core-pipeline#178](https://github.com/cvillarr23/fantasy-core-pipeline/issues/178). |
+| `waiver-trigger` | Critical. Runs once lineup finishes, or at 20:30 at the latest. Exact-week bench/free-agent pools from the refresh, Postgres, core API and trigger API key, downstream RabbitMQ/browser-worker claims. It has no prior-week fallback; empty pools fail the run after [core-pipeline#181](https://github.com/cvillarr23/fantasy-core-pipeline/issues/181). |
+| `rumor-action-trigger` | Runs daily at 21:45 and in the chain once waivers finish. Rumor sync and today's 11:00 digest, rumor-signals rows, team/season config, Postgres, Redis, core API and downstream action processing. A successful run isn't proof of complete application processing; see [application outcome](cronjob-application-outcomes.md#rumor-action-application-outcome). |
 | `espn-session-healthcheck` | ESPN reachability and `espn-session-secrets` (`espn_s2`/`swid`), league configuration, Postgres execution logging. Cookies require human refresh when expired. |
 | `rapid-status-syncer` | Player-status source, Postgres, Redis and RabbitMQ credentials/connectivity. Thu/Sun/Mon are the only scheduled days. |
 | `rumor-digest-bot` | Rumor inputs in Postgres, database/execution-log credentials and the Groq/Gemini LLM fallback credentials. No ESPN cookies or browser required. It runs at 11:00, before the 21:45 action trigger. |

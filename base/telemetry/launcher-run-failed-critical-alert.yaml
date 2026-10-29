@@ -43,7 +43,7 @@ data:
             rawSql: |-
               SELECT r.job_name, COUNT(*)::double precision AS value
               FROM run_log r
-              JOIN unnest(ARRAY[]::text[], ARRAY[]::int[]) AS j(job_name, max_attempts) ON j.job_name = r.job_name
+              JOIN unnest(ARRAY['lineup-optimizer', 'waiver-trigger']::text[], ARRAY[3, 3]::int[]) AS j(job_name, max_attempts) ON j.job_name = r.job_name
               WHERE r.finished_at > now() - interval '10 minutes'
                 AND (
                   (
