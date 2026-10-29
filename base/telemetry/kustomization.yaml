@@ -6,6 +6,7 @@ resources:
   - cronjob-job-failed-alert.yaml
   - cronjob-missed-schedule-alert.yaml
   - rumor-action-outcome-alert.yaml
+  - delete-orphaned-alert-rules.yaml
   - launcher-heartbeat-alert.yaml
   - launcher-dlq-alert.yaml
   - launcher-queue-depth-unknown-alert.yaml
