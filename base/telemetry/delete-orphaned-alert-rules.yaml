@@ -1,0 +1,21 @@
+# Grafana keeps a provisioned alert rule after its file is removed, so a rule dropped from
+# base/telemetry must be listed here or it keeps evaluating (and, with noDataState: Alerting,
+# keeps firing). Entries can go once Grafana has processed them.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-delete-orphaned-alert-rules
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  fantasy-delete-orphaned-alert-rules.yaml: |
+    apiVersion: 1
+    deleteRules:
+      # Per-job missed-schedule rules for the CronJobs that moved to the launcher.
+      - orgId: 1
+        uid: fantasy-cronjob-missed-schedule-rumor
+      - orgId: 1
+        uid: fantasy-cronjob-missed-schedule-sweeper
+      - orgId: 1
+        uid: fantasy-cronjob-missed-schedule-rapid
