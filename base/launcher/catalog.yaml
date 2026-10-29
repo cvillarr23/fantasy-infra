@@ -2,6 +2,10 @@
 # A job is added here in the same PR that removes its CronJob: a job in both places runs twice.
 version: 1
 global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
+# NFL regular-season weeks; the scheduler maps them to game dates. The calendar reads only
+# regular-season games, so there is no playoffs window.
+seasons:
+  regular: {start: 1, end: 18}
 profiles:
   core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api, amqp, league-config]}
   # The fantasy-core-pipeline SA is bound to draft-sync-orchestrator (jobs get/list/delete),
@@ -51,3 +55,65 @@ jobs:
     resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
     schedules:
       - {cron: '0 11 * * *', tz: America/Chicago, catch_up: 2h}
+  sync-league:
+    profile: core
+    command: [python, -m, src.ingestion.sync_league, --season, $(CURRENT_YEAR)]
+    max_attempts: 2
+  metrics-extractor:
+    profile: core
+    command: [python, -m, src.ingestion.metrics_extractor]
+    max_attempts: 2
+  # The Friday reconcile run stays a CronJob until batch C.
+  sync-actual-scores:
+    profile: core
+    command: [python, -m, src.ingestion.sync_actual_scores, --season, $(CURRENT_YEAR)]
+    deadline: 30m
+    max_attempts: 2
+  # One attempt: a retry would replay the already committed target week. The next daily run
+  # refreshes the whole horizon.
+  projections-refresh:
+    profile: core
+    command: [python, -m, src.jobs.draft_prep_refresh]
+    schedules:
+      - {cron: '0 18 * * *', tz: America/Chicago, catch_up: 1h}
+  # Retrying lineup, waivers and rumor actions is safe: each publish dedupes on an idempotency
+  # key scoped to JOB_NAME (lineup, rumor) or the week (waivers), and JOB_NAME stays the same
+  # across a run's attempts.
+  lineup-optimizer:
+    profile: core
+    command: [python, -m, src.optimization.lineup_solver]
+    params: {week: 'int?', dry_run: 'bool?'}
+    max_attempts: 3
+    alert: critical
+    acts: true
+  waiver-trigger:
+    profile: core
+    command: [python, -m, src.optimization.waiver_evaluator]
+    params: {week: 'int?'}
+    max_attempts: 3
+    alert: critical
+    acts: true
+  rumor-action-trigger:
+    profile: core
+    command: [python, -m, src.services.rumor_action_service, --team-id, $(ESPN_TEAM_ID), --season, $(CURRENT_YEAR)]
+    max_attempts: 3
+    acts: true
+    schedules:
+      - {cron: '45 21 * * *', tz: America/Chicago, catch_up: 1h}
+# Data steps need their parent's success. The refresh and the acting steps run once their parent
+# finishes, so a failed ingestion still refreshes projections and still sets the lineup. `latest`
+# keeps the old CronJob times as upper bounds. On Tuesday the standalone 18:00 and 21:45 slots
+# are skipped (chain_step) while the chain covers them.
+chains:
+  tuesday-weekly:
+    # 16:00 gives nflverse time to publish Monday night's data (docs/cronjob-schedule-order.md).
+    schedule: {cron: '0 16 * * 2', tz: America/Chicago, catch_up: 2h, seasons: [regular]}
+    max_duration: 8h
+    steps:
+      sync-league: {}
+      metrics-extractor: {after: [{step: sync-league, on: success}]}
+      sync-actual-scores: {after: [{step: metrics-extractor, on: success}]}
+      projections-refresh: {after: [{step: sync-actual-scores, on: finish}]}
+      lineup-optimizer: {after: [{step: projections-refresh, on: finish}], latest: '19:15'}
+      waiver-trigger: {after: [{step: lineup-optimizer, on: finish}], latest: '20:30'}
+      rumor-action-trigger: {after: [{step: waiver-trigger, on: finish}], latest: '21:45'}

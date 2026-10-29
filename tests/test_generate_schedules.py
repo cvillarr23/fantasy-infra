@@ -33,17 +33,11 @@ class CatalogScheduleTest(unittest.TestCase):
 
     def test_legacy_cronjob_names_map_to_catalog_jobs_during_cutover(self):
         catalog_jobs = {
-            "projections-refresh": {},
-            "sync-league": {},
-            "waiver-trigger": {},
             "sync-actual-scores": {},
             "trade-candidates": {},
         }
 
         for name in (
-            "fantasy-draft-prep-refresher",
-            "fantasy-weekly-ingestor",
-            "fantasy-weekly-waiver-trigger",
             "fantasy-sync-actual-scores-reconcile",
             "fantasy-trade-candidates-prescan",
         ):
