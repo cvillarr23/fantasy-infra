@@ -10,11 +10,11 @@ Use read-only evidence to identify the failing layer before retrying a workload.
 flowchart TD
     Alert[Alert or user report] --> Inspect[Inspect Job, pod and application outcome]
     Inspect --> Cause{Failure layer}
-    Cause -->|schedule or pod| Cron[CronJob recovery]
+    Cause -->|schedule or pod| Run[Job run recovery]
     Cause -->|authentication| Session[Session refresh]
     Cause -->|delivery| Queue[Queue investigation]
     Cause -->|release regression| Rollback[GitOps rollback]
-    Cron --> Verify[Verify next normal run and external outcome]
+    Run --> Verify[Verify next normal run and external outcome]
     Session --> Verify
     Queue --> Verify
     Rollback --> Verify
@@ -22,30 +22,30 @@ flowchart TD
 
 | Detail runbook | Use it for |
 |---|---|
-| [CronJob alerts](cronjob-alerts.md) | Failure/missed-run semantics and per-job dependencies |
+| [Job alerts](cronjob-alerts.md) | Launcher alert semantics and per-job dependencies |
 | [Schedule order and refresh horizon](cronjob-schedule-order.md) | Tuesday job ordering and the daily projection/VORP refresh |
 | [Application outcomes and trade jobs](cronjob-application-outcomes.md) | Rumor-action outcome alert, trade scan and trade inbox |
 | [RabbitMQ rollout](rabbitmq-queue-rollout.md) | Durable topology, storage migration gate and queue provisioning |
 | [Unattended IR publication](auto-publish-ir-moves.md) | Shared OFF flag, rollout verification and rollback limitations |
-| [Schedules](schedules.md) | Complete generated inventory and alert UIDs |
+| [Schedules](schedules.md) | Complete generated inventory |
 
-## Investigate a failed CronJob
+## Investigate a failed job
 
-1. Identify the newest owned Job and its pod; older retained failures may be irrelevant:
+1. Find the run. The newest `run_log` row for the job has its status, `end_reason`, attempt and `summary.log_tail`; older failures may be irrelevant. While its k8s Job still exists (one day), inspect it:
 
    ```bash
-   kubectl get cronjobs -n default -o wide
-   kubectl get jobs -n default --sort-by=.metadata.creationTimestamp
-   kubectl describe job <job-name> -n default
-   kubectl logs job/<job-name> -n default --all-containers
+   kubectl get jobs -n default -l fantasy.job=<job> --sort-by=.metadata.creationTimestamp
+   kubectl describe job <k8s-job-name> -n default
+   kubectl logs -n default -l fantasy.job=<job> --tail=200
    ```
 
-2. Inspect events and init-container logs if the main container never started. Check image pulls, missing Secrets, capacity, deadline, API/store reachability and the [job's dependencies](cronjob-alerts.md#what-each-job-depends-on).
-3. For a missed run, inspect schedule, timezone, suspension, last schedule and controller events. A running Job needs deadline/runtime investigation even if the failed-Job alert is clear.
-4. Fix the dependency and observe the next scheduled run. Confirm Job success, last-success advancement and application outcomes in Grafana/Loki.
+2. Inspect events if the container never started (the run ends `failure` with `start_timeout`). Check image pulls, missing Secrets, capacity, deadline, API/store reachability and the [job's dependencies](cronjob-alerts.md#what-each-job-depends-on).
+3. For a run that never started, read its `end_reason`: `expired`, `overlap`, `paused` or `dependency_failed`, or no row at all after a launcher outage. See [what covers a missed or hung run](cronjob-alerts.md#what-covers-a-missed-or-hung-run).
+4. Fix the dependency and observe the next scheduled run. Confirm the run's success and application outcomes in Grafana/Loki.
+5. To run a job on demand, `POST /v1/jobs/<job>/runs` with the trigger API key. It queues through the same launcher, so the overlap and pod-cap rules apply.
 
 :::warning[Retry can publish actions]
-Do not create a replacement Job blindly. Check execution records, queue state and bot retry semantics first; rumor-action retries and outgoing trade claims require particular care. A zero-action success can be a healthy no-op.
+Do not start a replacement run blindly. Check execution records, queue state and bot retry semantics first; rumor-action retries and outgoing trade claims require particular care. A zero-action success can be a healthy no-op.
 :::
 
 ## Recover an expired ESPN session

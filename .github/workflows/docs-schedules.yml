@@ -26,9 +26,6 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
-        with:
-          version: 'v1.35.0'
       - run: pip install PyYAML
       - run: python3 -m unittest tests.test_generate_schedules
       - run: python3 scripts/generate-schedules.py --check

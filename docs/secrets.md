@@ -52,7 +52,7 @@ Inspect Ready/synchronization status and sanitized error reasons. Do not dump Se
 
 1. Replace the credential at its issuer and update OpenBao through the approved private operator workflow.
 2. Wait for ExternalSecret synchronization; verify status without printing the Secret.
-3. Coordinate consumer refresh. New CronJob pods read new environment values; existing pods retain old ones. Mounted files depend on refresh behavior, and subPath mounts do not receive updates.
+3. Coordinate consumer refresh. New job pods read new environment values; existing pods retain old ones. Mounted files depend on refresh behavior, and subPath mounts do not receive updates.
 4. Verify authentication using normal read-only traffic. Database initialization variables do not rotate an existing PostgreSQL role; coordinate database-role changes separately.
 
 Broker definitions load at startup, and the read-only database provisioning Job needs a new execution after a reader-password change. Plan these with [Operations](operations.md) and [Databases](databases.md) rather than assuming a Secret update restarts everything.

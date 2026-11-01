@@ -11,6 +11,38 @@ QUEUES = {'lineup_updates', 'waiver_actions', 'draft_targets', 'trade_evaluation
 # Set only on the ScaledJob worker container: trade_builder reads TRADE_DRY_RUN, so DRY_RUN stays
 # unset everywhere and no other bot is armed.
 TRADE_ARMING = {'TRADE_DRY_RUN': 'false', 'TRADE_SUBMIT_ENABLED': 'true'}
+SCALER = ('ScaledJob', 'fantasy-browser-worker-scaler')
+LAUNCHER = ('Deployment', 'fantasy-job-launcher')
+CATCH_UP = '30m'
+WORKER_RESOURCES = {'requests': {'cpu': '50m', 'memory': '256Mi'},
+                    'limits': {'cpu': '1000m', 'memory': '1200Mi'}}
+# Bundles k8s.BUNDLES in core turns into env; none of them sets a trade arming variable.
+INBOX_BUNDLES = {'db', 'espn', 'notify', 'league-config'}
+
+
+def launcher_catalog(docs):
+    (volume,) = docs[LAUNCHER]['spec']['template']['spec']['volumes']
+    return yaml.load(docs['ConfigMap', volume['configMap']['name']]['data']['catalog.yaml'],
+                     Loader=yaml.BaseLoader)
+
+
+def containers(node):
+    if isinstance(node, dict):
+        yield from node.get('containers', [])
+        for value in node.values():
+            yield from containers(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from containers(value)
+
+
+def env_names(container):
+    return {e['name'] for e in container.get('env', [])}
+
+
+def scaler_worker(docs):
+    (worker,) = docs[SCALER]['spec']['jobTargetRef']['template']['spec']['containers']
+    return worker
 
 
 class WorkerTriggerTest(unittest.TestCase):
@@ -28,7 +60,7 @@ class WorkerTriggerTest(unittest.TestCase):
     def test_all_overlays_cover_consumers(self):
         for overlay, docs in self.overlays.items():
             with self.subTest(overlay=overlay):
-                job = docs['ScaledJob', 'fantasy-browser-worker-scaler']
+                job = docs[SCALER]
                 triggers = job['spec']['triggers']
                 names = [t['metadata']['queueName'] for t in triggers]
                 self.assertEqual(set(names), QUEUES)
@@ -51,61 +83,68 @@ class WorkerTriggerTest(unittest.TestCase):
                         'auto_delete': False, 'arguments': {},
                     })
 
-    def test_inbox_schedule_and_safe_worker_contract(self):
+    def test_trade_inbox_and_scan_run_from_the_catalog(self):
         for overlay, docs in self.overlays.items():
             with self.subTest(overlay=overlay):
-                inbox = docs['CronJob', 'trade-inbox']
-                job = docs['ScaledJob', 'fantasy-browser-worker-scaler']
-                spec = inbox['spec']
-                self.assertEqual(spec['schedule'], '0 8-22/2 * * *')
-                self.assertEqual(spec['timeZone'], 'America/Chicago')
-                self.assertEqual(spec['concurrencyPolicy'], 'Forbid')
-                self.assertEqual(spec['startingDeadlineSeconds'], 1800)
-                target = spec['jobTemplate']['spec']
-                self.assertEqual(target['activeDeadlineSeconds'], 660)
-                self.assertEqual(target['backoffLimit'], 0)
-                pod = target['template']['spec']
-                self.assertEqual(pod['restartPolicy'], 'Never')
-                self.assertEqual(pod['serviceAccountName'], 'fantasy-browser-worker')
-                container = pod['containers'][0]
-                worker = job['spec']['jobTargetRef']['template']['spec']['containers'][0]
-                self.assertEqual(container['image'], worker['image'])
-                self.assertIn('@sha256:', container['image'])
-                self.assertEqual(container['command'], ['node', 'src/bots/trade_inbox.js', '--refresh'])
-                scan = docs['CronJob', 'trade-scan']
-                scan_pod = scan['spec']['jobTemplate']['spec']['template']['spec']
-                self.assertEqual(pod['volumes'], scan_pod['volumes'])
-                self.assertEqual(container['volumeMounts'], scan_pod['containers'][0]['volumeMounts'])
-                self.assertEqual(container['envFrom'], scan_pod['containers'][0]['envFrom'])
-                env = {e['name']: e for e in container['env']}
-                scan_env = {e['name']: e for e in scan_pod['containers'][0]['env']}
-                # RUN_CRONJOB names each Job's own CronJob for the run audit log.
-                expected_env = {name: value for name, value in scan_env.items()
-                                if name not in {'GROQ_API_KEY', 'GEMINI_API_KEY', 'RUN_CRONJOB'}}
+                catalog = launcher_catalog(docs)
+                inbox, scan = catalog['jobs']['trade-inbox'], catalog['jobs']['trade-scan']
+                self.assertEqual(inbox['command'], ['node', 'src/bots/trade_inbox.js', '--refresh'])
+                self.assertEqual(scan['command'], ['node', 'src/bots/trade_scan.js', '--stage'])
+                self.assertEqual(inbox['schedules'], [
+                    {'cron': '0 8-22/2 * * *', 'tz': 'America/Chicago', 'catch_up': CATCH_UP}])
+                self.assertEqual(scan['schedules'], [
+                    {'cron': '0 13 * * 3,5', 'tz': 'America/Chicago', 'catch_up': CATCH_UP}])
+                self.assertEqual((inbox['deadline'], scan['deadline']), ('11m', '16m'))
+                self.assertEqual(inbox['resources'], WORKER_RESOURCES)
+                self.assertEqual(scan['resources'], WORKER_RESOURCES)
+                self.assertEqual(catalog['defaults']['overlap'], 'forbid')
+                for job in (inbox, scan):
+                    self.assertNotIn('overlap', job)
+
+    def test_trade_job_profiles_match_the_worker_contract(self):
+        for overlay, docs in self.overlays.items():
+            with self.subTest(overlay=overlay):
+                catalog = launcher_catalog(docs)
+                inbox = catalog['profiles'][catalog['jobs']['trade-inbox']['profile']]
+                scan = catalog['profiles'][catalog['jobs']['trade-scan']['profile']]
+                self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES)
+                self.assertEqual(set(scan['secrets']), INBOX_BUNDLES | {'llm'})
+                for profile in (inbox, scan):
+                    self.assertEqual(profile['image'], 'WORKER_IMAGE')
+                    self.assertEqual(profile['serviceAccount'], 'fantasy-browser-worker')
+                    self.assertEqual(profile['volumes'], ['espn-session-state'])
+                launcher = docs[LAUNCHER]['spec']['template']['spec']['containers'][0]
+                image = {e['name']: e.get('value') for e in launcher['env']}['WORKER_IMAGE']
+                self.assertEqual(image, scaler_worker(docs)['image'])
+                self.assertIn('@sha256:', image)
+
+    def test_trade_arming_stays_on_the_scaled_job(self):
+        for overlay, docs in self.overlays.items():
+            with self.subTest(overlay=overlay):
+                worker = scaler_worker(docs)
                 worker_env = {e['name']: e for e in worker['env']}
-                config = docs['ConfigMap', 'fantasy-league-config']
-                self.assertEqual(env.pop('RUN_CRONJOB')['value'], 'trade-inbox')
-                self.assertEqual(env, expected_env)
-                self.assertNotIn('GROQ_API_KEY', env)
-                self.assertNotIn('GEMINI_API_KEY', env)
                 # TRADE_DRY_RUN / TRADE_SUBMIT_ENABLED arm trade submissions on the queue worker only.
-                self.assertTrue(TRADE_ARMING.keys() <= worker_env.keys())
-                self.assertFalse(TRADE_ARMING.keys() & env.keys())
-                self.assertFalse(TRADE_ARMING.keys() & scan_env.keys())
-                self.assertFalse(TRADE_ARMING.keys() & config['data'].keys())
-                for (kind, _), doc in docs.items():
-                    if kind != 'CronJob':
-                        continue
-                    for cron in doc['spec']['jobTemplate']['spec']['template']['spec']['containers']:
-                        self.assertFalse(TRADE_ARMING.keys() & {e['name'] for e in cron.get('env', [])})
                 for name, value in TRADE_ARMING.items():
                     self.assertEqual(worker_env[name], {'name': name, 'value': value})
+                others = [c for key, doc in docs.items() if key != SCALER for c in containers(doc)]
+                self.assertIn('launcher', [c['name'] for c in others])
                 safe_defaults = {'DRY_RUN', 'TRADE_RESPONSE_ENABLED',
                                  'TRADE_INBOX_SHADOW_ACCEPT_MIN_SCORE',
                                  'TRADE_INBOX_SHADOW_DECLINE_MAX_SCORE'}
-                self.assertFalse(safe_defaults & config['data'].keys())
-                for workload in (container, worker, scan_pod['containers'][0]):
-                    self.assertFalse(safe_defaults & {e['name'] for e in workload['env']})
+                for container in others:
+                    self.assertFalse(TRADE_ARMING.keys() & env_names(container), container['name'])
+                    self.assertFalse(safe_defaults & env_names(container), container['name'])
+                self.assertFalse(safe_defaults & env_names(worker))
+                # Launched trade jobs import these two, so a key here would arm them.
+                for name in ('fantasy-league-config', 'fantasy-notify-config'):
+                    config = docs['ConfigMap', name]['data']
+                    self.assertFalse(TRADE_ARMING.keys() & config.keys(), name)
+                    self.assertFalse(safe_defaults & config.keys(), name)
+
+    def test_no_cronjobs_remain(self):
+        for overlay, docs in self.overlays.items():
+            with self.subTest(overlay=overlay):
+                self.assertEqual([name for kind, name in docs if kind == 'CronJob'], [])
 
 
 if __name__ == '__main__':

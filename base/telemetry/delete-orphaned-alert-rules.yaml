@@ -12,7 +12,11 @@ data:
   fantasy-delete-orphaned-alert-rules.yaml: |
     apiVersion: 1
     deleteRules:
-      # Per-job missed-schedule rules for the CronJobs that moved to the launcher.
+      # The kube_cronjob_* rules: every CronJob moved to the launcher, which alerts from run_log.
+      - orgId: 1
+        uid: fantasy-cronjob-job-failed
+      - orgId: 1
+        uid: fantasy-cronjob-missed-schedule
       - orgId: 1
         uid: fantasy-cronjob-missed-schedule-rumor
       - orgId: 1

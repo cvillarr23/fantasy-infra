@@ -1,10 +1,10 @@
 ---
 title: Application outcomes and trade jobs
-description: The rumor-action outcome alert, its provisioning handoff, and how the trade scan and trade inbox CronJobs behave.
+description: The rumor-action outcome alert, its provisioning handoff, and how the trade scan and trade inbox jobs behave.
 sidebar_position: 10
 ---
 
-Use this page when the rumor-action outcome alert fires, or when you need the schedule and safety settings of `trade-scan` and `trade-inbox`. For Kubernetes failed and missed alerts, see [CronJob alerts](cronjob-alerts.md).
+Use this page when the rumor-action outcome alert fires, or when you need the schedule and safety settings of `trade-scan` and `trade-inbox`. For launcher run alerts, see [Job alerts](cronjob-alerts.md).
 
 ## Rumor-action application outcome
 
@@ -63,7 +63,7 @@ flowchart LR
     Infra --> Verify[4. Verify rule and panel 6]
 ```
 
-1. Deploy core-pipeline's additive `outcome_details JSONB` migration and service changes. Migrations run at API startup, so confirm the column exists before expecting CronJob outcome writes or opening the new dashboard panel.
+1. Deploy core-pipeline's additive `outcome_details JSONB` migration and service changes. Migrations run at API startup, so confirm the column exists before expecting job outcome writes or opening the new dashboard panel.
 2. Remove homelab-deployment's old `rumor-action-trigger-failure.yaml` from its alerting ConfigMap generator and deployed ConfigMap. Don't provision `deleteRules`: the existing Grafana rule is retained until fantasy-infra takes ownership.
 3. Deploy this fantasy-infra rule, retaining the old UID/group, folder and provisioning filename.
 4. Verify the Grafana rule shows the 26h SQL, 5m cadence and panel 6 link, and that the new table displays structured outcomes. No live Jobs need to be triggered.
@@ -79,7 +79,7 @@ Run `./tests/rumor_action_alert/run.sh` (Python/PyYAML and Docker). It tests the
 - unrelated rows and legacy rows
 - exact window boundaries
 
-Existing CronJob PromQL tests remain in `./tests/cronjob_alerts/run.sh`.
+The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
 
 ## Outgoing trade scan
 
@@ -89,17 +89,18 @@ Existing CronJob PromQL tests remain in `./tests/cronjob_alerts/run.sh`.
 |---|---|
 | Schedule | Wednesday and Friday 13:00 America/Chicago |
 | Attempts | One per league/team/Chicago calendar date, shared with manual runs |
-| Process bound / Job deadline | 15 minutes / 16 minutes (the deadline also bounds Pending time) |
-| Retries | None automatic |
-| Secrets and config | Reuses worker secrets and config |
-| Image | Production Kustomize digest applies, like the other worker workloads |
+| Process bound / run deadline | 15 minutes / 16 minutes |
+| Late start | Up to 30 minutes (`catch_up`), counting time queued behind the pod cap |
+| Retries | None: `max_attempts` stays 1 |
+| Profile | `worker-scan`: the worker secrets and config, plus the LLM keys |
+| Image | `WORKER_IMAGE`, the digest the ScaledJob runs |
 | Producers | No `trade_proposals` producer/scaler pair, on purpose |
 
-- Deploy the browser-worker #94 image before syncing this CronJob.
 - Off-season, duplicate and no-target outcomes are successful no-ops.
 - Failures have no automatic retry. Inspect `trade_scan` logs and `execution_log` claims before recovery.
-- Suspend this job after the configured ESPN league trade deadline.
-- See the worker README's outgoing scan section for read-only manual checks, claim retention and failure recovery.
+- Only scheduled runs take the daily claim (`RUN_TRIGGER=schedule`). A manual run skips it, which is why the catalog marks the job `acts: true`, so the UI confirms first.
+- Pause this job after the configured ESPN league trade deadline, with `PUT /v1/jobs/trade-scan/pause`. Paused slots end `skipped (paused)` and don't alert. `DELETE` the same path to resume.
+- See the worker README's outgoing scan section for read-only checks, claim retention and failure recovery.
 
 ## Incoming trade inbox
 
@@ -110,8 +111,8 @@ Existing CronJob PromQL tests remain in `./tests/cronjob_alerts/run.sh`.
 | Schedule | Eight times daily, 08:00 through 22:00 America/Chicago |
 | Weekly runs | 56 inbox runs, plus two refreshes from the Wednesday/Friday 13:00 trade scan (between the noon and 14:00 inbox runs) |
 | Persistence | The worker CLI defaults to `--check` (no database writes). The scheduled command selects persistence explicitly. |
-| Bounds | Ten-minute process, eleven-minute Job deadline, thirty-minute late-start allowance |
-| Concurrency | No concurrent scheduled runs and no automatic retry. Manual or delayed runs aren't globally serialized with the trade scan. |
+| Bounds | Ten-minute process, eleven-minute run deadline, thirty-minute late-start allowance (`catch_up`) |
+| Concurrency | `overlap: forbid` and no automatic retry (`max_attempts` stays 1). Manual or delayed runs aren't globally serialized with the trade scan. |
 | Core URL | Worker default `http://fantasy-core-pipeline.default.svc.cluster.local:8000`, matching trade-scan |
 | Score timeout | Defaults to 20000 ms. `TRADE_SCORE_TIMEOUT_MS` stays unset. |
 
@@ -126,16 +127,15 @@ Core can read ESPN for cold scoring context. Offseason runs are successful no-op
 :::warning[No responses are enabled]
 `TRADE_RESPONSE_ENABLED` and both shadow thresholds stay unset, and unset `DRY_RUN` remains true. No accept, decline or counter is enabled by this rollout.
 
-The trade CronJobs carry no `TRADE_DRY_RUN` or `TRADE_SUBMIT_ENABLED` either, so scans keep dry-filling. Live trade submission is armed only on the queue worker (the `fantasy-browser-worker-scaler` ScaledJob) and still needs a matching human approval.
+The launcher's trade jobs carry no `TRADE_DRY_RUN` or `TRADE_SUBMIT_ENABLED` either, because no catalog profile or bundle sets them, so scans keep dry-filling. Live trade submission is armed only on the queue worker (the `fantasy-browser-worker-scaler` ScaledJob) and still needs a matching human approval.
 :::
 
-### Roll out and verify
+### Verify
 
-1. Deploy a worker image containing `src/bots/trade_inbox.js` and the `trade_responses` consumer before syncing these resources. The production image transformer pins the new CronJob to the same digest as the existing worker.
-2. After the Argo CD sync, inspect `kubectl get cronjob trade-inbox -n default -o yaml`, Jobs and pods, and `kubectl logs -n default job/<scheduled-job>`.
-3. Confirm the image, command, safety configuration, deadlines, last-success time and `Refreshed` outcome (including scoreCalls/exits).
-4. Verify the dashboard row and the latest-failed and missed-run alerts. Missed-run grace is two hours, and the overnight gap is intentional.
+1. After an Argo CD sync, wait for the next slot, then inspect the run: `kubectl logs -n default -l fantasy.job=trade-inbox --tail=200`, and its `run_log` row with `job_name = 'trade-inbox'`.
+2. Confirm the image, command, deadline and `Refreshed` outcome (including scoreCalls/exits).
+3. A failed run or a `skipped (expired)` slot reports through the [launcher run-failed alert](cronjob-alerts.md#launcher-run-failed). The overnight gap is intentional.
 
 :::note[Don't create test traffic]
-Don't create a manual refresh Job or send test queue messages for verification. Core inbox API endpoints aren't a prerequisite for this CronJob.
+Don't start a manual refresh or send test queue messages for verification. Core inbox API endpoints aren't a prerequisite for this job.
 :::

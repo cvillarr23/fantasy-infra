@@ -59,7 +59,7 @@ Use a private workstation with `kubectl` access, enough disk space and an encryp
 
 ## Restore to an isolated target
 
-1. Provision an empty PostgreSQL target with the same compatible TimescaleDB extension version. Keep it disconnected from API, CronJobs and queue consumers.
+1. Provision an empty PostgreSQL target with the same compatible TimescaleDB extension version. Keep it disconnected from API, job launcher and queue consumers.
 2. Supply a restricted local libpq password file; use synthetic connection values in shared instructions:
 
    ```bash

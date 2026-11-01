@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""Generate the public job schedule inventory from the catalog and production manifests."""
+"""Generate the public job schedule inventory from the job catalog."""
 import argparse
-import re
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -11,22 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / 'docs/schedules.md'
 START = '<!-- BEGIN GENERATED SCHEDULES -->'
 END = '<!-- END GENERATED SCHEDULES -->'
-# TODO: Maps legacy CronJob names to catalog job names; remove it when cutover
-# batch C (cvillarr23/fantasy-infra#182) deletes the last CronJob.
-LEGACY_CATALOG_ALIASES = {
-    'sync-actual-scores-reconcile': 'sync-actual-scores',
-    'trade-candidates-prescan': 'trade-candidates',
-}
-
-
-def is_catalog_backed_cronjob(name, catalog_jobs):
-    normalized = name.removeprefix('fantasy-')
-    catalog_name = LEGACY_CATALOG_ALIASES.get(normalized, normalized)
-    return catalog_name in catalog_jobs
 
 
 def render_catalog(path):
-    """Render catalog jobs and dependency chains without consulting legacy alerts."""
+    """Render catalog jobs and dependency chains."""
     catalog = yaml.load(Path(path).read_text(), Loader=yaml.BaseLoader)
     jobs = catalog.get('jobs', {})
     rows = []
@@ -68,69 +54,7 @@ def render_catalog(path):
 
 
 def inventory():
-    catalog_path = ROOT / 'base/launcher/catalog.yaml'
-    catalog_jobs = {}
-    if catalog_path.exists():
-        catalog_jobs = yaml.load(
-            catalog_path.read_text(), Loader=yaml.BaseLoader
-        ).get('jobs', {})
-    rendered = subprocess.check_output(
-        ['kubectl', 'kustomize', str(ROOT / 'overlays/production')], text=True
-    )
-    jobs = sorted(
-        (d for d in yaml.safe_load_all(rendered) if d and d.get('kind') == 'CronJob'),
-        key=lambda d: d['metadata']['name'],
-    )
-    rules = []
-    for path in sorted((ROOT / 'base/telemetry').glob('cronjob-*-alert.yaml')):
-        cm = yaml.safe_load(path.read_text())
-        for body in cm['data'].values():
-            for group in yaml.safe_load(body)['groups']:
-                rules.extend(group['rules'])
-    rows = []
-    for job in jobs:
-        name, spec = job['metadata']['name'], job['spec']
-        alerts = []
-        for rule in rules:
-            data = {d['refId']: d['model'] for d in rule['data']}
-            expr = data['A']['expr']
-            selectors = re.findall(r'(?:cronjob|owner_name)=~"([^"]+)"', expr)
-            if not any(re.fullmatch(pattern, name) for pattern in selectors):
-                continue
-            uid = rule['uid']
-            if 'missed-schedule' in uid:
-                condition = data[rule['condition']]
-                seconds = condition['conditions'][0]['evaluator']['params'][0]
-                label = f'Missed > {seconds // 60}m'
-            else:
-                label = 'Latest Job failed'
-            alerts.append(f'{label} (`{uid}`)')
-        if len(alerts) != 2 and not is_catalog_backed_cronjob(name, catalog_jobs):
-            raise ValueError(f'{name}: expected failed and missed alerts, got {alerts}')
-        pod = spec['jobTemplate']['spec']['template']['spec']
-        commands = []
-        for container in pod.get('initContainers', []) + pod['containers']:
-            command = container.get('command', []) + container.get('args', [])
-            if '-m' in command:
-                commands.append('`' + command[command.index('-m') + 1] + '`')
-            elif command and command[0] == 'node':
-                commands.append('`' + ' '.join(command[1:]) + '`')
-            else:
-                raise ValueError(f'{name}: add a public summary for {container["name"]}')
-        timezone = spec.get('timeZone', 'Unset (controller timezone; UTC in this deployment)')
-        rows.append(f'| `{name}` | `{spec["schedule"]}` | {timezone} | {" → ".join(commands)} | {"<br/>".join(alerts)} |')
-    sections = [START]
-    if catalog_path.exists():
-        sections.extend([render_catalog(catalog_path), ''])
-    if rows:
-        sections.extend([
-            '### Legacy CronJobs',
-            '| CronJob | Cron expression | Timezone | What runs | Alerts |',
-            '|---|---|---|---|---|',
-            *rows,
-        ])
-    sections.append(END)
-    return '\n'.join(sections)
+    return '\n'.join([START, render_catalog(ROOT / 'base/launcher/catalog.yaml'), END])
 
 
 def main():
@@ -144,7 +68,7 @@ def main():
     if args.check:
         if updated != original:
             parser.exit(1, 'Schedule table is stale; run python3 scripts/generate-schedules.py\n')
-        print('Schedule table matches production CronJobs and alert selectors.')
+        print('Schedule table matches the job catalog.')
     else:
         PAGE.write_text(updated)
 

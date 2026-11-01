@@ -189,11 +189,6 @@ print(run('r1', 'not-in-catalog', 'failure', attempt=9))
 fires_for(WARNING, 'unknown job is ignored', [])
 fires_for(CRITICAL, 'unknown job is ignored', [])
 
-# The committed rules cover only the jobs already cut over, so jobs not yet in the catalog never match.
-reset()
-print(run('r1', 'trade-scan', 'failure', attempt=9) + run('r2', 'trade-candidates', 'timeout', attempt=9))
-for level in generator.LEVELS:
-    fires(load_rule(f'launcher-run-failed-{level}-alert.yaml'), f'job not yet in the catalog {level}', False)
 # A cut-over job alerts on its last attempt; its first may still be retried.
 COMMITTED_WARNING = load_rule('launcher-run-failed-warning-alert.yaml')
 reset()
@@ -202,6 +197,12 @@ fires_for(COMMITTED_WARNING, 'committed rule, retryable rumor-syncer failure', [
 reset()
 print(run('r1', 'rumor-syncer', 'failure', attempt=2) + run('r2', 'rapid-status-syncer', 'skipped', end_reason='overlap'))
 fires_for(COMMITTED_WARNING, 'committed rule, final failure and overlap skip', ['rapid-status-syncer', 'rumor-syncer'])
+# The trade jobs never retry, so their first failure is final. A slot the pod cap held past its
+# catch_up window alerts: nothing else reports a run that never started.
+reset()
+print(run('r1', 'trade-scan', 'failure', attempt=1) + run('r2', 'trade-candidates', 'timeout', attempt=1)
+      + run('r3', 'trade-inbox', 'skipped', end_reason='expired'))
+fires_for(COMMITTED_WARNING, 'committed rule, trade jobs alert on one attempt', ['trade-candidates', 'trade-inbox', 'trade-scan'])
 # The Tuesday chain's steps: lineup alerts critical on its third attempt, a step skipped
 # because its data parent failed alerts, and a daily slot the chain covers stays quiet.
 COMMITTED_CRITICAL = load_rule('launcher-run-failed-critical-alert.yaml')

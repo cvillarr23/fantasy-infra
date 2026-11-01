@@ -32,27 +32,9 @@ def catalog(docs):
                      Loader=yaml.BaseLoader)
 
 
-def entrypoint(command):
-    """`python -m <module>` or `node <script>`, without the arguments: the catalog passes
-    `$(CURRENT_YEAR)` where a CronJob hardcoded the season."""
-    return command[:3] if command[1:2] == ["-m"] else command[:2]
-
-
-def cronjob_entrypoints(docs):
-    """Every container and init container entrypoint the rendered CronJobs run, by CronJob."""
-    entrypoints = {}
-    for cronjob in (d for d in docs if d["kind"] == "CronJob"):
-        pod = cronjob["spec"]["jobTemplate"]["spec"]["template"]["spec"]
-        for container in pod["containers"] + pod.get("initContainers", []):
-            entrypoints.setdefault(cronjob["metadata"]["name"], []).append(entrypoint(container["command"]))
-    return entrypoints
-
-
 TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "projections-refresh",
                  "lineup-optimizer", "waiver-trigger", "rumor-action-trigger"]
-# Batch C moves the Friday score reconcile onto the catalog's sync-actual-scores job; until
-# then that CronJob and the chain step share an entrypoint on different days.
-SHARED_UNTIL_BATCH_C = {"sync-actual-scores": "fantasy-sync-actual-scores-reconcile"}
+TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox"]
 
 
 class LauncherManifestTest(unittest.TestCase):
@@ -98,7 +80,7 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
         jobs = catalog(docs)["jobs"]
         self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer", "stale-draft-job-sweeper",
-                                     "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS})
+                                     "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS, *TRADE_JOBS})
         self.assertEqual(set(catalog(docs)["chains"]), {"tuesday-weekly"})
 
     def test_tuesday_chain_orders_the_weekly_jobs(self):
@@ -124,15 +106,18 @@ class LauncherManifestTest(unittest.TestCase):
                          {"lineup-optimizer": "19:15", "waiver-trigger": "20:30",
                           "rumor-action-trigger": "21:45"})
 
-    def test_no_catalog_job_still_has_a_cronjob(self):
-        # A command both scheduled here and in a CronJob runs twice per slot.
+    def test_trade_jobs_never_auto_retry(self):
         for overlay, docs in self.rendered.items():
             with self.subTest(overlay=overlay):
-                for name, job in catalog(docs)["jobs"].items():
-                    still_run_by = {cronjob for cronjob, entrypoints in cronjob_entrypoints(docs).items()
-                                    if entrypoint(job["command"]) in entrypoints}
-                    expected = {SHARED_UNTIL_BATCH_C[name]} if name in SHARED_UNTIL_BATCH_C else set()
-                    self.assertEqual(still_run_by, expected, name)
+                content = catalog(docs)
+                self.assertEqual(content["defaults"]["max_attempts"], "1")
+                for name in TRADE_JOBS:
+                    self.assertNotIn("max_attempts", content["jobs"][name], name)
+
+    def test_every_job_runs_from_the_catalog(self):
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                self.assertEqual([d["metadata"]["name"] for d in docs if d["kind"] == "CronJob"], [])
 
     def test_cutover_profiles_match_what_their_cronjobs_carried(self):
         profiles = catalog(self.rendered["production"])["profiles"]
@@ -144,8 +129,13 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertNotIn("espn", profiles["worker-llm"]["secrets"])
         self.assertIn("llm", profiles["worker-llm"]["secrets"])
         jobs = catalog(self.rendered["production"])["jobs"]
-        for name in TUESDAY_STEPS:
+        for name in (*TUESDAY_STEPS, "trade-candidates"):
             self.assertEqual(jobs[name]["profile"], "core", name)
+        # The scan is the only browser bot that calls an LLM.
+        self.assertEqual(jobs["trade-inbox"]["profile"], "worker")
+        self.assertNotIn("llm", profiles["worker"]["secrets"])
+        self.assertEqual(jobs["trade-scan"]["profile"], "worker-scan")
+        self.assertIn("llm", profiles["worker-scan"]["secrets"])
 
     def test_gateway_mounts_the_same_catalog(self):
         # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.

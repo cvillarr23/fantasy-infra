@@ -11,7 +11,7 @@ SPEC.loader.exec_module(generator)
 
 
 class CatalogScheduleTest(unittest.TestCase):
-    def test_catalog_jobs_and_chains_render_without_cronjob_alerts(self):
+    def test_catalog_jobs_and_chains_render(self):
         page = generator.render_catalog(ROOT / "tests/fixtures/job-catalog.yaml")
 
         self.assertIn("`projections-refresh` | `0 18 * * *` (America/Chicago)", page)
@@ -30,21 +30,6 @@ class CatalogScheduleTest(unittest.TestCase):
 
         self.assertIn("### Chain: manual-refresh\n\nSchedule: Manual only\n", page)
         self.assertNotIn("Event driven", page)
-
-    def test_legacy_cronjob_names_map_to_catalog_jobs_during_cutover(self):
-        catalog_jobs = {
-            "sync-actual-scores": {},
-            "trade-candidates": {},
-        }
-
-        for name in (
-            "fantasy-sync-actual-scores-reconcile",
-            "fantasy-trade-candidates-prescan",
-        ):
-            with self.subTest(name=name):
-                self.assertTrue(generator.is_catalog_backed_cronjob(name, catalog_jobs))
-
-        self.assertFalse(generator.is_catalog_backed_cronjob("untracked-job", catalog_jobs))
 
 
 if __name__ == "__main__":

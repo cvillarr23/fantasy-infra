@@ -1,13 +1,13 @@
 ---
 title: Schedules
-description: Generated inventory of production schedules, commands, timezones and alerts.
+description: Generated inventory of production schedules, commands and timezones.
 sidebar_position: 5
 ---
 
-When present, catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. During cutover, the inventory also includes live CronJobs rendered from the production overlay and their committed Grafana alert selectors. Draft-day inherits the same CronJob schedules.
+Catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. A job with no schedule runs only as a chain step or on request.
 
 :::note[Timezones and alerts]
-An unset `spec.timeZone` uses the controller's timezone; this deployment uses UTC for the ESPN healthcheck. America/Chicago jobs follow daylight saving time. Missed-run grace measures Job creation, not completion.
+America/Chicago jobs follow daylight saving time, so their UTC time shifts twice a year. For alerts, see [Job alerts](cronjob-alerts.md).
 :::
 
 <!-- BEGIN GENERATED SCHEDULES -->
@@ -23,8 +23,11 @@ An unset `spec.timeZone` uses the controller's timezone; this deployment uses UT
 | `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
 | `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |
 | `stale-draft-job-sweeper` | `*/15 * * * *` (America/Chicago) | `python -m src.ops.sweep_stale_draft_jobs` |
-| `sync-actual-scores` | — | `python -m src.ingestion.sync_actual_scores --season $(CURRENT_YEAR)` |
+| `sync-actual-scores` | `0 10 * * 5` (America/Chicago) | `python -m src.ingestion.sync_actual_scores --season $(CURRENT_YEAR)` |
 | `sync-league` | — | `python -m src.ingestion.sync_league --season $(CURRENT_YEAR)` |
+| `trade-candidates` | `0 7 * * *` (America/Chicago)<br/>`30 12 * * 3,5` (America/Chicago) | `python -m src.jobs.trade_candidates` |
+| `trade-inbox` | `0 8-22/2 * * *` (America/Chicago) | `node src/bots/trade_inbox.js --refresh` |
+| `trade-scan` | `0 13 * * 3,5` (America/Chicago) | `node src/bots/trade_scan.js --stage` |
 | `waiver-trigger` | — | `python -m src.optimization.waiver_evaluator` |
 
 ### Chain: tuesday-weekly
@@ -47,15 +50,6 @@ flowchart LR
     lineup-optimizer -->|finish| waiver-trigger
     waiver-trigger -->|finish| rumor-action-trigger
 ```
-
-### Legacy CronJobs
-| CronJob | Cron expression | Timezone | What runs | Alerts |
-|---|---|---|---|---|
-| `fantasy-sync-actual-scores-reconcile` | `0 10 * * 5` | America/Chicago | `src.ingestion.sync_actual_scores` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `fantasy-trade-candidates` | `0 7 * * *` | America/Chicago | `src.jobs.trade_candidates` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `fantasy-trade-candidates-prescan` | `30 12 * * 3,5` | America/Chicago | `src.jobs.trade_candidates` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `trade-inbox` | `0 8-22/2 * * *` | America/Chicago | `src/bots/trade_inbox.js --refresh` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
-| `trade-scan` | `0 13 * * 3,5` | America/Chicago | `src/bots/trade_scan.js --stage` | Latest Job failed (`fantasy-cronjob-job-failed`)<br/>Missed > 120m (`fantasy-cronjob-missed-schedule`) |
 <!-- END GENERATED SCHEDULES -->
 
 ## Refresh the inventory
@@ -67,21 +61,10 @@ python3 scripts/generate-schedules.py
 python3 scripts/generate-schedules.py --check
 ```
 
-The `Docs schedules` workflow checks this section on documentation, catalog, manifest and alert changes. CronJobs represented by catalog jobs do not need legacy failed-Job and missed-schedule alerts; other live CronJobs must keep both. Chain edges show whether a step waits for its predecessor to succeed or finish, and latest times are shown on the relevant steps.
+The `Docs schedules` workflow checks this section on documentation, catalog and manifest changes. Chain edges show whether a step waits for its predecessor to succeed or finish, and latest times are shown on the relevant steps.
 
 ## Read the weekly order
 
-Tuesday's America/Chicago sequence leaves dependency headroom between runs:
+The `tuesday-weekly` chain above orders Tuesday's jobs by dependency; see [schedule order](cronjob-schedule-order.md). The other jobs are spaced by the clock. Friday's 10:00 actual-score reconciliation precedes the 12:30 trade candidates and the 13:00 trade scan. The daily 11:00 rumor digest precedes the 21:45 action trigger. These are clock offsets, not dependency enforcement: a failed or delayed producer still needs investigation.
 
-```mermaid
-flowchart LR
-    R[16:00 roster sync and metrics] --> S[17:05 actual scores]
-    S --> P[18:00 projections and VORP]
-    P --> L[19:15 lineup]
-    L --> W[20:30 waivers]
-    W --> A[21:45 rumor actions]
-```
-
-Friday's 10:00 actual-score reconciliation precedes the 13:00 trade scan. The daily 11:00 rumor digest precedes the 21:45 action trigger. These are clock offsets, not dependency enforcement: a failed or delayed producer still needs investigation.
-
-Related: [CronJob alert semantics and dependencies](cronjob-alerts.md), [Failed CronJob runbook](operations.md#investigate-a-failed-cronjob).
+Related: [Job alert semantics and dependencies](cronjob-alerts.md), [failed job runbook](operations.md#investigate-a-failed-job).
