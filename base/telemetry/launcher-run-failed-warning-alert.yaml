@@ -43,7 +43,7 @@ data:
             rawSql: |-
               SELECT r.job_name, COUNT(*)::double precision AS value
               FROM run_log r
-              JOIN unnest(ARRAY['espn-session-healthcheck', 'rapid-status-syncer', 'rumor-digest-bot', 'rumor-syncer', 'stale-draft-job-sweeper']::text[], ARRAY[2, 2, 2, 2, 2]::int[]) AS j(job_name, max_attempts) ON j.job_name = r.job_name
+              JOIN unnest(ARRAY['espn-session-healthcheck', 'metrics-extractor', 'projections-refresh', 'rapid-status-syncer', 'rumor-action-trigger', 'rumor-digest-bot', 'rumor-syncer', 'stale-draft-job-sweeper', 'sync-actual-scores', 'sync-league']::text[], ARRAY[2, 2, 1, 2, 3, 2, 2, 2, 2, 2]::int[]) AS j(job_name, max_attempts) ON j.job_name = r.job_name
               WHERE r.finished_at > now() - interval '10 minutes'
                 AND (
                   (

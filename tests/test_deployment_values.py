@@ -46,7 +46,7 @@ class DeploymentValuesTest(unittest.TestCase):
                     for key in IDS:
                         self.assertEqual(env[key], {'name': key, 'valueFrom': {
                             'secretKeyRef': {'name': 'espn-session-secrets', 'key': key}}})
-                self.assertEqual(len(consumers), 12)
+                self.assertEqual(len(consumers), 7)
                 gateway = next(c for c in containers(resources[('Deployment', 'fantasy-core-pipeline')])
                                if c['name'] == 'gateway')
                 env = {e['name']: e for e in gateway['env']}

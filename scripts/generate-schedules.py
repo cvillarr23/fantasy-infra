@@ -14,9 +14,6 @@ END = '<!-- END GENERATED SCHEDULES -->'
 # TODO: Maps legacy CronJob names to catalog job names; remove it when cutover
 # batch C (cvillarr23/fantasy-infra#182) deletes the last CronJob.
 LEGACY_CATALOG_ALIASES = {
-    'draft-prep-refresher': 'projections-refresh',
-    'weekly-ingestor': 'sync-league',
-    'weekly-waiver-trigger': 'waiver-trigger',
     'sync-actual-scores-reconcile': 'sync-actual-scores',
     'trade-candidates-prescan': 'trade-candidates',
 }
@@ -118,10 +115,6 @@ def inventory():
                 commands.append('`' + command[command.index('-m') + 1] + '`')
             elif command and command[0] == 'node':
                 commands.append('`' + ' '.join(command[1:]) + '`')
-            elif container['name'] == 'draft-prep-refresher':
-                commands.append('Projection → K/D-ST → VORP supervisor (up to four weeks)')
-            elif container['name'] == 'waiver-trigger':
-                commands.append('`src.optimization.waiver_evaluator` (resolves upcoming week)')
             else:
                 raise ValueError(f'{name}: add a public summary for {container["name"]}')
         timezone = spec.get('timeZone', 'Unset (controller timezone; UTC in this deployment)')
