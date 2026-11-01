@@ -164,6 +164,8 @@ kube_job_failed * on (exported_namespace,job_name) group_left (owner_name)
 
 ## Testing and adding coverage
 
+Removing a rule's file does not remove the rule: Grafana keeps a provisioned rule until a `deleteRules` entry names its UID. List the UID in `base/telemetry/delete-orphaned-alert-rules.yaml` in the same PR that drops the rule, or it keeps firing on no data.
+
 The [CronJob alerts workflow](https://github.com/cvillarr23/fantasy-infra/blob/main/.github/workflows/cronjob-alerts.yml) runs the suite in CI on pull requests and pushes to `main` that change any of these:
 
 - telemetry or the CronJob Health dashboard
