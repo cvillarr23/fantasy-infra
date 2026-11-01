@@ -1,8 +1,7 @@
-"""Keep rendered weekly consumers behind publication and upstream Job deadlines."""
+"""Keep rendered weekly consumers behind publication and upstream run deadlines."""
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import re
 import subprocess
 import unittest
 from zoneinfo import ZoneInfo
@@ -27,12 +26,36 @@ def launcher_catalog(docs):
     return yaml.load(data, Loader=yaml.BaseLoader)
 
 
-class Slot(dict):
-    """A catalog schedule shaped like the CronJob fields scheduled_time reads."""
+class Slot:
+    """One catalog schedule, with the run limits of the job it belongs to."""
 
-    def __init__(self, schedule, deadline):
-        super().__init__(spec={"schedule": schedule["cron"], "timeZone": schedule["tz"],
-                               "jobTemplate": {"spec": {"activeDeadlineSeconds": deadline}}})
+    def __init__(self, schedule, deadline="0m", attempts=1):
+        self.cron = schedule["cron"]
+        self.tz = schedule["tz"]
+        self.catch_up = timedelta(seconds=seconds(schedule["catch_up"]))
+        self.run_limit = timedelta(seconds=seconds(deadline) * attempts)
+
+    def latest_finish(self, start):
+        """When a run of this slot is over at the latest: a start delayed to the end of its
+        catch_up window, then every attempt reaching its deadline."""
+        return start + self.catch_up + self.run_limit
+
+
+def job_slot(catalog, name, cron):
+    job = catalog["jobs"][name]
+    (schedule,) = [s for s in job["schedules"] if s["cron"] == cron]
+    return Slot(schedule, job.get("deadline") or catalog["defaults"]["deadline"],
+                int(job.get("max_attempts") or catalog["defaults"]["max_attempts"]))
+
+
+def schedule_slots(catalog):
+    return {
+        "projections-refresh": job_slot(catalog, "projections-refresh", "0 18 * * *"),
+        "reconcile": job_slot(catalog, "sync-actual-scores", "0 10 * * 5"),
+        "trade-candidates": job_slot(catalog, "trade-candidates", "0 7 * * *"),
+        "trade-candidates-prescan": job_slot(catalog, "trade-candidates", "30 12 * * 3,5"),
+        "trade-scan": job_slot(catalog, "trade-scan", "0 13 * * 3,5"),
+    }
 
 
 class WeeklyScheduleTest(unittest.TestCase):
@@ -47,26 +70,19 @@ class WeeklyScheduleTest(unittest.TestCase):
             docs = {(doc["kind"], doc["metadata"]["name"]): doc
                     for doc in yaml.safe_load_all(rendered) if doc}
             catalog = launcher_catalog(docs)
-            jobs = {name: doc for (kind, name), doc in docs.items() if kind == "CronJob"}
-            # The daily refresh moved to the launcher; the trade jobs still order against it.
-            refresh = catalog["jobs"]["projections-refresh"]
-            (schedule,) = refresh["schedules"]
-            jobs["projections-refresh"] = Slot(schedule, seconds(
-                refresh.get("deadline") or catalog["defaults"]["deadline"]))
-            cls.overlays[overlay] = jobs
+            cls.overlays[overlay] = schedule_slots(catalog)
             cls.catalogs[overlay] = catalog
 
-    def scheduled_time(self, job, day, weekday):
-        self.assertEqual(job["spec"]["timeZone"], "America/Chicago")
-        minute, hour, month_day, month, weekdays = job["spec"]["schedule"].split()
+    def scheduled_time(self, slot, day, weekday):
+        self.assertEqual(slot.tz, "America/Chicago")
+        minute, hour, month_day, month, weekdays = slot.cron.split()
         self.assertEqual((month_day, month), ("*", "*"))
         self.assertIn(weekdays, ("*", weekday))
         return day.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
 
     def test_tuesday_chain_starts_after_publication_across_dst(self):
         for overlay, catalog in self.catalogs.items():
-            schedule = catalog["chains"]["tuesday-weekly"]["schedule"]
-            chain = Slot(schedule, 0)
+            chain = Slot(catalog["chains"]["tuesday-weekly"]["schedule"])
             for date in ((2026, 10, 13), (2026, 11, 3)):
                 with self.subTest(overlay=overlay, date=date):
                     start = self.scheduled_time(chain, datetime(*date, tzinfo=CENTRAL), "2")
@@ -86,8 +102,10 @@ class WeeklyScheduleTest(unittest.TestCase):
                                  ["0 18 * * *"])
                 self.assertEqual([s["cron"] for s in jobs["rumor-action-trigger"]["schedules"]],
                                  ["45 21 * * *"])
-                for name in ("sync-league", "metrics-extractor", "sync-actual-scores",
-                             "lineup-optimizer", "waiver-trigger"):
+                # Scores run as a chain step on Tuesday and on their own only for Friday's reconcile.
+                self.assertEqual([s["cron"] for s in jobs["sync-actual-scores"]["schedules"]],
+                                 ["0 10 * * 5"])
+                for name in ("sync-league", "metrics-extractor", "lineup-optimizer", "waiver-trigger"):
                     self.assertNotIn("schedules", jobs[name], name)
                 # The roster sync is the chain's first step, so metrics and decisions follow it.
                 (first,) = [name for name, step in catalog["chains"]["tuesday-weekly"]["steps"].items()
@@ -99,83 +117,50 @@ class WeeklyScheduleTest(unittest.TestCase):
                                  ["python", "-m", "src.ingestion.metrics_extractor"])
 
     def test_trade_scan_follows_previous_evening_refresh(self):
-        for overlay, jobs in self.overlays.items():
+        for overlay, slots in self.overlays.items():
             for date in ((2026, 10, 14), (2026, 10, 16), (2026, 11, 4), (2026, 11, 6)):
                 with self.subTest(overlay=overlay, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
-                    scan = self.scheduled_time(jobs["trade-scan"], day, "3,5")
-                    refresh = self.scheduled_time(jobs["projections-refresh"], day - timedelta(days=1), "*")
-                    deadline = jobs["projections-refresh"]["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
-                    self.assertGreater(scan, refresh + timedelta(seconds=deadline))
+                    scan = self.scheduled_time(slots["trade-scan"], day, "3,5")
+                    refresh = self.scheduled_time(slots["projections-refresh"], day - timedelta(days=1), "*")
+                    self.assertGreater(scan, slots["projections-refresh"].latest_finish(refresh))
 
-    def test_score_reconciliation_precedes_friday_trade_scan(self):
-        for overlay, jobs in self.overlays.items():
+    def test_score_reconciliation_precedes_friday_trade_jobs(self):
+        for overlay, slots in self.overlays.items():
             for date in ((2026, 10, 16), (2026, 11, 6)):
                 with self.subTest(overlay=overlay, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
-                    job = jobs["fantasy-sync-actual-scores-reconcile"]
-                    start = self.scheduled_time(job, day, "5")
-                    end = start + timedelta(
-                        seconds=job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
-                    self.assertLess(end, self.scheduled_time(jobs["trade-scan"], day, "3,5"))
-                    # Also finishes before that evening's refresher.
-                    refresh = self.scheduled_time(jobs["projections-refresh"], day, "*")
-                    self.assertLess(end, refresh)
+                    reconcile = slots["reconcile"]
+                    end = reconcile.latest_finish(self.scheduled_time(reconcile, day, "5"))
+                    self.assertLess(end, self.scheduled_time(slots["trade-candidates-prescan"], day, "3,5"))
+                    # Also finishes before that evening's refresh.
+                    self.assertLess(end, self.scheduled_time(slots["projections-refresh"], day, "*"))
 
     def test_trade_candidates_finish_before_consumers_across_dst(self):
-        for overlay, jobs in self.overlays.items():
-            self.assertIn("fantasy-trade-candidates", jobs)
-            self.assertIn("fantasy-trade-candidates-prescan", jobs)
+        for overlay, slots in self.overlays.items():
             for date in ((2026, 10, 14), (2026, 10, 16), (2026, 11, 4), (2026, 11, 6)):
                 with self.subTest(overlay=overlay, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
-                    daily = self.scheduled_time(jobs["fantasy-trade-candidates"], day, "*")
-                    prescan_job = jobs["fantasy-trade-candidates-prescan"]
-                    prescan = self.scheduled_time(prescan_job, day, "3,5")
+                    daily = self.scheduled_time(slots["trade-candidates"], day, "*")
+                    prescan = self.scheduled_time(slots["trade-candidates-prescan"], day, "3,5")
                     self.assertEqual((daily.hour, daily.minute), (7, 0))
                     self.assertEqual((prescan.hour, prescan.minute), (12, 30))
-                    refresh_job = jobs["projections-refresh"]
-                    refresh = self.scheduled_time(refresh_job, day - timedelta(days=1), "*")
-                    refresh_end = refresh + timedelta(seconds=refresh_job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
-                    self.assertGreater(daily, refresh_end)
-                    latest_finish = prescan + timedelta(
-                        seconds=prescan_job["spec"]["startingDeadlineSeconds"]
-                        + prescan_job["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"])
-                    self.assertLess(latest_finish, self.scheduled_time(jobs["trade-scan"], day, "3,5"))
+                    refresh = self.scheduled_time(slots["projections-refresh"], day - timedelta(days=1), "*")
+                    self.assertGreater(daily, slots["projections-refresh"].latest_finish(refresh))
+                    self.assertLess(slots["trade-candidates-prescan"].latest_finish(prescan),
+                                    self.scheduled_time(slots["trade-scan"], day, "3,5"))
 
-    def test_score_sync_env_secrets_and_safety(self):
-        secret_refs = {
-            "DB_PASSWORD": ("database-credentials", "postgres-password"),
-            "ESPN_S2": ("espn-session-secrets", "espn_s2"),
-            "ESPN_SWID": ("espn-session-secrets", "swid"),
-        }
-        for overlay, jobs in self.overlays.items():
-            for name in ("fantasy-sync-actual-scores-reconcile",):
-                with self.subTest(overlay=overlay, name=name):
-                    spec = jobs[name]["spec"]
-                    self.assertEqual(spec["concurrencyPolicy"], "Forbid")
-                    job = spec["jobTemplate"]["spec"]
-                    self.assertEqual(job["backoffLimit"], 1)
-                    self.assertEqual(job["activeDeadlineSeconds"], 1800)
-                    pod = job["template"]["spec"]
-                    self.assertEqual(pod["restartPolicy"], "Never")
-                    (container,) = pod["containers"]
-                    self.assertEqual(container["command"], [
-                        "python", "-m", "src.ingestion.sync_actual_scores", "--season", "2026"])
-                    self.assertNotIn("args", container)
-                    self.assertRegex(container["image"],
-                                     r"^ghcr\.io/cvillarr23/fantasy-core-pipeline@sha256:[0-9a-f]{64}$")
-                    self.assertEqual(container["envFrom"],
-                                     [{"configMapRef": {"name": "fantasy-league-config"}}])
-                    env = {item["name"]: item for item in container["env"]}
-                    for var, (secret, key) in secret_refs.items():
-                        self.assertNotIn("value", env[var])
-                        self.assertEqual(env[var]["valueFrom"]["secretKeyRef"],
-                                         {"name": secret, "key": key})
-                    self.assertEqual(env["REDIS_HOST"]["value"],
-                                     "fantasy-cache.default.svc.cluster.local")
-                    self.assertFalse(any(re.search(r"espn_s2|swid", part, re.I)
-                                         for part in container["command"]))
+    def test_score_reconcile_keeps_its_limits_and_env(self):
+        for overlay, catalog in self.catalogs.items():
+            with self.subTest(overlay=overlay):
+                job = catalog["jobs"]["sync-actual-scores"]
+                self.assertEqual(job["command"], ["python", "-m", "src.ingestion.sync_actual_scores",
+                                                  "--season", "$(CURRENT_YEAR)"])
+                self.assertEqual((job["deadline"], job["max_attempts"]), ("30m", "2"))
+                # db, espn and redis (k8s.BUNDLES in core) carry the credentials the sync reads;
+                # league-config carries CURRENT_YEAR.
+                secrets = catalog["profiles"][job["profile"]]["secrets"]
+                self.assertLessEqual({"db", "espn", "redis", "league-config"}, set(secrets))
 
     def test_acting_jobs_get_espn_session_cookies_and_the_trigger_api_key(self):
         # These refresh rosters through sync_league first; without the ESPN cookies that

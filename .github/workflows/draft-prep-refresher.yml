@@ -2,9 +2,8 @@ name: Core pipeline refresh and schedules
 on:
   pull_request:
     paths:
-      - 'base/core-pipeline/*cronjob.yaml'
       - 'base/core-pipeline/fastapi-deployment.yaml'
-      - 'base/browser-worker/trade-scan-cronjob.yaml'
+      - 'base/launcher/catalog.yaml'
       - 'overlays/**'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_auto_publish_ir_moves.py'
@@ -13,9 +12,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'base/core-pipeline/*cronjob.yaml'
       - 'base/core-pipeline/fastapi-deployment.yaml'
-      - 'base/browser-worker/trade-scan-cronjob.yaml'
+      - 'base/launcher/catalog.yaml'
       - 'overlays/**'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_auto_publish_ir_moves.py'

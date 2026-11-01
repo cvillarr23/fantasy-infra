@@ -110,7 +110,7 @@ spec:
               # Arms live trade submission on this queue worker only. TRADE_DRY_RUN is read by
               # trade_builder alone, so the shared DRY_RUN stays unset and waivers, the draft
               # clicker and trade responses stay dry. A send still needs a matching human
-              # approval. Keep these off the shared ConfigMap and the trade CronJobs: scans must
+              # approval. Keep these off the shared ConfigMap and the launcher's trade jobs: scans must
               # keep dry-filling. A worker image that predates TRADE_DRY_RUN ignores it and stays dry.
               - name: TRADE_DRY_RUN
                 value: "false"

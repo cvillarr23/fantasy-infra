@@ -24,11 +24,13 @@ def provisioned(docs):
 
 
 class DeletedAlertRulesTest(unittest.TestCase):
-    def test_cut_over_missed_schedule_rules_are_deleted(self):
+    def test_cut_over_cronjob_rules_are_deleted(self):
         files = provisioned(rendered_telemetry())
         live = {r["uid"] for f in files for g in f.get("groups", []) for r in g["rules"]}
         deleted = {r["uid"] for f in files for r in f.get("deleteRules", [])}
-        self.assertEqual(deleted, {"fantasy-cronjob-missed-schedule-rumor",
+        self.assertEqual(deleted, {"fantasy-cronjob-job-failed",
+                                   "fantasy-cronjob-missed-schedule",
+                                   "fantasy-cronjob-missed-schedule-rumor",
                                    "fantasy-cronjob-missed-schedule-sweeper",
                                    "fantasy-cronjob-missed-schedule-rapid"})
         self.assertFalse(live & deleted, "a rule cannot be both provisioned and deleted")

@@ -20,7 +20,7 @@ flowchart LR
 
 | Path | Purpose |
 |---|---|
-| `base/` | Databases, API, UI, OAuth proxy, CronJobs, worker scaler, telemetry and image updater resources |
+| `base/` | Databases, API, UI, OAuth proxy, job launcher, worker scaler, telemetry and image updater resources |
 | `overlays/production/` | Base plus configuration, ExternalSecrets and application image digests |
 | `overlays/draft-day/` | Inherits production; increases API resources and Postgres buffers/connections, keeps one worker warm and disables its idle exit |
 
@@ -80,16 +80,16 @@ The registered Application selects production. Merging draft-day patches does no
 | Image Updater | This repository's `base/argocd-image-updater/`; GHCR registry configuration, RBAC and deployment in `argocd` |
 | Update annotations | On `fantasy-infra`; `digest` strategy for API, UI and browser-worker `latest`, Git write-back to `main`, target `kustomization` |
 
-The production `images` transformer pins application `image:` fields, including CronJobs and the ScaledJob. Replacements also copy the transformed API and worker images into `DRAFT_SYNC_IMAGE` and `BROWSER_WORKER_IMAGE`, which the API uses for runtime-created draft Jobs.
+The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into `DRAFT_SYNC_IMAGE` and `BROWSER_WORKER_IMAGE`, which the API uses for runtime-created draft Jobs, and into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches.
 
 :::warning[Existing Jobs keep their image]
-Changing a CronJob or ScaledJob template affects future Jobs. Inspect active Jobs separately; deployment health alone does not prove every workload uses the new digest.
+Changing the catalog, an image or a ScaledJob template affects future Jobs. Inspect active Jobs separately; deployment health alone does not prove every workload uses the new digest.
 :::
 
 ## Validate before merging
 
 :::info[Prerequisites]
-Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+ for CronJob timezones, Argo CD, KEDA, Tailscale ingress, a default StorageClass, and OpenBao with External Secrets Operator.
+Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+, Argo CD, KEDA, Tailscale ingress, a default StorageClass, and OpenBao with External Secrets Operator.
 :::
 
 1. Render both overlays locally:

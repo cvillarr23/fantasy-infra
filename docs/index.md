@@ -11,7 +11,7 @@ Argo CD deploys this repository's Kubernetes manifests. Start here to trace a re
 flowchart LR
     Git[Infra Git repository] -->|production overlay| Argo[Argo CD]
     Argo -->|reconcile| Apps[API and UI]
-    Argo -->|templates| Jobs[CronJobs and KEDA workers]
+    Argo -->|templates| Jobs[Job launcher and KEDA workers]
     Bao[OpenBao] -->|External Secrets Operator| Secrets[Kubernetes Secrets]
     Secrets -->|credentials| Apps
     Secrets -->|credentials| Jobs
@@ -24,9 +24,9 @@ flowchart LR
 | Trace a merge and verify image digests | [Deployment](deployment.md) |
 | Find ports, authentication boundaries and DNS ownership | [Networking](networking.md) |
 | Back up, restore or inspect database access | [Databases](databases.md) |
-| Look up every CronJob and its alert | [Schedules](schedules.md) |
+| Look up every scheduled job | [Schedules](schedules.md) |
 | Recover a failed job, session, queue or release | [Operations](operations.md) |
-| Understand how jobs start and why CronJobs are going away | [ADR 0001: Unified job launcher](adr/0001-unified-job-launcher.md) |
+| Understand how jobs start and why the launcher replaced CronJobs | [ADR 0001: Unified job launcher](adr/0001-unified-job-launcher.md) |
 | Understand credential delivery and rotation | [Secrets](secrets.md) |
 
 :::note[Repository boundary]

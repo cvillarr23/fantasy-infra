@@ -3,8 +3,6 @@ kind: Kustomization
 # Grafana alert rules, discovered by homelab-deployment's alert-sidecar via the
 # grafana_alert: "1" label (see docs/cronjob-alerts.md).
 resources:
-  - cronjob-job-failed-alert.yaml
-  - cronjob-missed-schedule-alert.yaml
   - rumor-action-outcome-alert.yaml
   - delete-orphaned-alert-rules.yaml
   - launcher-heartbeat-alert.yaml

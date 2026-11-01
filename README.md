@@ -17,7 +17,7 @@ this repository's `docs/` under `/infra` and rebuilds after docs changes land on
 | GitOps, overlays and running digests | [Deployment](docs/deployment.md) |
 | Services, access boundaries, queues and DNS | [Networking](docs/networking.md) |
 | Storage, backup, restore and reader role | [Databases](docs/databases.md) |
-| Generated CronJob inventory | [Schedules](docs/schedules.md) |
+| Generated job inventory | [Schedules](docs/schedules.md) |
 | Incident recovery and rollback | [Operations](docs/operations.md) |
 | OpenBao and credential delivery | [Secrets](docs/secrets.md) |
 

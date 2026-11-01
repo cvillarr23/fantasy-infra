@@ -1,4 +1,4 @@
-# Application outcomes complement the failed/missed CronJob rules (#140).
+# Application outcomes complement the launcher's run-failed rule.
 # Retain failures for 26h: #192's fail-open watermark can turn a retry into an empty
 # success. A latest-row query would hide that lost work. Zero actions is not failure.
 # UID/group retained from homelab-deployment; remove its old provisioning file first.

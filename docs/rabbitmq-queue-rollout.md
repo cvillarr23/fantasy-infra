@@ -51,7 +51,7 @@ Merging the infra PR can trigger Argo CD to replace the RabbitMQ pod. This gate 
 
 Replacing an older ephemeral broker can discard every message still in it. **Don't merge or sync the infra PR until the operator approves this gate.** Never reuse an earlier empty-queue observation as evidence for a new rollout.
 
-1. Pause all AMQP publishers and consumers, including the core API, producer CronJobs and browser-worker Jobs. Wait for active Jobs and deliveries to finish, and keep everything paused through the broker replacement.
+1. Pause all AMQP publishers and consumers, including the core API, the job launcher and browser-worker Jobs. Wait for active Jobs and deliveries to finish, and keep everything paused through the broker replacement.
 2. Run the first command below twice, at least one minute apart. Include every queue returned, including any `.dlq`. Every `messages_ready` and `messages_unacknowledged` value must be zero.
 3. If any value is nonzero, **stop the rollout and leave the current pod running**. Drain or transfer those messages under a separate operator-approved procedure, then repeat this gate. Don't delete queues or reset broker data.
 4. Approve the infra merge and Argo CD sync. Its `Recreate` strategy starts one broker against the new `fantasy-broker-data` PVC, with a stable Erlang node hostname. Wait for the PVC to bind and the pod to become ready.
@@ -125,6 +125,6 @@ An empty or absent queue isn't a reason to enqueue a test trade response. Keep `
 
 The queue worker's container (the `fantasy-browser-worker-scaler` ScaledJob) sets `TRADE_DRY_RUN=false` and `TRADE_SUBMIT_ENABLED=true`. Only the trade builder reads `TRADE_DRY_RUN`, so `DRY_RUN` stays unset everywhere and the waiver sniper, draft clicker and trade responses stay dry. A message on `trade_submissions` still sends nothing unless it carries a human approval matching the offer, and the worker's selector and counter-linkage locks still apply.
 
-The trade-scan and trade-inbox CronJobs and the shared `fantasy-league-config` ConfigMap don't set either variable, so scans keep dry-filling.
+The launcher's trade-scan and trade-inbox jobs and the shared `fantasy-league-config` ConfigMap don't set either variable, so scans keep dry-filling.
 
 Deploy a worker image that supports `TRADE_DRY_RUN` before syncing this change. An older image ignores the variable and stays dry, which is a safe ordering.

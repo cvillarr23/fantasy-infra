@@ -1,5 +1,4 @@
 # Job catalog read by the launcher at startup (docs/adr/0001-unified-job-launcher.md).
-# A job is added here in the same PR that removes its CronJob: a job in both places runs twice.
 version: 1
 global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
 # NFL regular-season weeks; the scheduler maps them to game dates. The calendar reads only
@@ -11,7 +10,9 @@ profiles:
   # The fantasy-core-pipeline SA is bound to draft-sync-orchestrator (jobs get/list/delete),
   # which the stale draft Job sweeper needs; as `default` every run 403s listing jobs.batch.
   core-ops: {image: CORE_IMAGE, serviceAccount: fantasy-core-pipeline, secrets: [db, redis, trigger-api, amqp]}
-  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, volumes: [espn-session-state]}
+  # Browser bots: stored ESPN session state and the browser-worker SA. Only the scan gets LLM keys.
+  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config], volumes: [espn-session-state]}
+  worker-scan: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, llm], volumes: [espn-session-state]}
   # Worker bots that never drive a browser, so no browser-worker SA or stored session state.
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify]}
@@ -63,12 +64,18 @@ jobs:
     profile: core
     command: [python, -m, src.ingestion.metrics_extractor]
     max_attempts: 2
-  # The Friday reconcile run stays a CronJob until batch C.
+  # Tuesday's run is a chain step. Friday's reconcile picks up a week Tuesday couldn't store yet
+  # (stats not official, a postponed game) plus ESPN stat corrections, before the trade jobs score
+  # opponents: catch_up 1h ends both attempts by 12:00, ahead of the 12:30 candidates. A week ESPN
+  # hasn't finished fails the run instead of being guessed, and earlier weeks stay committed.
+  # Retrying is safe: each week is replaced in one transaction under an advisory lock.
   sync-actual-scores:
     profile: core
     command: [python, -m, src.ingestion.sync_actual_scores, --season, $(CURRENT_YEAR)]
     deadline: 30m
     max_attempts: 2
+    schedules:
+      - {cron: '0 10 * * 5', tz: America/Chicago, catch_up: 1h}
   # One attempt: a retry would replay the already committed target week. The next daily run
   # refreshes the whole horizon.
   projections-refresh:
@@ -100,6 +107,38 @@ jobs:
     acts: true
     schedules:
       - {cron: '45 21 * * *', tz: America/Chicago, catch_up: 1h}
+  # The trade jobs stay at one attempt: never auto-retry them.
+  # Daily after the evening refresh, and again before the Wed/Fri scan. The 12:30 slot's two-minute
+  # window plus the deadline keep even a late run clear of the 13:00 scan. The expensive
+  # league-wide scoring is not replayed automatically.
+  trade-candidates:
+    profile: core
+    command: [python, -m, src.jobs.trade_candidates]
+    deadline: 25m
+    schedules:
+      - {cron: '0 7 * * *', tz: America/Chicago, catch_up: 1h}
+      - {cron: '30 12 * * 3,5', tz: America/Chicago, catch_up: 2m}
+  # Stages outgoing proposals for human review; a retry would generate a different pitch and
+  # offer_key. Scheduled runs share a daily claim that manual runs skip, so the UI confirms them.
+  # Trade sends are armed on the KEDA ScaledJob only: nothing here may set TRADE_DRY_RUN or
+  # TRADE_SUBMIT_ENABLED, so scans keep dry-filling. The deadline sits above the CLI's 15m bound.
+  trade-scan:
+    profile: worker-scan
+    command: [node, src/bots/trade_scan.js, --stage]
+    deadline: 16m
+    acts: true
+    resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
+    schedules:
+      - {cron: '0 13 * * 3,5', tz: America/Chicago, catch_up: 30m}
+  # Persists incoming offers for review and only reads ESPN. The deadline leaves startup headroom
+  # above the CLI's ten-minute bound.
+  trade-inbox:
+    profile: worker
+    command: [node, src/bots/trade_inbox.js, --refresh]
+    deadline: 11m
+    resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
+    schedules:
+      - {cron: '0 8-22/2 * * *', tz: America/Chicago, catch_up: 30m}
 # Data steps need their parent's success. The refresh and the acting steps run once their parent
 # finishes, so a failed ingestion still refreshes projections and still sets the lineup. `latest`
 # keeps the old CronJob times as upper bounds. On Tuesday the standalone 18:00 and 21:45 slots
