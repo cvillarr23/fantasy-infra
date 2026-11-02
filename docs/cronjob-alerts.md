@@ -38,7 +38,7 @@ There is no per-job missed-schedule rule.
 | Situation | What you see |
 |---|---|
 | The launcher is down | The heartbeat alert. Once it's back, a slot still inside its `catch_up` window fires late |
-| A slot can't start inside its `catch_up` window because the pod cap is full | `skipped (expired)`, reported by the run-failed rule |
+| A scheduled slot can't start inside its `catch_up` window because the pod cap is full | `skipped (expired)`, reported by the run-failed rule |
 | The launcher was down for longer than a slot's window | The slot never fires and leaves no `run_log` row. Compare `run_log` with the [schedule inventory](schedules.md) after an outage |
 | A run hangs | It ends `timeout` at its `deadline`, reported by the run-failed rule on the last attempt |
 | A run succeeds but did nothing useful | No alert. Check the job's logs and [application outcomes](cronjob-application-outcomes.md) |
@@ -79,7 +79,7 @@ The heartbeat is arriving but the launcher couldn't read a queue's depth: `job_r
 
 These rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names and `max_attempts` at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
 
-Each rule returns one series per job, so the page names the job, and carries a `severity` label (`critical` or `warning`) to route on. A failure or timeout alerts only on a job's last attempt (`attempt >= max_attempts`), or when a chain step's root has already ended, since the watcher can no longer retry it. Skips with `end_reason` `paused`, `chain_step`, `max_duration` or `chain_ended` are excluded: a chain timeout alerts once, on the chain rule. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
+Each rule returns one series per job, so the page names the job, and carries a `severity` label (`critical` or `warning`) to route on. A failure or timeout alerts only on a job's last attempt (`attempt >= max_attempts`), or when a chain step's root has already ended, since the watcher can no longer retry it. Skips with `end_reason` `paused`, `chain_step`, `max_duration` or `chain_ended` are excluded: a chain timeout alerts once, on the chain rule. Event-triggered runs (`trigger_type = 'event'`) also drop `overlap` and `expired` skips: an event is a speed-up over the job's schedule, so one that finds the job busy or can't start in time is routine, and the next event or scheduled slot covers it. Schedule and chain skips keep alerting. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
 
 ```bash
 kubectl get jobs -n default -l fantasy.job=<job> --sort-by=.metadata.creationTimestamp
