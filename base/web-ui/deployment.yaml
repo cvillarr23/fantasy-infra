@@ -29,6 +29,8 @@ spec:
                 secretKeyRef:
                   name: trigger-api-key
                   key: trigger-api-key
+            - name: GRAFANA_URL
+              value: https://grafana.banjo-chroma.ts.net/
 
           livenessProbe:
             httpGet:
