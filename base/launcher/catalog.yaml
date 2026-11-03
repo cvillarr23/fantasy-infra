@@ -19,8 +19,9 @@ profiles:
   # amqp lets the digest publish rumor.signal_created to job_events.
   worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify, amqp]}
 defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
-# Deadlines sit just under each schedule interval, as the CronJobs' activeDeadlineSeconds did,
-# and max_attempts: 2 keeps their backoffLimit: 1. Frequent jobs never fire a missed slot.
+# Deadlines sit just under each schedule interval, as the CronJobs' activeDeadlineSeconds did
+# (rumor-action-trigger's is shorter, see below), and max_attempts: 2 keeps their backoffLimit: 1.
+# Frequent jobs never fire a missed slot.
 jobs:
   rumor-syncer:
     profile: core
@@ -104,13 +105,15 @@ jobs:
     acts: true
   # Each digest's signals start a run within minutes. The 21:45 slot stays, since emission has no
   # outbox, and settles the signals core holds for fresh VORP. The digest emits one event per
-  # signal, so a 30m debounce collapses its burst into one run. `queue` makes the chain step and
-  # the 21:45 slot wait for an event run still in flight instead of skipping as overlap; the
-  # deadline sits under the shortest wait (an event's 30m). Live runs take about 3s.
+  # signal; debounce windows are fixed :00/:30 boundaries, so a burst usually starts one run (two
+  # back to back if it crosses a boundary). `queue` makes the chain step and the 21:45 slot wait
+  # for an event run still in flight instead of skipping as overlap. A run whose pod dies holds
+  # the job for its deadline plus the watcher's 10m orphan grace: 15m + 10m stays under the
+  # shortest wait (an event's 30m). Live runs take under 4s.
   rumor-action-trigger:
     profile: core
     command: [python, -m, src.services.rumor_action_service, --team-id, $(ESPN_TEAM_ID), --season, $(CURRENT_YEAR)]
-    deadline: 20m
+    deadline: 15m
     max_attempts: 3
     overlap: queue
     acts: true

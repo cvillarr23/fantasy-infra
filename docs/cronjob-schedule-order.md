@@ -26,7 +26,7 @@ flowchart LR
 | `finish` | The refresh and the acting steps. The step runs once its parent ends, whatever its status, as the CronJobs did. A failed ingestion still refreshes projections and still sets the lineup. |
 | `latest` | The old CronJob times stay as upper bounds: lineup, waivers and rumor actions start by then even if their parent is still running. |
 
-Each step keeps its old CronJob's deadline and retries. The chain ends after 8 hours (`max_duration`), skipping any step that hasn't started. On Tuesday, the refresh's own 18:00 slot and rumor actions' 21:45 slot are skipped (`chain_step`) while the chain covers them. If the chain skipped the refresh, the 18:00 slot still runs it.
+Each step keeps its old CronJob's deadline and retries, except `rumor-action-trigger`: its 15-minute deadline keeps a dead run's hold (deadline plus the watcher's 10-minute orphan grace) under the 30-minute wait of an event run queued behind it. The chain ends after 8 hours (`max_duration`), skipping any step that hasn't started. On Tuesday, the refresh's own 18:00 slot and rumor actions' 21:45 slot are skipped (`chain_step`) while the chain covers them. If the chain skipped the refresh, the 18:00 slot still runs it.
 
 | Job | Placement reason |
 |---|---|

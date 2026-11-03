@@ -104,7 +104,7 @@ The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
 
 ## Incoming trade inbox
 
-`trade-inbox` runs `node src/bots/trade_inbox.js --refresh`. It only reads ESPN and persists incoming offers in Postgres.
+`trade-inbox` runs `node src/bots/trade_inbox.js --refresh`. It only reads ESPN, persists incoming offers in Postgres, and publishes `trade.offer_received` to `job_events` for each new offer.
 
 | Setting | Value |
 |---|---|
@@ -115,6 +115,7 @@ The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
 | Concurrency | `overlap: forbid` and no automatic retry (`max_attempts` stays 1). Manual or delayed runs aren't globally serialized with the trade scan. |
 | Core URL | Worker default `http://fantasy-core-pipeline.default.svc.cluster.local:8000`, matching trade-scan |
 | Score timeout | Defaults to 20000 ms. `TRADE_SCORE_TIMEOUT_MS` stays unset. |
+| Events | `AMQP_URL` from the `amqp` bundle (`rabbitmq-credentials`), for `trade.offer_received`. No job subscribes to it yet. |
 
 Each active-season refresh does the following:
 

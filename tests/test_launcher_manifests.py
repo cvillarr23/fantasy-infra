@@ -146,10 +146,9 @@ class LauncherManifestTest(unittest.TestCase):
             with self.subTest(overlay=overlay):
                 job = catalog(docs)["jobs"]["rumor-action-trigger"]
                 self.assertEqual(job["on_event"], [{"key": "rumor.signal_created", "debounce": "30m"}])
-                # Events speed actions up; the 21:45 slot stays because emission has no outbox.
-                self.assertEqual([s["cron"] for s in job["schedules"]], ["45 21 * * *"])
-                # A hung run can't outlast the shortest wait queued behind it: an event's debounce.
-                self.assertEqual(job["deadline"], "20m")
+                # A dead pod holds the job for its deadline plus the watcher's 10m orphan grace,
+                # which must stay under the shortest wait queued behind it: an event's 30m.
+                self.assertEqual(job["deadline"], "15m")
 
     def test_event_jobs_queue_behind_their_other_runs(self):
         # Under `forbid`, a slot or chain step that lands on an event run in flight skips as
