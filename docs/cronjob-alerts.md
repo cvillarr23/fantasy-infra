@@ -39,7 +39,7 @@ There is no per-job missed-schedule rule.
 |---|---|
 | The launcher is down | The heartbeat alert. Once it's back, a slot still inside its `catch_up` window fires late |
 | A scheduled slot can't start inside its `catch_up` window because the pod cap is full | `skipped (expired)`, reported by the run-failed rule |
-| An event run finds its job busy or can't start in time | No alert, by design: the next event or the job's scheduled slot covers it. Under `overlap: queue` (`rumor-action-trigger`) it waits for the busy run instead of skipping `overlap`, and ends `skipped (expired)` only if it can't start within its debounce window |
+| An event run finds its job busy or can't start in time | No alert for a job with a schedule or chain step, by design: the next event or the scheduled slot covers it. A job with `on_event` and neither alerts, since nothing else would run it. Under `overlap: queue` (`rumor-action-trigger`) it waits for the busy run instead of skipping `overlap`, and ends `skipped (expired)` only if it can't start within its debounce window |
 | The launcher was down for longer than a slot's window | The slot never fires and leaves no `run_log` row. Compare `run_log` with the [schedule inventory](schedules.md) after an outage |
 | A run hangs | It ends `timeout` at its `deadline`, reported by the run-failed rule on the last attempt |
 | A run succeeds but did nothing useful | No alert. Check the job's logs and [application outcomes](cronjob-application-outcomes.md) |

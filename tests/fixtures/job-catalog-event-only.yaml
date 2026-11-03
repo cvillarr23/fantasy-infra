@@ -1,0 +1,20 @@
+# A job that only an event starts, beside jobs a schedule or a chain step also starts.
+version: 1
+defaults: {alert: warning, max_attempts: 1}
+jobs:
+  event-only:
+    on_event:
+      - {key: some.event, debounce: 30m}
+  scheduled:
+    schedules:
+      - {cron: '0 6 * * *', tz: UTC, catch_up: 1h}
+    on_event:
+      - {key: some.event, debounce: 30m}
+  chained:
+    on_event:
+      - {key: some.event, debounce: 30m}
+chains:
+  weekly:
+    schedule: {cron: '0 16 * * 2', tz: UTC, catch_up: 2h}
+    steps:
+      chained: {}
