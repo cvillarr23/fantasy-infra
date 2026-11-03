@@ -11,6 +11,13 @@ START = '<!-- BEGIN GENERATED SCHEDULES -->'
 END = '<!-- END GENERATED SCHEDULES -->'
 
 
+def _triggers(job):
+    """A job's schedules and event subscriptions, one per line, or a dash for neither."""
+    triggers = [f'`{item["cron"]}` ({item["tz"]})' for item in job.get('schedules', [])]
+    triggers += [f'on `{item["key"]}` (debounce {item["debounce"]})' for item in job.get('on_event', [])]
+    return '<br/>'.join(triggers) or '—'
+
+
 def render_catalog(path):
     """Render catalog jobs and dependency chains."""
     catalog = yaml.load(Path(path).read_text(), Loader=yaml.BaseLoader)
@@ -18,14 +25,7 @@ def render_catalog(path):
     rows = []
     for name, job in sorted(jobs.items()):
         command = ' '.join(job.get('command', [])) or '—'
-        schedules = job.get('schedules', [])
-        if schedules:
-            schedule_text = '<br/>'.join(
-                f'`{item["cron"]}` ({item["tz"]})' for item in schedules
-            )
-        else:
-            schedule_text = '—'
-        rows.append(f'| `{name}` | {schedule_text} | `{command}` |')
+        rows.append(f'| `{name}` | {_triggers(job)} | `{command}` |')
 
     sections = [
         '### Catalog jobs',

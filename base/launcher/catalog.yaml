@@ -11,11 +11,13 @@ profiles:
   # which the stale draft Job sweeper needs; as `default` every run 403s listing jobs.batch.
   core-ops: {image: CORE_IMAGE, serviceAccount: fantasy-core-pipeline, secrets: [db, redis, trigger-api, amqp]}
   # Browser bots: stored ESPN session state and the browser-worker SA. Only the scan gets LLM keys.
-  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config], volumes: [espn-session-state]}
+  # amqp lets the inbox publish trade.offer_received to job_events.
+  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp], volumes: [espn-session-state]}
   worker-scan: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, llm], volumes: [espn-session-state]}
   # Worker bots that never drive a browser, so no browser-worker SA or stored session state.
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
-  worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify]}
+  # amqp lets the digest publish rumor.signal_created to job_events.
+  worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify, amqp]}
 defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
 # Deadlines sit just under each schedule interval, as the CronJobs' activeDeadlineSeconds did,
 # and max_attempts: 2 keeps their backoffLimit: 1. Frequent jobs never fire a missed slot.
@@ -100,13 +102,22 @@ jobs:
     max_attempts: 3
     alert: critical
     acts: true
+  # Each digest's signals start a run within minutes. The 21:45 slot stays, since emission has no
+  # outbox, and settles the signals core holds for fresh VORP. The digest emits one event per
+  # signal, so a 30m debounce collapses its burst into one run. `queue` makes the chain step and
+  # the 21:45 slot wait for an event run still in flight instead of skipping as overlap; the
+  # deadline sits under the shortest wait (an event's 30m). Live runs take about 3s.
   rumor-action-trigger:
     profile: core
     command: [python, -m, src.services.rumor_action_service, --team-id, $(ESPN_TEAM_ID), --season, $(CURRENT_YEAR)]
+    deadline: 20m
     max_attempts: 3
+    overlap: queue
     acts: true
     schedules:
       - {cron: '45 21 * * *', tz: America/Chicago, catch_up: 1h}
+    on_event:
+      - {key: rumor.signal_created, debounce: 30m}
   # The trade jobs stay at one attempt: never auto-retry them.
   # Daily after the evening refresh, and again before the Wed/Fri scan. The 12:30 slot's two-minute
   # window plus the deadline keep even a late run clear of the 13:00 scan. The expensive

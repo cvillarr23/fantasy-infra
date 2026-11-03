@@ -83,18 +83,17 @@ _ROOT_ENDED = """r.chain_root_id IS NOT NULL AND r.chain_root_id <> r.id
 
 
 def _in_list(reasons):
-    return ', '.join(f"'{reason}'" for reason in reasons)
+    return ', '.join(_quoted(reason) for reason in reasons)
 
 
 def _alerting_skip():
     """SQL for a skipped run that needs a person.
 
-    Event runs drop the `overlap` and `expired` skips that schedule and chain runs keep. A row
-    with no `trigger_type` isn't known to be an event, so it still alerts.
+    Event runs drop the `overlap` and `expired` skips that schedule and chain runs keep.
     """
     return f"""r.status = 'skipped'
-    AND COALESCE(r.end_reason, '') NOT IN ({_in_list(QUIET_SKIPS)})
-    AND NOT (COALESCE(r.trigger_type, '') = 'event' AND COALESCE(r.end_reason, '') IN ({_in_list(EVENT_QUIET_SKIPS)}))"""
+      AND COALESCE(r.end_reason, '') NOT IN ({_in_list(QUIET_SKIPS)})
+      AND NOT (r.trigger_type = 'event' AND COALESCE(r.end_reason, '') IN ({_in_list(EVENT_QUIET_SKIPS)}))"""
 
 
 def _failed_runs_sql(jobs):
@@ -111,7 +110,9 @@ WHERE r.finished_at > now() - interval '{WINDOW}'
         OR ({_ROOT_ENDED})
       )
     )
-    OR ({_alerting_skip()})
+    OR (
+      {_alerting_skip()}
+    )
   )
 GROUP BY r.job_name;"""
 

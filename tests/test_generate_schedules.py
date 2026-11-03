@@ -19,6 +19,8 @@ class CatalogScheduleTest(unittest.TestCase):
         self.assertIn("### Chain: tuesday-weekly", page)
         self.assertIn("sync-league -->|success| metrics-extractor", page)
         self.assertIn("lineup-optimizer (latest 19:15)", page)
+        self.assertIn("`rumor-action-trigger` | `45 21 * * *` (America/Chicago)<br/>"
+                      "on `rumor.signal_created` (debounce 30m) |", page)
 
     def test_chain_edge_without_on_defaults_to_success(self):
         page = generator.render_catalog(ROOT / "tests/fixtures/job-catalog-defaults.yaml")

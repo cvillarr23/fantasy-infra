@@ -36,7 +36,7 @@ Each step keeps its old CronJob's deadline and retries. The chain ends after 8 h
 | Daily 07:00 trade candidates | Follows the previous evening's 18:00 projection/VORP rebuild and the most recent weekly metrics ingestion. |
 | Wednesday/Friday 12:30 trade candidates | Refreshes stored candidates after Friday's 10:00 score reconciliation and before the 13:00 scan. |
 | Wednesday/Friday 13:00 trade scan | Follows the previous evening's projection/VORP rebuild and the 12:30 candidate run. |
-| Daily refresher and rumor actions | Also run at 18:00 and 21:45 on other days. |
+| Daily refresher and rumor actions | Also run at 18:00 and 21:45 on other days. Rumor actions also run after each digest, on `rumor.signal_created`, and the chain step waits for such a run still in flight (`overlap: queue`). |
 
 ### Trade-candidate rollout and verification
 

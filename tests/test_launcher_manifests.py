@@ -136,6 +136,31 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertNotIn("llm", profiles["worker"]["secrets"])
         self.assertEqual(jobs["trade-scan"]["profile"], "worker-scan")
         self.assertIn("llm", profiles["worker-scan"]["secrets"])
+        # The digest and the inbox publish job_events facts (the amqp bundle's AMQP_URL).
+        self.assertEqual(jobs["rumor-digest-bot"]["profile"], "worker-llm")
+        for name in ("worker-llm", "worker"):
+            self.assertIn("amqp", profiles[name]["secrets"], name)
+
+    def test_rumor_actions_run_on_digest_events(self):
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                job = catalog(docs)["jobs"]["rumor-action-trigger"]
+                self.assertEqual(job["on_event"], [{"key": "rumor.signal_created", "debounce": "30m"}])
+                # Events speed actions up; the 21:45 slot stays because emission has no outbox.
+                self.assertEqual([s["cron"] for s in job["schedules"]], ["45 21 * * *"])
+                # A hung run can't outlast the shortest wait queued behind it: an event's debounce.
+                self.assertEqual(job["deadline"], "20m")
+
+    def test_event_jobs_queue_behind_their_other_runs(self):
+        # Under `forbid`, a slot or chain step that lands on an event run in flight skips as
+        # overlap, which alerts and can end a chain root `failure`. `queue` makes it wait.
+        for overlay, docs in self.rendered.items():
+            content = catalog(docs)
+            chain_steps = {name for chain in content["chains"].values() for name in chain["steps"]}
+            for name, job in content["jobs"].items():
+                if job.get("on_event") and (job.get("schedules") or name in chain_steps):
+                    with self.subTest(overlay=overlay, job=name):
+                        self.assertEqual(job.get("overlap"), "queue")
 
     def test_gateway_mounts_the_same_catalog(self):
         # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.

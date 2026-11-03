@@ -8,7 +8,7 @@ Use this page when the rumor-action outcome alert fires, or when you need the sc
 
 ## Rumor-action application outcome
 
-**Rumor action incomplete or failed processing** (`rumor-action-trigger-failure`) complements the launcher's run-failed alert. The launcher runs `python -m src.services.rumor_action_service` daily at 21:45 and as the last step of Tuesday's `tuesday-weekly` chain, not the HTTP endpoint. Both paths record one `execution_log` row with transaction type `rumor_action_trigger` and bot `rumor_action_service`.
+**Rumor action incomplete or failed processing** (`rumor-action-trigger-failure`) complements the launcher's run-failed alert. The launcher runs `python -m src.services.rumor_action_service` daily at 21:45, as the last step of Tuesday's `tuesday-weekly` chain, and after each digest on `rumor.signal_created`, not the HTTP endpoint. Both paths record one `execution_log` row with transaction type `rumor_action_trigger` and bot `rumor_action_service`.
 
 | Property | Value |
 |---|---|

@@ -4,7 +4,7 @@ description: Generated inventory of production schedules, commands and timezones
 sidebar_position: 5
 ---
 
-Catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. A job with no schedule runs only as a chain step or on request.
+Catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. Event subscriptions are listed with the schedules. A job with neither runs only as a chain step or on request.
 
 :::note[Timezones and alerts]
 America/Chicago jobs follow daylight saving time, so their UTC time shifts twice a year. For alerts, see [Job alerts](cronjob-alerts.md).
@@ -19,7 +19,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |
 | `projections-refresh` | `0 18 * * *` (America/Chicago) | `python -m src.jobs.draft_prep_refresh` |
 | `rapid-status-syncer` | `*/10 * * * 4,0,1` (America/Chicago) | `python -m src.ingestion.sync_players` |
-| `rumor-action-trigger` | `45 21 * * *` (America/Chicago) | `python -m src.services.rumor_action_service --team-id $(ESPN_TEAM_ID) --season $(CURRENT_YEAR)` |
+| `rumor-action-trigger` | `45 21 * * *` (America/Chicago)<br/>on `rumor.signal_created` (debounce 30m) | `python -m src.services.rumor_action_service --team-id $(ESPN_TEAM_ID) --season $(CURRENT_YEAR)` |
 | `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
 | `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |
 | `stale-draft-job-sweeper` | `*/15 * * * *` (America/Chicago) | `python -m src.ops.sweep_stale_draft_jobs` |
@@ -65,6 +65,6 @@ The `Docs schedules` workflow checks this section on documentation, catalog and 
 
 ## Read the weekly order
 
-The `tuesday-weekly` chain above orders Tuesday's jobs by dependency; see [schedule order](cronjob-schedule-order.md). The other jobs are spaced by the clock. Friday's 10:00 actual-score reconciliation precedes the 12:30 trade candidates and the 13:00 trade scan. The daily 11:00 rumor digest precedes the 21:45 action trigger. These are clock offsets, not dependency enforcement: a failed or delayed producer still needs investigation.
+The `tuesday-weekly` chain above orders Tuesday's jobs by dependency; see [schedule order](cronjob-schedule-order.md). The other jobs are spaced by the clock. Friday's 10:00 actual-score reconciliation precedes the 12:30 trade candidates and the 13:00 trade scan. The daily 11:00 rumor digest emits `rumor.signal_created` for each signal it stores, and the first event in each 30-minute window starts `rumor-action-trigger`, so rumor actions follow the digest within minutes. Signals that need fresh VORP are held for the 21:45 run (on Tuesday, the chain's last step), which also covers any event the digest failed to emit, since emission has no outbox. The other offsets are clock spacing, not dependency enforcement: a failed or delayed producer still needs investigation.
 
 Related: [Job alert semantics and dependencies](cronjob-alerts.md), [failed job runbook](operations.md#investigate-a-failed-job).
