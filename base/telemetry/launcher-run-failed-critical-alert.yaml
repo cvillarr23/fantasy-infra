@@ -55,9 +55,11 @@ data:
                     AND NOT EXISTS (SELECT 1 FROM run_log root WHERE root.id = r.chain_root_id AND root.status = 'running'))
                     )
                   )
-                  OR (r.status = 'skipped'
-                  AND COALESCE(r.end_reason, '') NOT IN ('paused', 'chain_step', 'max_duration', 'chain_ended')
-                  AND NOT (COALESCE(r.trigger_type, '') = 'event' AND COALESCE(r.end_reason, '') IN ('overlap', 'expired')))
+                  OR (
+                    r.status = 'skipped'
+                    AND COALESCE(r.end_reason, '') NOT IN ('paused', 'chain_step', 'max_duration', 'chain_ended')
+                    AND NOT (r.trigger_type = 'event' AND COALESCE(r.end_reason, '') IN ('overlap', 'expired'))
+                  )
                 )
               GROUP BY r.job_name;
         - refId: B

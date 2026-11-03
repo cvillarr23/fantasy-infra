@@ -45,11 +45,10 @@ def fires_for(rule, name, jobs):
           f"IS DISTINCT FROM ARRAY[{array}]::text[] THEN RAISE EXCEPTION 'failed: {name}'; END IF; END $$;")
 
 
-def run(run_id, job, status, finished='1 minute', end_reason=None, root=None, attempt=1, trigger=None):
+def run(run_id, job, status, finished='1 minute', end_reason=None, root=None, attempt=1, trigger='schedule'):
     reason = 'NULL' if end_reason is None else f"'{end_reason}'"
-    trigger_type = 'NULL' if trigger is None else f"'{trigger}'"
     return (f"INSERT INTO run_log (id, job_name, status, end_reason, chain_root_id, attempt, trigger_type, finished_at) VALUES "
-            f"('{run_id}', '{job}', '{status}', {reason}, {'NULL' if root is None else repr(root)}, {attempt}, {trigger_type}, "
+            f"('{run_id}', '{job}', '{status}', {reason}, {'NULL' if root is None else repr(root)}, {attempt}, '{trigger}', "
             f"now() - interval '{finished}');")
 
 
@@ -60,7 +59,7 @@ def reset():
 print('''BEGIN;
 CREATE TEMP TABLE run_log (
   id TEXT PRIMARY KEY, job_name TEXT, status TEXT, end_reason TEXT,
-  attempt INT DEFAULT 1, chain_root_id TEXT, trigger_type TEXT, finished_at TIMESTAMPTZ
+  attempt INT DEFAULT 1, chain_root_id TEXT, trigger_type TEXT NOT NULL, finished_at TIMESTAMPTZ
 );
 CREATE TEMP TABLE launcher_heartbeat (id SMALLINT PRIMARY KEY, at TIMESTAMPTZ, queue_depths JSONB);
 ''')
@@ -217,17 +216,18 @@ reset()
 print(run('r1', 'metrics-extractor', 'skipped', end_reason='dependency_failed', root='c1')
       + run('r2', 'projections-refresh', 'skipped', end_reason='chain_step'))
 fires_for(COMMITTED_WARNING, 'committed rule, dependency skip alerts and chain_step does not', ['metrics-extractor'])
-# An event run's overlap or expired skip is routine; schedule, chain and untyped skips, and any
-# other event outcome, still alert.
+# An event run's overlap or expired skip is routine; schedule and chain skips, and any other
+# event outcome, still alert. The committed rule uses the job that subscribes to events, and
+# attempt 3 is the last attempt of either job.
 for trigger, status, reason, expected in (
     ('event', 'skipped', 'overlap', False), ('event', 'skipped', 'expired', False),
     ('schedule', 'skipped', 'overlap', True), ('schedule', 'skipped', 'expired', True),
-    ('chain', 'skipped', 'overlap', True), (None, 'skipped', 'overlap', True),
+    ('chain', 'skipped', 'overlap', True),
     ('event', 'skipped', 'dependency_failed', True), ('event', 'failure', None, True),
 ):
-    for name, rule in (('fixture', WARNING), ('committed', COMMITTED_WARNING)):
+    for name, rule, job in (('fixture', WARNING, 'sync-league'),
+                            ('committed', COMMITTED_WARNING, 'rumor-action-trigger')):
         reset()
-        print(run('r1', 'sync-league' if name == 'fixture' else 'rumor-syncer', status,
-                  end_reason=reason, attempt=2, trigger=trigger))
-        fires(rule, f'{name} rule, {trigger} {status}/{reason}', expected)
+        print(run('r1', job, status, end_reason=reason, attempt=3, trigger=trigger))
+        fires_for(rule, f'{name} rule, {trigger} {status}/{reason}', [job] if expected else [])
 print('ROLLBACK;')

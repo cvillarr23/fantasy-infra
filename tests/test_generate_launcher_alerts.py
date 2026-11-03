@@ -64,7 +64,7 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
 
     def test_event_runs_skip_overlap_and_expired_quietly(self):
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "warning"))
-        self.assertIn("COALESCE(r.trigger_type, '') = 'event'", sql)
+        self.assertIn("r.trigger_type = 'event'", sql)
         self.assertIn("IN ('overlap', 'expired')", sql)
 
     def test_committed_rules_match_the_catalog(self):

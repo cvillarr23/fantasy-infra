@@ -8,7 +8,7 @@ Use this page when the rumor-action outcome alert fires, or when you need the sc
 
 ## Rumor-action application outcome
 
-**Rumor action incomplete or failed processing** (`rumor-action-trigger-failure`) complements the launcher's run-failed alert. The launcher runs `python -m src.services.rumor_action_service` daily at 21:45 and as the last step of Tuesday's `tuesday-weekly` chain, not the HTTP endpoint. Both paths record one `execution_log` row with transaction type `rumor_action_trigger` and bot `rumor_action_service`.
+**Rumor action incomplete or failed processing** (`rumor-action-trigger-failure`) complements the launcher's run-failed alert. The launcher runs `python -m src.services.rumor_action_service` daily at 21:45, as the last step of Tuesday's `tuesday-weekly` chain, and after each digest on `rumor.signal_created`, not the HTTP endpoint. Both paths record one `execution_log` row with transaction type `rumor_action_trigger` and bot `rumor_action_service`.
 
 | Property | Value |
 |---|---|
@@ -104,7 +104,7 @@ The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
 
 ## Incoming trade inbox
 
-`trade-inbox` runs `node src/bots/trade_inbox.js --refresh`. It only reads ESPN and persists incoming offers in Postgres.
+`trade-inbox` runs `node src/bots/trade_inbox.js --refresh`. It only reads ESPN, persists incoming offers in Postgres, and publishes `trade.offer_received` to `job_events` for each new offer.
 
 | Setting | Value |
 |---|---|
@@ -115,6 +115,7 @@ The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
 | Concurrency | `overlap: forbid` and no automatic retry (`max_attempts` stays 1). Manual or delayed runs aren't globally serialized with the trade scan. |
 | Core URL | Worker default `http://fantasy-core-pipeline.default.svc.cluster.local:8000`, matching trade-scan |
 | Score timeout | Defaults to 20000 ms. `TRADE_SCORE_TIMEOUT_MS` stays unset. |
+| Events | `AMQP_URL` from the `amqp` bundle (`rabbitmq-credentials`), for `trade.offer_received`. No job subscribes to it yet. |
 
 Each active-season refresh does the following:
 

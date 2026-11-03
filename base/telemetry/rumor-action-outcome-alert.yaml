@@ -1,5 +1,5 @@
 # Application outcomes complement the launcher's run-failed rule.
-# Retain failures for 26h: #192's fail-open watermark can turn a retry into an empty
+# Retain failures for 26h: core's fail-open retry watermark can turn a retry into an empty
 # success. A latest-row query would hide that lost work. Zero actions is not failure.
 # UID/group retained from homelab-deployment; remove its old provisioning file first.
 apiVersion: v1
@@ -29,7 +29,7 @@ data:
               description: 'Includes CLI and HTTP invocations. Zero-action successes are healthy. Later success does not clear a recorded failure until it ages out; inspect outcomes before retrying.'
               __dashboardUid__: fantasy-execution-log
               __panelId__: '6'
-              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#rumor-action-application-outcome
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-application-outcomes.md#rumor-action-application-outcome
             data:
               - refId: A
                 relativeTimeRange: {from: 93600, to: 0}

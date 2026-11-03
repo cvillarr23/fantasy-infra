@@ -26,7 +26,7 @@ flowchart LR
 | `finish` | The refresh and the acting steps. The step runs once its parent ends, whatever its status, as the CronJobs did. A failed ingestion still refreshes projections and still sets the lineup. |
 | `latest` | The old CronJob times stay as upper bounds: lineup, waivers and rumor actions start by then even if their parent is still running. |
 
-Each step keeps its old CronJob's deadline and retries. The chain ends after 8 hours (`max_duration`), skipping any step that hasn't started. On Tuesday, the refresh's own 18:00 slot and rumor actions' 21:45 slot are skipped (`chain_step`) while the chain covers them. If the chain skipped the refresh, the 18:00 slot still runs it.
+Each step keeps its old CronJob's deadline and retries, except `rumor-action-trigger`: its 15-minute deadline keeps a dead run's hold (deadline plus the watcher's 10-minute orphan grace) under the 30-minute wait of an event run queued behind it. The chain ends after 8 hours (`max_duration`), skipping any step that hasn't started. On Tuesday, the refresh's own 18:00 slot and rumor actions' 21:45 slot are skipped (`chain_step`) while the chain covers them. If the chain skipped the refresh, the 18:00 slot still runs it.
 
 | Job | Placement reason |
 |---|---|
@@ -36,7 +36,7 @@ Each step keeps its old CronJob's deadline and retries. The chain ends after 8 h
 | Daily 07:00 trade candidates | Follows the previous evening's 18:00 projection/VORP rebuild and the most recent weekly metrics ingestion. |
 | Wednesday/Friday 12:30 trade candidates | Refreshes stored candidates after Friday's 10:00 score reconciliation and before the 13:00 scan. |
 | Wednesday/Friday 13:00 trade scan | Follows the previous evening's projection/VORP rebuild and the 12:30 candidate run. |
-| Daily refresher and rumor actions | Also run at 18:00 and 21:45 on other days. |
+| Daily refresher and rumor actions | Also run at 18:00 and 21:45 on other days. Rumor actions also run after each digest, on `rumor.signal_created`, and the chain step waits for such a run still in flight (`overlap: queue`). |
 
 ### Trade-candidate rollout and verification
 

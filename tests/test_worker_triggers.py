@@ -17,7 +17,9 @@ CATCH_UP = '30m'
 WORKER_RESOURCES = {'requests': {'cpu': '50m', 'memory': '256Mi'},
                     'limits': {'cpu': '1000m', 'memory': '1200Mi'}}
 # Bundles k8s.BUNDLES in core turns into env; none of them sets a trade arming variable.
-INBOX_BUNDLES = {'db', 'espn', 'notify', 'league-config'}
+BROWSER_BUNDLES = {'db', 'espn', 'notify', 'league-config'}
+# The inbox publishes trade.offer_received; amqp sets only AMQP_URL.
+INBOX_BUNDLES = BROWSER_BUNDLES | {'amqp'}
 
 
 def launcher_catalog(docs):
@@ -108,7 +110,7 @@ class WorkerTriggerTest(unittest.TestCase):
                 inbox = catalog['profiles'][catalog['jobs']['trade-inbox']['profile']]
                 scan = catalog['profiles'][catalog['jobs']['trade-scan']['profile']]
                 self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES)
-                self.assertEqual(set(scan['secrets']), INBOX_BUNDLES | {'llm'})
+                self.assertEqual(set(scan['secrets']), BROWSER_BUNDLES | {'llm'})
                 for profile in (inbox, scan):
                     self.assertEqual(profile['image'], 'WORKER_IMAGE')
                     self.assertEqual(profile['serviceAccount'], 'fantasy-browser-worker')
