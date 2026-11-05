@@ -72,7 +72,7 @@ Decide with the owner whether each run is still wanted before replaying or purgi
 
 The heartbeat is arriving but the launcher couldn't read a queue's depth: `job_runs` or `job_runs.dlq` is missing (the broker definitions didn't load) or the broker is unreachable from the launcher. It can't consume either way. Check `rabbitmqctl list_queues` as above and the launcher log for `Launcher queue depths unavailable`.
 
-### Launcher job_runs backlog
+### Launcher job runs backlog
 
 `job_runs` has had messages for 15 minutes, though the launcher takes them promptly. The heartbeat thread is alive but the consumer is stalled or blocked. Check the launcher log and `run_log` rows stuck in `queued`.
 
@@ -123,7 +123,7 @@ Each `sync-actual-scores` run (the `tuesday-weekly` chain step and the Friday 10
 Launcher alerts complement these signals and don't validate partially processed actions.
 :::
 
-### Launcher chain past max_duration
+### Launcher chain past max duration
 
 The scheduler ended a chain run because it outlasted the chain's `max_duration`, and skipped its unstarted steps. Look at the chain's `run_log` rows (`chain_root_id` = the root's `id`) for the step that was slow or never started.
 
