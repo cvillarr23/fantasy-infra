@@ -40,7 +40,7 @@ flowchart TD
    ```
 
 2. Inspect events if the container never started (the run ends `failure` with `start_timeout`). Check image pulls, missing Secrets, capacity, deadline, API/store reachability and the [job's dependencies](cronjob-alerts.md#what-each-job-depends-on).
-3. For a run that never started, read its `end_reason`: `expired`, `overlap`, `paused` or `dependency_failed`, or no row at all after a launcher outage. See [what covers a missed or hung run](cronjob-alerts.md#what-covers-a-missed-or-hung-run).
+3. For a run that never started, read its `end_reason`: `expired`, `overlap`, `paused` or `dependency_failed`, or no row at all after a launcher outage. An `expired` run usually waited on a full pod cap, which active KEDA worker Jobs also fill (on draft day the warm worker always holds one slot). See [what covers a missed or hung run](cronjob-alerts.md#what-covers-a-missed-or-hung-run).
 4. Fix the dependency and observe the next scheduled run. Confirm the run's success and application outcomes in Grafana/Loki.
 5. To run a job on demand, `POST /v1/jobs/<job>/runs` with the trigger API key. It queues through the same launcher, so the overlap and pod-cap rules apply.
 

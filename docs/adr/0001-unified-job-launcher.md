@@ -147,6 +147,24 @@ Every stage has a hard limit, and every limit ends in a `run_log` status. Overla
 | Whole chain | `max_duration` | scheduler | remaining steps `skipped` |
 | Finished k8s Jobs | `ttlSecondsAfterFinished` 1 day | Kubernetes | removed |
 
+### How does the KEDA worker share the pod cap?
+
+`max_concurrent_pods` counts the launcher's `running` pod rows plus the unfinished k8s Jobs matching `global.counted_k8s_jobs`. That is `scaledjob.keda.sh/name=fantasy-browser-worker-scaler`, the label KEDA sets on every Job it creates. Worker rows in `run_log` have no `executor`, so before this the cap couldn't see up to 3 worker pods.
+
+- A launcher run that finds the cap full waits, as it does for its own pods. Workers exit 120s after their queues drain, so a waiver burst delays launcher runs by minutes, well inside every expiry window.
+- On draft day the warm worker holds one slot all day, so the launcher runs one pod at a time.
+- The count is one-way. KEDA can't see launcher pods, so the worst case stays 2 launcher + 3 worker pods, bounded by `maxReplicaCount: 3`.
+- If the k8s API errors, the lookup counts 0 instead of holding every run.
+
+Full replacement was evaluated and rejected for now.
+
+- The launcher would have to re-implement queue-depth scaling across 8 work queues, and the cluster doesn't scrape RabbitMQ.
+- Idle exit already lives in the worker, and the draft-day warm worker is just `minReplicaCount: 1`.
+- KEDA stays for ollama regardless, so removing the ScaledJob saves no overhead.
+- The launcher is one replica, so the draft-pick and waiver-sniper paths would gain a single point of failure.
+
+Revisit after launcher HA.
+
 ## How do pods report back?
 
 The launcher creates the `run_log` row and passes `RUN_ID`, `RUN_TRIGGER` and `RUN_PARENT_ID`. The outermost `run_scope` in the pod adopts `RUN_ID` and clears it from the environment, so subprocesses and nested scopes become child rows. `trigger_from_env()` prefers `RUN_TRIGGER` over the CronJob-name heuristic. The worker's `src/db/run_log.js` follows the same rules.
@@ -174,7 +192,7 @@ Never open an infra PR that needs new core or worker code until that image is li
 | Batch C | trade-candidates ×2, scores reconcile, trade-scan, trade-inbox; delete remaining CronJob alerts |
 | After | web UI Jobs page, rumor and trade-offer events, CLI/MCP, right-sizing |
 
-**v2** (designed, not built): draft Jobs under the launcher (before the August draft), approval steps in chains, fan-out steps, KEDA worker under the launcher, concurrency groups, per-run resource accounting, launcher HA, Helm packaging.
+**v2** (designed, not built): draft Jobs under the launcher (before the August draft), approval steps in chains, fan-out steps, KEDA worker under the launcher (decided: shared pod cap only), concurrency groups, per-run resource accounting, launcher HA, Helm packaging.
 
 ## What else was considered?
 
@@ -184,7 +202,7 @@ Never open an infra PR that needs new core or worker code until that image is li
 | Airflow, Prefect | Scheduler, UI and metadata DB cost 0.5–3 Gi on a single node already at 81% memory; Node bots fit poorly |
 | Argo Workflows | Closest fit (k8s-native DAGs, UI), but needs Argo Events and an EventBus to start from RabbitMQ. Revisit at v2 fan-out; `after:` mirrors Argo's `dependencies:` |
 | Postgres as the run queue | Fewer parts, but RabbitMQ keeps commands and events on the same shared bus other services can subscribe to |
-| Replace KEDA | KEDA stays for ollama regardless; replacing the ScaledJob saves no overhead and risks the draft-pick path |
+| Replace KEDA | KEDA stays for ollama regardless; replacing the ScaledJob saves no overhead and risks the draft-pick path. Re-evaluated for v2: the worker shares the pod cap instead ([above](#how-does-the-keda-worker-share-the-pod-cap)) |
 
 ## Consequences
 
