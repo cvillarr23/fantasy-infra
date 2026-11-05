@@ -23,7 +23,8 @@ HEADER = """\
 # One series per job. Fires once per run_log row that ended failure or timeout on its last attempt,
 # or was skipped for a reason that needs a person (not a pause, or a skip the chain's own timeout
 # or cancel already alerts on, or the overlap or expired skip of an event run of a job its
-# schedule or chain covers). A failure the watcher will still retry doesn't alert. Level `{level}`.
+# schedule or chain covers). A failure the watcher will still retry doesn't alert, nor does a
+# fan-out parent's (its failed child alerts). Level `{level}`.
 # Runbook: docs/cronjob-alerts.md#launcher-run-failed
 """
 
@@ -41,8 +42,11 @@ data:
 
 
 # Skips that are expected or already covered by another alert: a pause, a slot a chain covers,
-# and the steps of a chain that timed out or was cancelled (the chain alert covers those).
-QUIET_SKIPS = ('paused', 'chain_step', 'max_duration', 'chain_ended')
+# the steps of a chain that timed out or was cancelled (the chain alert covers those), and the
+# children of a fan-out someone cancelled.
+QUIET_SKIPS = ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended')
+# A fan-out parent fails because a child did, and that child's own row already alerts.
+QUIET_FAILURES = ('fan_out_failed',)
 # An event run is a speed-up over its job's schedule or chain, so an event that found the job busy
 # or couldn't start in time is routine: the next event or the scheduled slot covers it. A job
 # with neither has nothing to catch up, so its event skips alert.
@@ -118,6 +122,7 @@ WHERE r.finished_at > now() - interval '{WINDOW}'
   AND (
     (
       r.status IN ('failure', 'timeout')
+      AND COALESCE(r.end_reason, '') NOT IN ({_in_list(QUIET_FAILURES)})
       AND (
         r.attempt >= j.max_attempts
         OR ({_ROOT_ENDED})
