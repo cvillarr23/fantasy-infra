@@ -80,11 +80,14 @@ jobs:
     max_attempts: 2
     schedules:
       - {cron: '0 10 * * 5', tz: America/Chicago, catch_up: 1h}
-  # One attempt: a retry would replay the already committed target week. The next daily run
-  # refreshes the whole horizon.
+  # Each run fans out one child per week of the horizon (the upcoming week plus 0-3); the
+  # children run in parallel within max_concurrent_pods. One attempt per child: the next daily
+  # run refreshes every week again.
   projections-refresh:
     profile: core
     command: [python, -m, src.jobs.draft_prep_refresh]
+    params: {week_offset: 'int?'}
+    fan_out: {param: week_offset, values: [0, 1, 2, 3]}
     schedules:
       - {cron: '0 18 * * *', tz: America/Chicago, catch_up: 1h}
   # Retrying lineup, waivers and rumor actions is safe: each publish dedupes on an idempotency

@@ -139,6 +139,7 @@ FINAL = (
     ('skipped', 'expired', True), ('skipped', None, True),
     ('skipped', 'paused', False), ('skipped', 'chain_step', False),
     ('skipped', 'max_duration', False), ('skipped', 'chain_ended', False),
+    ('skipped', 'fan_out_ended', False), ('failure', 'fan_out_failed', False),
     ('success', None, False), ('running', None, False), ('queued', None, False), ('cancelled', None, False),
 )
 for status, reason, expected in FINAL:
