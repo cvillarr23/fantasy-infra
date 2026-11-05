@@ -131,7 +131,7 @@ FIXTURE = ROOT / 'tests/fixtures/job-catalog.yaml'
 failed = {level: rule_from(generator.render(FIXTURE, level)) for level in generator.LEVELS}
 CRITICAL, WARNING = failed['critical'], failed['warning']
 assert CRITICAL['labels'] == {'severity': 'critical'} and WARNING['labels'] == {'severity': 'warning'}
-assert generator.jobs_at_level(generator._load_catalog(FIXTURE), 'critical')[0] == ('lineup-optimizer', 3)
+assert generator.jobs_at_level(generator._load_catalog(FIXTURE), 'critical')[0] == ('lineup-optimizer', 3, True)
 
 # Final attempts (attempt >= max_attempts) alert; skips alert unless they are expected or covered elsewhere.
 FINAL = (
@@ -230,4 +230,12 @@ for trigger, status, reason, expected in (
         reset()
         print(run('r1', job, status, end_reason=reason, attempt=3, trigger=trigger))
         fires_for(rule, f'{name} rule, {trigger} {status}/{reason}', [job] if expected else [])
+# An event-only job has no schedule or chain step to catch up, so its event skips alert; the
+# same skips of a scheduled or chained job stay quiet.
+EVENT_ONLY = rule_from(generator.render(ROOT / 'tests/fixtures/job-catalog-event-only.yaml', 'warning'))
+for reason in ('overlap', 'expired'):
+    for job, expected in (('event-only', True), ('scheduled', False), ('chained', False)):
+        reset()
+        print(run('r1', job, 'skipped', end_reason=reason, trigger='event'))
+        fires_for(EVENT_ONLY, f'event {reason} skip of {job}', [job] if expected else [])
 print('ROLLBACK;')
