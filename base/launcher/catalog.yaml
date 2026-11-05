@@ -1,6 +1,7 @@
 # Job catalog read by the launcher at startup (docs/adr/0001-unified-job-launcher.md).
 version: 1
-global: {max_concurrent_pods: 2, max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
+# Active KEDA browser worker Jobs count toward max_concurrent_pods, so both share one pod budget.
+global: {max_concurrent_pods: 2, counted_k8s_jobs: ["scaledjob.keda.sh/name=fantasy-browser-worker-scaler"], max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
 # NFL regular-season weeks; the scheduler maps them to game dates. The calendar reads only
 # regular-season games, so there is no playoffs window.
 seasons:
