@@ -83,7 +83,7 @@ chains:
 
 | Field | Rule |
 |---|---|
-| `overlap` | `forbid` refuses a second concurrent run (409 or `skipped`); `queue` waits |
+| `overlap` | `forbid` refuses a second concurrent run (409 or `skipped`); `queue` waits. Under either mode, a schedule, chain or event run waits when only event runs hold the job (see [What happens when an event run holds a job?](#what-happens-when-an-event-run-holds-a-job)) |
 | `max_attempts` | Launcher-owned retries; k8s `backoffLimit` is always 0. trade-scan, trade-inbox, trade-candidates and draft-prep stay at 1 |
 | `catch_up` | A slot missed while the launcher was down still fires if inside this window |
 | `seasons` | Slots only fire in the listed season windows |
@@ -164,6 +164,17 @@ Full replacement was evaluated and rejected for now.
 - The launcher is one replica, so the draft-pick and waiver-sniper paths would gain a single point of failure.
 
 Revisit after launcher HA.
+
+### What happens when an event run holds a job?
+
+A schedule, chain or event run that finds only event runs holding its job waits for them, under `forbid` too. Every other overlap follows the job's `overlap` mode. Decided in core#387.
+
+- An event is a speed-up over the job's schedule. A slot or chain step that skipped behind one would alert, and could end its chain root `failure`, over work done moments early.
+- An event run behind another waits too, so a signal from the next debounce window isn't left for the next slot.
+- A manual, CLI or MCP run keeps `forbid`'s 409. A schedule behind a schedule still skips.
+- The run's own `expires_at` bounds the wait: `catch_up`, a chain step's `latest` + 30m, or the event's debounce window. So an event job's `deadline` plus the watcher's 10m orphan grace should stay under its shortest wait, or a dead event pod can make the slot expire.
+
+This replaced a per-job `overlap: queue` opt-in. That opt-in also turned manual 409s into queued waits and made schedule-on-schedule overlaps wait.
 
 ## How do pods report back?
 

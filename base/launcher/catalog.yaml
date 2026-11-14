@@ -110,16 +110,16 @@ jobs:
   # Each digest's signals start a run within minutes. The 21:45 slot stays, since emission has no
   # outbox, and settles the signals core holds for fresh VORP. The digest emits one event per
   # signal; debounce windows are fixed :00/:30 boundaries, so a burst usually starts one run (two
-  # back to back if it crosses a boundary). `queue` makes the chain step and the 21:45 slot wait
-  # for an event run still in flight instead of skipping as overlap. A run whose pod dies holds
-  # the job for its deadline plus the watcher's 10m orphan grace: 15m + 10m stays under the
-  # shortest wait (an event's 30m). Live runs take under 4s.
+  # back to back if it crosses a boundary). The launcher makes the chain step, the 21:45 slot and
+  # a later event wait for an event run still in flight instead of skipping as overlap; a manual
+  # run still gets 409. A run whose pod dies holds the job for its deadline plus the watcher's
+  # 10m orphan grace: 15m + 10m stays under the shortest wait (an event's 30m). Live runs take
+  # under 4s.
   rumor-action-trigger:
     profile: core
     command: [python, -m, src.services.rumor_action_service, --team-id, $(ESPN_TEAM_ID), --season, $(CURRENT_YEAR)]
     deadline: 15m
     max_attempts: 3
-    overlap: queue
     acts: true
     schedules:
       - {cron: '45 21 * * *', tz: America/Chicago, catch_up: 1h}
