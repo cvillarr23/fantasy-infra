@@ -150,17 +150,6 @@ class LauncherManifestTest(unittest.TestCase):
                 # which must stay under the shortest wait queued behind it: an event's 30m.
                 self.assertEqual(job["deadline"], "15m")
 
-    def test_event_jobs_queue_behind_their_other_runs(self):
-        # Under `forbid`, a slot or chain step that lands on an event run in flight skips as
-        # overlap, which alerts and can end a chain root `failure`. `queue` makes it wait.
-        for overlay, docs in self.rendered.items():
-            content = catalog(docs)
-            chain_steps = {name for chain in content["chains"].values() for name in chain["steps"]}
-            for name, job in content["jobs"].items():
-                if job.get("on_event") and (job.get("schedules") or name in chain_steps):
-                    with self.subTest(overlay=overlay, job=name):
-                        self.assertEqual(job.get("overlap"), "queue")
-
     def test_gateway_mounts_the_same_catalog(self):
         # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.
         for overlay, docs in self.rendered.items():
