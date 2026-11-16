@@ -13,8 +13,10 @@ The launcher's `tuesday-weekly` chain (`base/launcher/catalog.yaml`) starts at 1
 ```mermaid
 flowchart LR
     A[sync-league<br/>16:00] -->|success| B[metrics-extractor]
+    A -->|finish| H[espn-ownership-sync]
     B -->|success| C[sync-actual-scores]
     C -->|finish| D[projections-refresh]
+    H -->|finish| D
     D -->|finish| E[lineup-optimizer<br/>by 19:15]
     E -->|finish| F[waiver-trigger<br/>by 20:30]
     F -->|finish| G[rumor-action-trigger<br/>by 21:45]
@@ -31,6 +33,7 @@ Each step keeps its old CronJob's deadline and retries, except `rumor-action-tri
 | Job | Placement reason |
 |---|---|
 | `sync-league` first | Refreshes `league_rosters` before metrics and that day's decisions. It's the only scheduled place rosters refresh after a draft, trade or waiver. |
+| `espn-ownership-sync` | Takes ESPN's current-only ownership snapshot for the upcoming week. It's also a standalone daily job at 17:45, so each day's 18:00 refresh sees same-day ownership. In the chain it waits for `sync-league` and the refresh waits for it, both on `finish`: a failed ESPN fetch blocks nothing. |
 | Score sync | Mirrors ESPN player actuals only into `weekly_stats` rows the ingestor has created, so it follows the ingestor. |
 | Friday 10:00 reconciliation | The `sync-actual-scores` job's own schedule. Stores any week Tuesday couldn't (stats not yet official, a postponed game) plus ESPN stat corrections, before Friday's trade jobs: an hour of `catch_up` plus both attempts ends by 12:00. The trade context's opponent strength reads these stored scores. |
 | Daily 07:00 trade candidates | Follows the previous evening's 18:00 projection/VORP rebuild and the most recent weekly metrics ingestion. |
