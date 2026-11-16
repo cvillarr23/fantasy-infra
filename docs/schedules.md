@@ -14,6 +14,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 ### Catalog jobs
 | Job | Schedule | Command |
 |---|---|---|
+| `espn-ownership-sync` | `45 17 * * *` (America/Chicago) | `python -m src.ingestion.sync_espn_ownership` |
 | `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
 | `lineup-optimizer` | — | `python -m src.optimization.lineup_solver` |
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |
@@ -39,13 +40,16 @@ flowchart LR
     sync-league["sync-league"]
     metrics-extractor["metrics-extractor"]
     sync-actual-scores["sync-actual-scores"]
+    espn-ownership-sync["espn-ownership-sync"]
     projections-refresh["projections-refresh"]
     lineup-optimizer["lineup-optimizer (latest 19:15)"]
     waiver-trigger["waiver-trigger (latest 20:30)"]
     rumor-action-trigger["rumor-action-trigger (latest 21:45)"]
     sync-league -->|success| metrics-extractor
     metrics-extractor -->|success| sync-actual-scores
+    sync-league -->|finish| espn-ownership-sync
     sync-actual-scores -->|finish| projections-refresh
+    espn-ownership-sync -->|finish| projections-refresh
     projections-refresh -->|finish| lineup-optimizer
     lineup-optimizer -->|finish| waiver-trigger
     waiver-trigger -->|finish| rumor-action-trigger

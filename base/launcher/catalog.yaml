@@ -80,6 +80,17 @@ jobs:
     max_attempts: 2
     schedules:
       - {cron: '0 10 * * 5', tz: America/Chicago, catch_up: 1h}
+  # ESPN's ownership payload is a current-only snapshot, so this runs once a day for the upcoming
+  # week (the module's default) instead of as a projections-refresh child, where each future
+  # week's rows would get today's numbers. 17:45 lands before the 18:00 refresh, so that day's
+  # VORP rebuild sees same-day ownership. A failed fetch never blocks the refresh (finish edges).
+  espn-ownership-sync:
+    profile: core
+    command: [python, -m, src.ingestion.sync_espn_ownership]
+    params: {week: 'int?'}
+    max_attempts: 2
+    schedules:
+      - {cron: '45 17 * * *', tz: America/Chicago, catch_up: 1h}
   # Each run fans out one child per week of the horizon (the upcoming week plus 0-3); the
   # children run in parallel within max_concurrent_pods. One attempt per child: the next daily
   # run refreshes every week again.
@@ -170,7 +181,8 @@ chains:
       sync-league: {}
       metrics-extractor: {after: [{step: sync-league, on: success}]}
       sync-actual-scores: {after: [{step: metrics-extractor, on: success}]}
-      projections-refresh: {after: [{step: sync-actual-scores, on: finish}]}
+      espn-ownership-sync: {after: [{step: sync-league, on: finish}]}
+      projections-refresh: {after: [{step: sync-actual-scores, on: finish}, {step: espn-ownership-sync, on: finish}]}
       lineup-optimizer: {after: [{step: projections-refresh, on: finish}], latest: '19:15'}
       waiver-trigger: {after: [{step: lineup-optimizer, on: finish}], latest: '20:30'}
       rumor-action-trigger: {after: [{step: waiver-trigger, on: finish}], latest: '21:45'}

@@ -32,8 +32,8 @@ def catalog(docs):
                      Loader=yaml.BaseLoader)
 
 
-TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "projections-refresh",
-                 "lineup-optimizer", "waiver-trigger", "rumor-action-trigger"]
+TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "espn-ownership-sync",
+                 "projections-refresh", "lineup-optimizer", "waiver-trigger", "rumor-action-trigger"]
 TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox"]
 
 
@@ -97,7 +97,9 @@ class LauncherManifestTest(unittest.TestCase):
             "metrics-extractor": [("sync-league", "success")],
             "sync-actual-scores": [("metrics-extractor", "success")],
             # The refresh and the acting steps run even when ingestion fails, as the CronJobs did.
-            "projections-refresh": [("sync-actual-scores", "finish")],
+            # The ownership snapshot is best-effort: a failed ESPN fetch blocks nothing downstream.
+            "espn-ownership-sync": [("sync-league", "finish")],
+            "projections-refresh": [("sync-actual-scores", "finish"), ("espn-ownership-sync", "finish")],
             "lineup-optimizer": [("projections-refresh", "finish")],
             "waiver-trigger": [("lineup-optimizer", "finish")],
             "rumor-action-trigger": [("waiver-trigger", "finish")],
