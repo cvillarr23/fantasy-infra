@@ -19,7 +19,7 @@ permissions:
 env:
   # Core commit whose catalog schema this repo validates against. Bump it with a catalog
   # schema change, so an unrelated core commit can't break this repo's CI.
-  CORE_REF: 16401298cc2e8e65b2432a1d68dca0dde8a62425
+  CORE_REF: 224074ea40443a9bea75899bf082b7e8a5368c23
 
 jobs:
   validate:
