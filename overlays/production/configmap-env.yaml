@@ -8,3 +8,6 @@ data:
   SPORT_TYPE: "nfl"
   # Unattended IR stashes require deliberate approval before a live waiver week.
   AUTO_PUBLISH_IR_MOVES: "false"
+  # Weight of ESPN start% in vorp_score, chosen by core's market-weight backtest.
+  # TODO(fantasy-core-pipeline#410): recheck against real ESPN start% snapshots.
+  ESPN_MARKET_WEIGHT: "0.2"
