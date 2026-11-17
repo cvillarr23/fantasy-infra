@@ -16,6 +16,8 @@ LAUNCHER = ('Deployment', 'fantasy-job-launcher')
 CATCH_UP = '30m'
 WORKER_RESOURCES = {'requests': {'cpu': '50m', 'memory': '256Mi'},
                     'limits': {'cpu': '1000m', 'memory': '1200Mi'}}
+SCAN_RESOURCES = {'requests': {'cpu': '50m', 'memory': '1Gi'},
+                  'limits': {'cpu': '1000m', 'memory': '1200Mi'}}
 # Bundles k8s.BUNDLES in core turns into env; none of them sets a trade arming variable.
 BROWSER_BUNDLES = {'db', 'espn', 'notify', 'league-config'}
 # The inbox publishes trade.offer_received; amqp sets only AMQP_URL.
@@ -98,7 +100,7 @@ class WorkerTriggerTest(unittest.TestCase):
                     {'cron': '0 13 * * 3,5', 'tz': 'America/Chicago', 'catch_up': CATCH_UP}])
                 self.assertEqual((inbox['deadline'], scan['deadline']), ('11m', '16m'))
                 self.assertEqual(inbox['resources'], WORKER_RESOURCES)
-                self.assertEqual(scan['resources'], WORKER_RESOURCES)
+                self.assertEqual(scan['resources'], SCAN_RESOURCES)
                 self.assertEqual(catalog['defaults']['overlap'], 'forbid')
                 for job in (inbox, scan):
                     self.assertNotIn('overlap', job)

@@ -47,9 +47,11 @@ spec:
               # no message in flight. Without it the worker is a run-forever daemon and every
               # Job KEDA starts stays Running after the queues drain -- 21 idle Jobs from one
               # waiver burst once held ~2.1 CPU of requests for 19h, starving Ollama's scale-up
-              # and blocking CronJobs. Draft-day sets 0 to keep its warm browser.
+              # and blocking CronJobs. Draft-day sets 0 to keep its warm browser. 45s, not 120s:
+              # over 60 days, 215 of 223 gaps between messages in a burst were 30s or less, while
+              # the 120s tail made up nearly all of each worker pod's ~125s life.
               - name: IDLE_EXIT_SECONDS
-                value: "120"
+                value: "45"
               - name: AMQP_URL
                 valueFrom:
                   secretKeyRef:

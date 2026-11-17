@@ -67,7 +67,7 @@ Do not replace cluster Service names with public domains for internal traffic. R
 
 ## Trace queue scaling
 
-Production polls RabbitMQ every 10 seconds, requests a worker per queued message and caps concurrent worker Jobs at three. Workers exit after 120 idle seconds; draft-day keeps at least one warm worker and sets idle exit to zero.
+Production polls RabbitMQ every 10 seconds, requests a worker per queued message and caps concurrent worker Jobs at three. Workers exit after 45 idle seconds; draft-day keeps at least one warm worker and sets idle exit to zero.
 
 | KEDA trigger queues | Provisioning |
 |---|---|
