@@ -49,7 +49,7 @@ The scheduler, consumer, watcher and inline runner are one process: `python -m s
 
 ## Where are jobs defined?
 
-In `base/launcher/catalog.yaml`, published as the ConfigMap `fantasy-job-catalog` and validated by core's pydantic schema (`python -m src.launcher.catalog --check`). Infra CI validates against the JSON schema core exports.
+In `base/launcher/catalog.yaml`, published as the ConfigMap `fantasy-job-catalog` and validated by core's pydantic schema (`python -m src.launcher.catalog --check`). Infra CI runs that schema and `--check` from the core image the production launcher is pinned to, so a catalog can't merge ahead of a launcher that accepts it.
 
 ```yaml
 version: 1
