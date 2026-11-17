@@ -218,7 +218,7 @@ Never open an infra PR that needs new core or worker code until that image is li
 ## Consequences
 
 - The launcher is a single point of failure for scheduled work. Catch-up windows cover restarts, and the heartbeat alert covers outages.
-- It adds one small always-on pod (about 50m / 128Mi). Moving the frequent syncers inline after measuring pays that back.
+- It adds one small always-on pod (50m / 192Mi, sized to hold an inline run). The two frequent syncers run inline, which removes about 110 pod starts a day.
 - `scripts/generate-schedules.py` reads the catalog and generates the schedule table and chain diagrams.
 
 ## Related

@@ -50,7 +50,7 @@ class LauncherManifestTest(unittest.TestCase):
                 self.assertEqual(spec["strategy"]["type"], "Recreate")
                 (container,) = spec["template"]["spec"]["containers"]
                 self.assertEqual(container["command"], ["python", "-m", "src.launcher"])
-                self.assertEqual(container["resources"]["requests"], {"cpu": "50m", "memory": "128Mi"})
+                self.assertEqual(container["resources"]["requests"], {"cpu": "50m", "memory": "192Mi"})
                 self.assertEqual(spec["template"]["spec"]["serviceAccountName"], "fantasy-job-launcher")
 
     def test_image_placeholders_are_replaced_with_digests(self):
@@ -142,6 +142,17 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(jobs["rumor-digest-bot"]["profile"], "worker-llm")
         for name in ("worker-llm", "worker"):
             self.assertIn("amqp", profiles[name]["secrets"], name)
+
+    def test_only_the_frequent_syncers_run_inline_with_the_launchers_env(self):
+        # Inline runs get the launcher's env, not their profile's secrets.
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                jobs = catalog(docs)["jobs"]
+                inline = {name for name, job in jobs.items() if job.get("executor") == "inline"}
+                self.assertEqual(inline, {"rumor-syncer", "rapid-status-syncer"})
+                (container,) = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]["containers"]
+                for name in ("DB_HOST", "DB_PASSWORD", "REDIS_HOST", "AMQP_URL"):
+                    self.assertIn(name, env(container), name)
 
     def test_rumor_actions_run_on_digest_events(self):
         for overlay, docs in self.rendered.items():

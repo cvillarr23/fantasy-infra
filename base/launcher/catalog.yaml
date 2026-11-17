@@ -19,13 +19,24 @@ profiles:
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   # amqp lets the digest publish rumor.signal_created to job_events.
   worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify, amqp]}
-defaults: {executor: pod, overlap: forbid, max_attempts: 1, deadline: 1h, alert: warning}
+# Requests fit the measured core jobs (most peak under 128Mi); the limit keeps core's 512Mi.
+defaults:
+  executor: pod
+  overlap: forbid
+  max_attempts: 1
+  deadline: 1h
+  alert: warning
+  resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
 # Deadlines sit just under each schedule interval, as the CronJobs' activeDeadlineSeconds did
 # (rumor-action-trigger's is shorter, see below), and max_attempts: 2 keeps their backoffLimit: 1.
 # Frequent jobs never fire a missed slot.
+# The two syncers run inline: about a second of work (peak 49Mi and, on the daily Sleeper fetch,
+# 157Mi) against a pod start of 30s or more. They need only the DB, Redis and AMQP settings the
+# launcher already holds. They share the one inline slot, so at :00 and :30 one waits a second.
 jobs:
   rumor-syncer:
     profile: core
+    executor: inline
     command: [python, -m, src.ingestion.sync_rumors]
     deadline: 25m
     max_attempts: 2
@@ -33,6 +44,7 @@ jobs:
       - {cron: '*/30 * * * *', tz: America/Chicago, catch_up: 0s}
   rapid-status-syncer:
     profile: core
+    executor: inline
     command: [python, -m, src.ingestion.sync_players]
     deadline: 9m
     max_attempts: 2
@@ -98,6 +110,8 @@ jobs:
     profile: core
     command: [python, -m, src.jobs.draft_prep_refresh]
     params: {week_offset: 'int?'}
+    # Each child peaks around 126Mi.
+    resources: {requests: {cpu: 50m, memory: 160Mi}, limits: {cpu: 500m, memory: 512Mi}}
     fan_out: {param: week_offset, values: [0, 1, 2, 3]}
     schedules:
       - {cron: '0 18 * * *', tz: America/Chicago, catch_up: 1h}
@@ -144,6 +158,8 @@ jobs:
     profile: core
     command: [python, -m, src.jobs.trade_candidates]
     deadline: 25m
+    # League-wide scoring peaks around 177Mi and 205m CPU.
+    resources: {requests: {cpu: 200m, memory: 256Mi}, limits: {cpu: 1000m, memory: 512Mi}}
     schedules:
       - {cron: '0 7 * * *', tz: America/Chicago, catch_up: 1h}
       - {cron: '30 12 * * 3,5', tz: America/Chicago, catch_up: 2m}
@@ -156,7 +172,8 @@ jobs:
     command: [node, src/bots/trade_scan.js, --stage]
     deadline: 16m
     acts: true
-    resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
+    # Chromium plus the LLM pitch peaks at 925-940Mi, so the request covers it for scheduling.
+    resources: {requests: {cpu: 50m, memory: 1Gi}, limits: {cpu: 1000m, memory: 1200Mi}}
     schedules:
       - {cron: '0 13 * * 3,5', tz: America/Chicago, catch_up: 30m}
   # Persists incoming offers for review and only reads ESPN. The deadline leaves startup headroom

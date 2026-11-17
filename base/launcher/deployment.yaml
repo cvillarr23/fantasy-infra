@@ -75,12 +75,14 @@ spec:
             - name: job-catalog
               mountPath: /etc/fantasy-job-catalog
               readOnly: true
+          # Inline runs are child processes in this container: the launcher uses about 95Mi and
+          # the inline syncers peak at 157Mi (rapid-status-syncer's daily Sleeper fetch).
           resources:
             requests:
-              memory: "128Mi"
+              memory: "192Mi"
               cpu: "50m"
             limits:
-              memory: "256Mi"
+              memory: "512Mi"
               cpu: "500m"
       volumes:
         # The launcher reads the catalog only at startup. The generated ConfigMap name carries
