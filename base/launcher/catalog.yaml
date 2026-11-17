@@ -19,6 +19,10 @@ profiles:
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   # amqp lets the digest publish rumor.signal_created to job_events.
   worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify, amqp]}
+# trade-scan and trade-inbox drive the one stored ESPN browser session, so only one runs at a time.
+# The KEDA browser worker shares it too but isn't counted until it runs under the launcher.
+groups:
+  espn-session: {limit: 1}
 # Requests fit the measured core jobs (most peak under 128Mi); the limit keeps core's 512Mi.
 defaults:
   executor: pod
@@ -169,6 +173,7 @@ jobs:
   # TRADE_SUBMIT_ENABLED, so scans keep dry-filling. The deadline sits above the CLI's 15m bound.
   trade-scan:
     profile: worker-scan
+    group: espn-session
     command: [node, src/bots/trade_scan.js, --stage]
     deadline: 16m
     acts: true
@@ -180,6 +185,7 @@ jobs:
   # above the CLI's ten-minute bound.
   trade-inbox:
     profile: worker
+    group: espn-session
     command: [node, src/bots/trade_inbox.js, --refresh]
     deadline: 11m
     resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
