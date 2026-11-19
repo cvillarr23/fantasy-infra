@@ -32,6 +32,8 @@ league:
   sportType: nfl
   # Unattended IR stashes require deliberate approval before a live waiver week.
   autoPublishIrMoves: false
+  # Weight of ESPN start% in vorp_score, chosen by core's market-weight backtest.
+  espnMarketWeight: "0.2"
   # Any value other than 0, false or no makes every bot dry-run. Leave it on until the
   # install is verified; null removes the key, and then each bot uses its own default
   # (lineup changes are live).

@@ -8,9 +8,9 @@ resources:
 - argocd-repo-ssh-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
-  digest: sha256:1ecbc775017114e47748af3029d1e5970cd4a295859882a6b583e925da30121a
+  digest: sha256:b0bb63e7fb72d57ddbd8e8d7956e618866f3a208eb0547c7b9478241950b8b3c
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
-  digest: sha256:4bd270a127900f907499d8dbcf7041f98a41adad0c5763b03f1d2ab2f8073419
+  digest: sha256:da7ef3cb6683b8b0835fb280f89d2b637c77c2561bb49a13d9423dab3e3f0fab
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
   digest: sha256:baa9a595e18ec51775d039f4f5953da13a81a0336eaa98f633ab94bebd81541c
 patches:
@@ -41,39 +41,12 @@ replacements:
       name: fantasy-core-pipeline
     fieldPaths:
     - spec.template.metadata.annotations.fantasy-infra/auto-publish-ir-moves
-# DRAFT_SYNC_IMAGE and BROWSER_WORKER_IMAGE name the images core-pipeline uses when it spawns
-# draft Jobs at runtime. They are plain env strings, so neither the `images:` transformer above
-# nor Argo CD Image Updater's git write-back can see them: a release digest-pins every real
-# `image:` field while these two silently stay on whatever SHA was last hardcoded.
-#
-# Not theoretical - this stranded the spawned draft Jobs several commits behind the Deployment,
-# so merged fixes looked deployed while the Jobs kept running the old code.
-#
-# Sourcing each value from an already-transformed `image:` field keeps them digest-pinned and
-# updated by the same mechanism, with no second place to remember to bump.
-- source:
-    kind: Deployment
-    name: fantasy-core-pipeline
-    fieldPath: spec.template.spec.containers.[name=gateway].image
-  targets:
-  - select:
-      kind: Deployment
-      name: fantasy-core-pipeline
-    fieldPaths:
-    - spec.template.spec.containers.[name=gateway].env.[name=DRAFT_SYNC_IMAGE].value
-- source:
-    kind: ScaledJob
-    name: fantasy-browser-worker-scaler
-    fieldPath: spec.jobTargetRef.template.spec.containers.[name=worker].image
-  targets:
-  - select:
-      kind: Deployment
-      name: fantasy-core-pipeline
-    fieldPaths:
-    - spec.template.spec.containers.[name=gateway].env.[name=BROWSER_WORKER_IMAGE].value
 # The launcher resolves the CORE_IMAGE and WORKER_IMAGE placeholders in its catalog profiles from
-# its own env. Same reasoning as DRAFT_SYNC_IMAGE above: source them from already digest-pinned
-# `image:` fields so a release updates them with no second place to bump.
+# its own env. They are plain env strings, so neither the `images:` transformer above nor Argo CD
+# Image Updater's git write-back can see them: a release digest-pins every real `image:` field
+# while env strings silently stay on whatever SHA was last hardcoded. That once stranded the
+# API-spawned draft Jobs several commits behind the Deployment. Sourcing each value from an
+# already-transformed `image:` field keeps them digest-pinned with no second place to bump.
 - source:
     kind: Deployment
     name: fantasy-job-launcher

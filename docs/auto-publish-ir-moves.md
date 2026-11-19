@@ -77,7 +77,6 @@ Disabling the flag doesn't cancel previously queued actions or reverse moves alr
 kubectl kustomize overlays/production/
 kubectl kustomize overlays/draft-day/
 python3 -m unittest discover -s tests -p 'test_*.py'
-./scripts/preflight-draft-sync-env.sh
 git diff --check
 ```
 

@@ -35,6 +35,8 @@ def catalog(docs):
 TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "espn-ownership-sync",
                  "projections-refresh", "lineup-optimizer", "waiver-trigger", "rumor-action-trigger"]
 TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox"]
+# Started and cancelled by the draft API (core-pipeline#350), never scheduled.
+DRAFT_JOBS = ["draft-listener", "practice-draft-listener", "draft-connector", "practice-draft-connector"]
 
 
 class LauncherManifestTest(unittest.TestCase):
@@ -79,8 +81,9 @@ class LauncherManifestTest(unittest.TestCase):
         (mount,) = container["volumeMounts"]
         self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
         jobs = catalog(docs)["jobs"]
-        self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer", "stale-draft-job-sweeper",
-                                     "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS, *TRADE_JOBS})
+        self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer",
+                                     "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS, *TRADE_JOBS,
+                                     *DRAFT_JOBS})
         self.assertEqual(set(catalog(docs)["chains"]), {"tuesday-weekly"})
 
     def test_tuesday_chain_orders_the_weekly_jobs(self):
@@ -123,9 +126,7 @@ class LauncherManifestTest(unittest.TestCase):
 
     def test_cutover_profiles_match_what_their_cronjobs_carried(self):
         profiles = catalog(self.rendered["production"])["profiles"]
-        # The sweeper lists and deletes draft Jobs through this SA's draft-sync-orchestrator Role.
-        self.assertEqual(profiles["core-ops"]["serviceAccount"], "fantasy-core-pipeline")
-        for name in ("core-ops", "worker-session-check", "worker-llm"):
+        for name in ("worker-session-check", "worker-llm"):
             self.assertIn("db", profiles[name]["secrets"])
         self.assertEqual(set(profiles["worker-session-check"]["secrets"]), {"db", "espn", "notify", "league-config"})
         self.assertNotIn("espn", profiles["worker-llm"]["secrets"])
@@ -183,6 +184,46 @@ class LauncherManifestTest(unittest.TestCase):
         catalog = yaml.safe_load(one(docs, "ConfigMap", volume["configMap"]["name"])["data"]["catalog.yaml"])
         for bundle in ("db", "espn", "redis", "trigger-api", "amqp", "league-config"):
             self.assertIn(bundle, catalog["profiles"]["core"]["secrets"])
+
+    def test_draft_jobs_are_cap_exempt_services_and_practice_runs_retire_on_a_lapsed_heartbeat(self):
+        content = catalog(self.rendered["production"])
+        self.assertEqual(content["global"]["max_service_deadline"], "8h")
+        jobs = content["jobs"]
+        for name in DRAFT_JOBS:
+            with self.subTest(job=name):
+                job = jobs[name]
+                self.assertEqual(job["class"], "service")
+                self.assertNotIn("schedules", job)
+                # The draft API finds a run again by this param.
+                self.assertIn("league_id", job["params"])
+        for name in ("practice-draft-listener", "practice-draft-connector"):
+            self.assertEqual(jobs[name]["health"], {"key": "draft:{league_id}:health", "grace": "10m"})
+            self.assertEqual(jobs[name]["alert"], "none")
+        for name in ("draft-listener", "draft-connector"):
+            self.assertNotIn("health", jobs[name])
+            self.assertEqual(jobs[name]["alert"], "critical")
+        self.assertEqual(jobs["practice-draft-connector"]["param_env"]["room_url"], "DRAFT_ROOM_URL")
+        self.assertEqual(jobs["draft-listener"]["param_env"],
+                         {"mode": "DRAFT_MODE", "pick_clock_seconds": "DRAFT_PICK_CLOCK_SECONDS",
+                          "auto_draft_delay_seconds": "AUTO_DRAFT_DELAY_SECONDS"})
+        # The connector's pods carried only the ESPN cookies, league ids and Redis.
+        self.assertEqual(set(content["profiles"]["worker-draft"]["secrets"]), {"espn", "redis", "league-config"})
+        self.assertNotIn("serviceAccount", content["profiles"]["worker-draft"])
+
+    def test_gateway_only_reads_jobs_and_pods(self):
+        # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.
+        for overlay, docs in self.rendered.items():
+            with self.subTest(overlay=overlay):
+                role = one(docs, "Role", "draft-sync-orchestrator")
+                rules = {(tuple(r["apiGroups"]), tuple(r["resources"])): sorted(r["verbs"]) for r in role["rules"]}
+                self.assertEqual(rules, {
+                    (("batch",), ("jobs",)): ["get", "list"],
+                    (("",), ("pods",)): ["get", "list", "watch"],
+                    (("",), ("pods/log",)): ["get"],
+                })
+                (gateway,) = one(docs, "Deployment", "fantasy-core-pipeline")["spec"]["template"]["spec"]["containers"]
+                for name in ("DRAFT_SYNC_IMAGE", "BROWSER_WORKER_IMAGE", "DRAFT_SYNC_ENV_SECRET", "DRAFT_SYNC_ENV_CONFIGMAP"):
+                    self.assertNotIn(name, env(gateway))
 
     def test_rbac_is_namespaced_and_minimal(self):
         docs = self.rendered["production"]

@@ -47,10 +47,6 @@ class DeploymentValuesTest(unittest.TestCase):
                         self.assertEqual(env[key], {'name': key, 'valueFrom': {
                             'secretKeyRef': {'name': 'espn-session-secrets', 'key': key}}})
                 self.assertEqual(len(consumers), 2)
-                gateway = next(c for c in containers(resources[('Deployment', 'fantasy-core-pipeline')])
-                               if c['name'] == 'gateway')
-                env = {e['name']: e for e in gateway['env']}
-                self.assertEqual(env['DRAFT_SYNC_ENV_SECRET']['value'], session['spec']['target']['name'])
                 oauth = resources[('Deployment', 'oauth2-proxy')]['spec']['template']['spec']
                 proxy = oauth['containers'][0]
                 self.assertFalse(any(arg.startswith(('--email-domain=', '--redirect-url=', '--cookie-domain='))

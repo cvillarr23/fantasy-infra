@@ -1,16 +1,14 @@
 # Job catalog read by the launcher at startup (docs/adr/0001-unified-job-launcher.md).
 version: 1
 # Active KEDA browser worker Jobs count toward max_concurrent_pods, so both share one pod budget.
-global: {max_concurrent_pods: 2, counted_k8s_jobs: ["scaledjob.keda.sh/name=fantasy-browser-worker-scaler"], max_deadline: 2h, start_timeout: 10m, manual_queue_ttl: 30m}
+# Service jobs (the draft listener and room connector) are cap-exempt and get their own deadline cap.
+global: {max_concurrent_pods: 2, counted_k8s_jobs: ["scaledjob.keda.sh/name=fantasy-browser-worker-scaler"], max_deadline: 2h, max_service_deadline: 8h, start_timeout: 10m, manual_queue_ttl: 30m}
 # NFL regular-season weeks; the scheduler maps them to game dates. The calendar reads only
 # regular-season games, so there is no playoffs window.
 seasons:
   regular: {start: 1, end: 18}
 profiles:
   core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api, amqp, league-config]}
-  # The fantasy-core-pipeline SA is bound to draft-sync-orchestrator (jobs get/list/delete),
-  # which the stale draft Job sweeper needs; as `default` every run 403s listing jobs.batch.
-  core-ops: {image: CORE_IMAGE, serviceAccount: fantasy-core-pipeline, secrets: [db, redis, trigger-api, amqp]}
   # Browser bots: stored ESPN session state and the browser-worker SA. Only the scan gets LLM keys.
   # amqp lets the inbox publish trade.offer_received to job_events.
   worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp], volumes: [espn-session-state]}
@@ -19,6 +17,9 @@ profiles:
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   # amqp lets the digest publish rumor.signal_created to job_events.
   worker-llm: {image: WORKER_IMAGE, secrets: [db, llm, notify, amqp]}
+  # The draft room connector (draft_sync.js): ESPN cookies, the league ids and Redis, as the pods
+  # the draft API used to create had. No browser-worker SA or stored session state.
+  worker-draft: {image: WORKER_IMAGE, secrets: [espn, redis, league-config]}
 # trade-scan and trade-inbox drive the one stored ESPN browser session, so only one runs at a time.
 # The KEDA browser worker shares it too but isn't counted until it runs under the launcher.
 groups:
@@ -54,13 +55,50 @@ jobs:
     max_attempts: 2
     schedules:
       - {cron: '*/10 * * * 4,0,1', tz: America/Chicago, catch_up: 0s}
-  stale-draft-job-sweeper:
-    profile: core-ops
-    command: [python, -m, src.ops.sweep_stale_draft_jobs]
-    deadline: 14m
-    max_attempts: 2
-    schedules:
-      - {cron: '*/15 * * * *', tz: America/Chicago, catch_up: 0s}
+  # Draft-day services, started and cancelled by the draft API (fantasy-core-pipeline
+  # src/services/draft_run_service.py); no schedules. The draft API passes the mode and clock as
+  # params, which reach draft_matrix.py as env. A practice run is retired by the watcher once the
+  # connector's heartbeat key has lapsed past the grace (this replaced the stale-draft sweeper).
+  draft-listener:
+    class: service
+    profile: core
+    command: [python, -m, src.optimization.draft_matrix]
+    params: &listener-params {league_id: str, team_id: str, season: int, week: 'int?', mode: str, pick_clock_seconds: int, auto_draft_delay_seconds: int}
+    param_env: &listener-env {mode: DRAFT_MODE, pick_clock_seconds: DRAFT_PICK_CLOCK_SECONDS, auto_draft_delay_seconds: AUTO_DRAFT_DELAY_SECONDS}
+    deadline: 6h
+    alert: critical
+    resources: &listener-resources {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1Gi}}
+  practice-draft-listener:
+    class: service
+    profile: core
+    command: [python, -m, src.optimization.draft_matrix]
+    params: *listener-params
+    param_env: *listener-env
+    deadline: 3h
+    alert: none
+    resources: *listener-resources
+    health: &practice-health {key: 'draft:{league_id}:health', grace: 10m}
+  # The connectors' league_id is only for the API's lookups: DRAFT_LEAGUE_ID is unread. The live
+  # one navigates to ESPN_LEAGUE_ID, the practice one learns its league from the room.
+  draft-connector:
+    class: service
+    profile: worker-draft
+    command: [node, src/bots/draft_sync.js]
+    params: {league_id: str}
+    param_env: {league_id: DRAFT_LEAGUE_ID}
+    deadline: 6h
+    alert: critical
+    resources: &connector-resources {requests: {cpu: 200m, memory: 512Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
+  practice-draft-connector:
+    class: service
+    profile: worker-draft
+    command: [node, src/bots/draft_sync.js]
+    params: {room_url: str, league_id: 'str?'}
+    param_env: {room_url: DRAFT_ROOM_URL, league_id: DRAFT_LEAGUE_ID}
+    deadline: 3h
+    alert: none
+    resources: *connector-resources
+    health: *practice-health
   espn-session-healthcheck:
     profile: worker-session-check
     command: [node, src/bots/check_espn_session.js]

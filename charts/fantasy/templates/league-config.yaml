@@ -8,6 +8,7 @@ data:
   CURRENT_YEAR: {{ .Values.league.currentYear | quote }}
   SPORT_TYPE: {{ .Values.league.sportType | quote }}
   AUTO_PUBLISH_IR_MOVES: {{ .Values.league.autoPublishIrMoves | quote }}
+  ESPN_MARKET_WEIGHT: {{ .Values.league.espnMarketWeight | quote }}
   {{- if not (kindIs "invalid" .Values.league.dryRun) }}
   DRY_RUN: {{ .Values.league.dryRun | quote }}
   {{- end }}

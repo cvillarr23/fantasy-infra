@@ -61,7 +61,7 @@ flowchart LR
 | `secret/fantasy/deployment` | `ESPN_LEAGUE_ID`, `ESPN_TEAM_ID` (strings) | `espn-session-secrets`, alongside existing session keys |
 | `secret/fantasy/oauth2-proxy-deployment` | `authenticated-emails-list` (one email per line), `redirect-url`, `cookie-domain` | `oauth2-proxy-deployment-config` |
 
-Keep `CURRENT_YEAR`, `SPORT_TYPE` and `AUTO_PUBLISH_IR_MOVES` in the public `fantasy-league-config` ConfigMap. Every workload consuming that ConfigMap reads the IDs through required Secret references; runtime draft Jobs inherit the same IDs through `DRAFT_SYNC_ENV_SECRET`.
+Keep `CURRENT_YEAR`, `SPORT_TYPE`, `AUTO_PUBLISH_IR_MOVES` and `ESPN_MARKET_WEIGHT` in the public `fantasy-league-config` ConfigMap. Every workload consuming that ConfigMap reads the IDs through required Secret references; runtime draft Jobs inherit the same IDs through `DRAFT_SYNC_ENV_SECRET`.
 
 For a new installation, provision both private paths through your authenticated operator workflow before the first sync. Use `https://draft.example.com/oauth2/callback` and `draft.example.com` as domain examples, and `operator@example.com` as a synthetic email; supply your actual league/team IDs privately. Register the exact callback with Google and align the cookie domain, TLS proxy route and DNS.
 
@@ -97,7 +97,7 @@ The registered Application selects production. Merging draft-day patches does no
 | Image Updater | This repository's `base/argocd-image-updater/`; GHCR registry configuration, RBAC and deployment in `argocd` |
 | Update annotations | On `fantasy-infra`; `digest` strategy for API, UI and browser-worker `latest`, Git write-back to `main`, target `kustomization` |
 
-The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into `DRAFT_SYNC_IMAGE` and `BROWSER_WORKER_IMAGE`, which the API uses for runtime-created draft Jobs, and into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches.
+The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches, the draft listener and room connector included.
 
 :::warning[Existing Jobs keep their image]
 Changing the catalog, an image or a ScaledJob template affects future Jobs. Inspect active Jobs separately; deployment health alone does not prove every workload uses the new digest.
@@ -114,12 +114,11 @@ Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+, Ar
    ```bash
    kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
    kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
-   ./scripts/preflight-draft-sync-env.sh
    helm lint charts/fantasy
    python3 scripts/compare-renders.py
    ```
 
-2. Review the rendered images, runtime Job image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
+2. Review the rendered images, the launcher's image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
 3. Merge the reviewed infra change. Argo CD applies it automatically; Image Updater may subsequently commit newer application digests.
 4. Verify the Application revision, health and workload image evidence below.
 
