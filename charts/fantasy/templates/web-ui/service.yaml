@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantasy-web-ui
+  labels:
+    app: fantasy-web-ui
+spec:
+  type: ClusterIP
+  {{- with .Values.webUi.service.clusterIP }}
+  # Pinned for anything that routes to this IP without cluster DNS. The homelab's
+  # hostNetwork cloudflared tunnel does; changing it breaks that route.
+  clusterIP: {{ . }}
+  {{- end }}
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: fantasy-web-ui

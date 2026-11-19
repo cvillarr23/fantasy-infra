@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-web-ui
+  labels:
+    app: fantasy-web-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-web-ui
+  template:
+    metadata:
+      labels:
+        app: fantasy-web-ui
+    spec:
+      {{- include "fantasy.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: web-ui
+          image: {{ include "fantasy.image" .Values.images.webUi }}
+          imagePullPolicy: {{ .Values.images.webUi.pullPolicy }}
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: TRIGGER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trigger-api-key
+                  key: trigger-api-key
+            # nginx proxies /v1/ here; the image's default assumes namespace `default`.
+            - name: CORE_API_UPSTREAM
+              value: {{ include "fantasy.coreApiHost" . | quote }}
+            {{- with .Values.webUi.grafanaUrl }}
+            - name: GRAFANA_URL
+              value: {{ . }}
+            {{- end }}
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"

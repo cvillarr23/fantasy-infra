@@ -1,0 +1,56 @@
+# The launcher upserts launcher_heartbeat every 15s. Older than 5m, or no row at all, means it is down or stalled.
+# A missing row counts as stale (1e9 seconds), so the rule also fires before the first heartbeat.
+# Runbook: docs/cronjob-alerts.md#launcher-heartbeat-stale
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-launcher-heartbeat-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  launcher-heartbeat-stale.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: launcher-heartbeat-stale
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: launcher-heartbeat-stale
+            title: Job launcher heartbeat stale
+            condition: C
+            for: 0m
+            noDataState: Alerting
+            execErrState: Error
+            labels:
+              severity: critical
+            annotations:
+              summary: 'Job launcher has not sent a heartbeat for {{ $values.B.Value }} seconds. Scheduled and on-demand runs are not starting.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-heartbeat-stale
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: |-
+                      SELECT COALESCE(
+                        (SELECT EXTRACT(EPOCH FROM now() - at) FROM launcher_heartbeat WHERE id = 1),
+                        1000000000
+                      )::double precision AS value;
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [300]}

@@ -13,6 +13,7 @@ This is one of three repos that make up the platform:
 ## Stack conventions
 
 - Layout: `base/` holds environment-agnostic manifests (`databases/`, `core-pipeline/`, `browser-worker/`); `overlays/production` and `overlays/draft-day` hold environment-specific patches. Validate any manifest change with `kubectl kustomize overlays/production/` (and `overlays/draft-day/`) rather than assuming a base-only change is sufficient.
+- `charts/fantasy/` is the Helm chart for self-hosting and must render the same objects as the overlays: mirror every `base/` or overlay change in its templates or values (`scripts/sync-chart-files.sh` copies the verbatim files), then run `python3 scripts/compare-renders.py`.
 - Secrets are never committed in cleartext — they're materialized via `ExternalSecret` from the shared OpenBao `ClusterSecretStore` (see `overlays/production/externalsecrets.yaml`). Any manifest introducing a credential/token/API key must go through that path, not a plain `Secret` with inline `data`/`stringData`.
 - Playwright worker pods scale via KEDA off queue depth and are expected to scale to zero when idle — don't suggest a fixed `replicas` count or a plain `Deployment` for that workload without checking whether it should stay a KEDA-scaled resource.
 - Postgres/TimescaleDB needs a real PVC — don't suggest `emptyDir` or removing volume claims for stateful services.

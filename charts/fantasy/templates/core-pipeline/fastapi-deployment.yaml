@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-core-pipeline
+  labels:
+    app: fantasy-core-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-core-pipeline
+  template:
+    metadata:
+      labels:
+        app: fantasy-core-pipeline
+        # Distinguishes the gateway from the launched core-pipeline pods, which share
+        # app=fantasy-core-pipeline - the Service selects on this (see fastapi-service.yaml).
+        component: gateway
+      annotations:
+        # Env from a ConfigMap doesn't refresh running containers: these roll the gateway
+        # when the IR auto-publish flag or the catalog changes.
+        fantasy-infra/auto-publish-ir-moves: {{ .Values.league.autoPublishIrMoves | quote }}
+        checksum/catalog: {{ include "fantasy.catalog" . | sha256sum }}
+    spec:
+      serviceAccountName: fantasy-core-pipeline
+      {{- include "fantasy.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: gateway
+          image: {{ include "fantasy.image" .Values.images.core }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: fantasy-league-config
+          env:
+            # Database Topology Mapping
+            - name: DB_HOST
+              value: {{ include "fantasy.dbHost" . | quote }}
+            - name: DB_NAME
+              value: "fantasy_football"
+            - name: DB_USER
+              value: "bot_admin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: AMQP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: amqp-url
+            # Guards /v1/trigger/*, called in-cluster and bypassing oauth2-proxy.
+            - name: TRIGGER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trigger-api-key
+                  key: trigger-api-key
+            - name: REDIS_HOST
+              value: {{ include "fantasy.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: ESPN_S2
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: espn_s2
+            - name: ESPN_SWID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: swid
+            # Set directly - llm_client.py's OpenBao fallback shells out to `bao`, which isn't
+            # on this image and has no pod route to OpenBao anyway (no Vault agent sidecar).
+            # Same fix as the rumor-digest-bot launcher job's llm bundle.
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-api-key
+                  key: groq_api_key
+          # draft_matrix.py POSTs its chosen pick to /v1/trigger/draft-pick on this URL.
+            # Set explicitly because the module default (fantasy-api.core.svc.cluster.local)
+            # names a Service/namespace that does not exist in this cluster, which would make
+            # every auto-draft publish fail once the listener Job is otherwise healthy.
+            # core-pipeline propagates this value into the draft-sync Job it spawns.
+            - name: CORE_API_BASE_URL
+              value: "http://{{ include "fantasy.coreApiHost" . }}"
+            # The Jobs API (GET /v1/jobs, POST /v1/jobs/{name}/runs) and the draft endpoints read
+            # the same catalog the launcher does; without it every manual or draft run answers 503.
+            - name: JOB_CATALOG_PATH
+              value: "/etc/fantasy-job-catalog/catalog.yaml"
+            # The namespace the API reads draft Jobs and pods in; core defaults to `default` without it.
+            - name: K8S_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+
+            {{- with .Values.otel.httpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "fastapi-gateway"
+            {{- end }}
+
+            - name: ESPN_LEAGUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_LEAGUE_ID
+            - name: ESPN_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_TEAM_ID
+          # Liveness only asks whether the event loop is serving, so a Postgres or RabbitMQ blip
+          # takes the pod out of rotation (readiness) instead of restarting it. Timeouts allow
+          # for this node being shared with CPU-heavy dev workloads.
+          livenessProbe:
+            httpGet:
+              path: /v1/livez
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+          volumeMounts:
+            - name: job-catalog
+              mountPath: /etc/fantasy-job-catalog
+              readOnly: true
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      volumes:
+        - name: job-catalog
+          configMap:
+            name: fantasy-job-catalog

@@ -1,0 +1,56 @@
+# job_runs holds messages the launcher hasn't consumed. The launcher takes runs promptly, so a backlog that lasts 15m means the
+# consumer is stalled even though the heartbeat thread is alive. Depth comes from the heartbeat row.
+# Runbook: docs/cronjob-alerts.md#launcher-job-runs-backlog
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-launcher-job-runs-backlog-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  launcher-job-runs-backlog.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: launcher-job-runs-backlog
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: launcher-job-runs-backlog
+            title: Job launcher job_runs backlog
+            condition: C
+            for: 15m
+            noDataState: OK
+            execErrState: Error
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $values.B.Value }} run command(s) have waited in job_runs for 15 minutes; the launcher consumer looks stalled.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-job-runs-backlog
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: |-
+                      SELECT COALESCE(
+                        (SELECT (queue_depths->>'job_runs')::int FROM launcher_heartbeat WHERE id = 1),
+                        0
+                      )::double precision AS value;
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}

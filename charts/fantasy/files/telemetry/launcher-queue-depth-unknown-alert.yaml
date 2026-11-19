@@ -1,0 +1,60 @@
+# The heartbeat row is fresh but a queue depth is null: job_runs or its DLQ is missing, or the broker is unreachable from the
+# launcher, so it can't consume. A stale row is the heartbeat alert's job; this rule needs a fresh one to avoid paging twice.
+# Runbook: docs/cronjob-alerts.md#launcher-queue-depth-unknown
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-launcher-queue-depth-unknown-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  launcher-queue-depth-unknown.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: launcher-queue-depth-unknown
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: launcher-queue-depth-unknown
+            title: Job launcher cannot read its queues
+            condition: C
+            for: 2m
+            noDataState: OK
+            execErrState: Error
+            labels:
+              severity: warning
+            annotations:
+              summary: 'The launcher cannot read job_runs or job_runs.dlq (missing queue or broker unreachable). Runs are not being consumed.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-alerts.md#launcher-queue-depth-unknown
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: |-
+                      SELECT COALESCE((
+                        SELECT CASE
+                          WHEN queue_depths->>'job_runs' IS NULL OR queue_depths->>'job_runs.dlq' IS NULL THEN 1
+                          ELSE 0
+                        END
+                        FROM launcher_heartbeat
+                        WHERE id = 1 AND at > now() - interval '5 minutes'
+                      ), 0)::double precision AS value;
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}

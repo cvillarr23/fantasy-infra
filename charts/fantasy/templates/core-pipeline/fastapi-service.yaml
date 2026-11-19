@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantasy-core-pipeline
+  labels:
+    app: fantasy-core-pipeline
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  # Not app alone: every launched core-pipeline pod (lineup, waiver, draft listener, ...) also
+  # carries app=fantasy-core-pipeline and counts as Ready while running (no probes), so it
+  # joined this Service's endpoints and a job calling /v1/* could be routed to itself
+  # and get "Connection refused" on :8000.
+  selector:
+    app: fantasy-core-pipeline
+    component: gateway

@@ -1,0 +1,96 @@
+# The original homelab's production install, layered on values.yaml:
+#   helm template fantasy charts/fantasy -n default -f charts/fantasy/values-production.yaml
+# Until Argo CD deploys the chart, overlays/production is what runs, and CI
+# (scripts/compare-renders.py) fails if this render and that one differ.
+
+# No image digests here yet: Argo CD Image Updater still writes them to
+# overlays/production/kustomization.yaml, and scripts/compare-renders.py passes those to this
+# render with --set. They move here when Argo CD switches to the chart.
+
+imagePullSecrets: [ghcr-pull-secret]
+
+league:
+  # Production bots use their own per-bot defaults (lineup changes are live).
+  dryRun: null
+
+worker:
+  # Arms live trade submission on this queue worker only. TRADE_DRY_RUN is read by trade_builder
+  # alone, so waivers, the draft clicker and trade responses stay dry. A send still needs a
+  # matching human approval. Keep these off the shared ConfigMap and the launcher's trade jobs:
+  # scans must keep dry-filling.
+  tradeDryRun: "false"
+  tradeSubmitEnabled: "true"
+
+webUi:
+  grafanaUrl: https://grafana.banjo-chroma.ts.net/
+  service:
+    # homelab-deployment's cloudflared tunnel runs hostNetwork with the node's resolv.conf, so
+    # it can't resolve cluster DNS and routes to this IP directly. Update both together.
+    clusterIP: 10.152.183.104
+
+oauth2Proxy:
+  service:
+    # The external TLS reverse proxy (nginx-proxy-manager) routes public UI traffic here.
+    type: NodePort
+    nodePort: 30292
+
+tailscale:
+  enabled: true
+
+postgres:
+  readonlyRole:
+    enabled: true
+
+# homelab-deployment's shared Tempo.
+otel:
+  httpEndpoint: http://tempo.default.svc.cluster.local:4318
+  grpcEndpoint: http://tempo.default.svc.cluster.local:4317
+
+notify:
+  ntfyUrl: https://ntfy.roo-net.cc
+  webUiBaseUrl: https://fantasy.roo-net.cc
+
+# The shared OpenBao ClusterSecretStore from homelab-deployment. Write each path once by hand:
+#   bao kv put secret/fantasy/postgres postgres-password=<value>
+#   bao kv put secret/fantasy/postgres-readonly readonly-password=<value>
+#   bao kv put secret/fantasy/espn espn_s2=<value> swid=<value>
+#   bao kv put secret/fantasy/deployment ESPN_LEAGUE_ID=<value> ESPN_TEAM_ID=<value>
+#   bao kv put secret/fantasy/groq groq_api_key=<value>
+#   bao kv put secret/fantasy/gemini gemini_api_key=<value>
+#   bao kv put secret/fantasy/rabbitmq rabbitmq-user=<value> rabbitmq-password=<value>
+#   bao kv put secret/fantasy/ghcr username=<github-username> token=<PAT with read:packages scope>
+#   bao kv put secret/fantasy/oauth2-proxy client-id=<value> client-secret=<value> cookie-secret=<value>
+#   bao kv put secret/fantasy/oauth2-proxy-deployment authenticated-emails-list=<one per line> redirect-url=<value> cookie-domain=<value>
+#   bao kv put secret/fantasy/trigger-api-key trigger_api_key=<value>
+#   bao kv put secret/fantasy/ntfy token=<fantasy-worker's ntfy access token>
+#   bao kv put secret/fantasy/argocd-image-updater-git ssh-private-key=@key ssh-public-key=@key.pub
+secrets:
+  provider: externalSecrets
+  externalSecrets:
+    storeRef:
+      name: openbao
+    remoteKeys:
+      postgres: fantasy/postgres
+      postgresReadonly: fantasy/postgres-readonly
+      espn: fantasy/espn
+      deployment: fantasy/deployment
+      espnSessionState: fantasy/espn-session-state
+      triggerApiKey: fantasy/trigger-api-key
+      groq: fantasy/groq
+      gemini: fantasy/gemini
+      rabbitmq: fantasy/rabbitmq
+      ghcr: fantasy/ghcr
+      oauth2Proxy: fantasy/oauth2-proxy
+      oauth2ProxyDeployment: fantasy/oauth2-proxy-deployment
+      ntfy: fantasy/ntfy
+
+telemetry:
+  alerts:
+    enabled: true
+  dashboards:
+    enabled: true
+
+imageUpdater:
+  enabled: true
+  gitCredentialsKey: fantasy/argocd-image-updater-git
+  repoUrl: git@github.com:cvillarr23/fantasy-infra.git

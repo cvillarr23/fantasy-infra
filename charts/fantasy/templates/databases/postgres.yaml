@@ -1,0 +1,70 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantasy-db
+  labels:
+    app: fantasy-db
+spec:
+  ports:
+    - port: 5432
+      name: postgres
+  clusterIP: None
+  selector:
+    app: fantasy-db
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fantasy-db
+spec:
+  serviceName: "fantasy-db"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fantasy-db
+  template:
+    metadata:
+      labels:
+        app: fantasy-db
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          args:
+            {{- toYaml .Values.postgres.args | nindent 12 }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: "fantasy_football"
+            - name: POSTGRES_USER
+              value: "bot_admin"
+            - name: PGDATA
+              # initdb refuses to run against a non-empty mount root (this
+              # cluster's storage provisioner leaves a lost+found dir on
+              # fresh volumes) -- a subdirectory sidesteps that.
+              value: "/var/lib/postgresql/data/pgdata"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: db-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        {{- with .Values.postgres.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+{{- end }}

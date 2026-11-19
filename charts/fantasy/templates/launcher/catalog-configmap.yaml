@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-job-catalog
+data:
+  catalog.yaml: |
+    {{- include "fantasy.catalog" . | nindent 4 }}

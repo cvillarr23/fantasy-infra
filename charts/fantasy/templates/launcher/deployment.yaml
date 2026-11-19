@@ -1,0 +1,94 @@
+# The unified job launcher: scheduler, consumer, watcher and heartbeat in one process.
+# One replica with Recreate, so two launchers never admit the same run. It has no HTTP port;
+# health is the `launcher_heartbeat` row, alerted on in base/telemetry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantasy-job-launcher
+  labels:
+    app: fantasy-job-launcher
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fantasy-job-launcher
+  template:
+    metadata:
+      labels:
+        app: fantasy-job-launcher
+      annotations:
+        # The launcher reads the catalog only at startup, so a catalog change rolls the pod.
+        checksum/catalog: {{ include "fantasy.catalog" . | sha256sum }}
+    spec:
+      serviceAccountName: fantasy-job-launcher
+      # Longer than core's inline KILL_GRACE_SECONDS (30s), so a running inline job is killed
+      # by the launcher rather than by SIGKILL from the kubelet.
+      terminationGracePeriodSeconds: 45
+      {{- include "fantasy.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: launcher
+          image: {{ include "fantasy.image" .Values.images.core }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["python", "-m", "src.launcher"]
+          env:
+            - name: JOB_CATALOG_PATH
+              value: "/etc/fantasy-job-catalog/catalog.yaml"
+            # The namespace the launcher creates Jobs in; core defaults to `default` without it.
+            - name: K8S_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            # The catalog profiles' CORE_IMAGE and WORKER_IMAGE placeholders resolve to these.
+            - name: CORE_IMAGE
+              value: {{ include "fantasy.image" .Values.images.core | quote }}
+            - name: WORKER_IMAGE
+              value: {{ include "fantasy.image" .Values.images.worker | quote }}
+            # Copied into every launched pod, so they match the gateway's settings.
+            - name: DB_HOST
+              value: {{ include "fantasy.dbHost" . | quote }}
+            - name: DB_NAME
+              value: "fantasy_football"
+            - name: DB_USER
+              value: "bot_admin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-password
+            - name: AMQP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: amqp-url
+            - name: REDIS_HOST
+              value: {{ include "fantasy.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: CORE_API_BASE_URL
+              value: "http://{{ include "fantasy.coreApiHost" . }}"
+            # Core pods export OTLP over HTTP; the Node worker exports gRPC on another port.
+            # Launched pods copy these, and export nothing when they're unset.
+            {{- with .Values.otel.httpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "job-launcher"
+            {{- end }}
+            {{- with .Values.otel.grpcEndpoint }}
+            - name: WORKER_OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: job-catalog
+              mountPath: /etc/fantasy-job-catalog
+              readOnly: true
+          # Inline runs are child processes in this container: the launcher uses about 95Mi and
+          # the inline syncers peak at 157Mi (rapid-status-syncer's daily Sleeper fetch).
+          resources:
+            {{- toYaml .Values.launcher.resources | nindent 12 }}
+      volumes:
+        - name: job-catalog
+          configMap:
+            name: fantasy-job-catalog

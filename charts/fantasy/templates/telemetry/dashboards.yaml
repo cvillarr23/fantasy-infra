@@ -1,0 +1,4 @@
+{{- /* Grafana dashboards, discovered by a Grafana sidecar through the grafana_dashboard: "1" label. */}}
+{{- if .Values.telemetry.dashboards.enabled }}
+{{- include "fantasy.rawFiles" (list . "files/dashboards/*.yaml") }}
+{{- end }}

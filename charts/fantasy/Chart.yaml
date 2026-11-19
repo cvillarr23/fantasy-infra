@@ -1,0 +1,17 @@
+apiVersion: v2
+name: fantasy
+description: >-
+  The fantasy platform: core API and job launcher, browser-worker Jobs, web UI behind
+  oauth2-proxy, and the Postgres/TimescaleDB, Redis and RabbitMQ stores they share.
+type: application
+# Bump on every chart change; CI publishes a new OCI package when this changes on main.
+version: 0.1.0
+# Informational only. The app images track `latest` digests, set through values.
+appVersion: "latest"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/cvillarr23/fantasy-infra
+sources:
+  - https://github.com/cvillarr23/fantasy-infra
+  - https://github.com/cvillarr23/fantasy-core-pipeline
+  - https://github.com/cvillarr23/fantasy-browser-worker
+  - https://github.com/cvillarr23/fantasy-web-ui

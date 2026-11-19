@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "fantasy chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string"},
+        "digest": {"type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {"type": "object"},
+        "limits": {"type": "object"}
+      }
+    },
+    "toggle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"enabled": {"type": "boolean"}}
+    },
+    "storePath": {"type": "string"}
+  },
+  "properties": {
+    "global": {"type": "object"},
+    "imagePullSecrets": {"type": "array", "items": {"type": "string"}},
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "core": {"$ref": "#/definitions/image"},
+        "worker": {"$ref": "#/definitions/image"},
+        "webUi": {"$ref": "#/definitions/image"}
+      }
+    },
+    "league": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "currentYear": {"type": "string", "pattern": "^[0-9]{4}$"},
+        "sportType": {"type": "string"},
+        "autoPublishIrMoves": {"type": "boolean"},
+        "espnMarketWeight": {"type": "string", "pattern": "^(0(\\.[0-9]+)?|1(\\.0+)?)$"},
+        "dryRun": {"type": ["string", "null"]}
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"resources": {"$ref": "#/definitions/resources"}}
+    },
+    "launcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "catalog": {"type": "string", "description": "The job catalog YAML as a string; use --set-file."},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "idleExitSeconds": {"type": "string", "pattern": "^[0-9]+$"},
+        "minReplicaCount": {"type": ["integer", "null"], "minimum": 0},
+        "maxReplicaCount": {"type": "integer", "minimum": 1},
+        "tradeDryRun": {"enum": ["true", "false"]},
+        "tradeSubmitEnabled": {"enum": ["true", "false"]},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "webUi": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grafanaUrl": {"type": "string"},
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"clusterIP": {"type": "string"}}
+        }
+      }
+    },
+    "oauth2Proxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+            "nodePort": {"type": ["integer", "null"]}
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string"},
+        "host": {"type": "string"},
+        "annotations": {"type": "object"},
+        "tls": {"type": "array"}
+      }
+    },
+    "tailscale": {"$ref": "#/definitions/toggle"},
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "host": {"type": "string"},
+        "image": {"type": "string"},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "resources": {"$ref": "#/definitions/resources"},
+        "storage": {"type": "string"},
+        "storageClassName": {"type": "string"},
+        "readonlyRole": {"$ref": "#/definitions/toggle"}
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "host": {"type": "string"},
+        "port": {"type": "string", "pattern": "^[0-9]+$"}
+      }
+    },
+    "rabbitmq": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "storage": {"type": "string"},
+        "storageClassName": {"type": "string"}
+      }
+    },
+    "otel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpEndpoint": {"type": "string"},
+        "grpcEndpoint": {"type": "string", "pattern": "^(http://.*)?$"}
+      }
+    },
+    "notify": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ntfyUrl": {"type": "string"},
+        "topic": {"type": "string"},
+        "webUiBaseUrl": {"type": "string"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {"enum": ["existing", "externalSecrets"]},
+        "externalSecrets": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "refreshInterval": {"type": "string"},
+            "storeRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {"type": "string"},
+                "kind": {"enum": ["ClusterSecretStore", "SecretStore"]}
+              }
+            },
+            "remoteKeys": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "postgres": {"$ref": "#/definitions/storePath"},
+                "postgresReadonly": {"$ref": "#/definitions/storePath"},
+                "espn": {"$ref": "#/definitions/storePath"},
+                "deployment": {"$ref": "#/definitions/storePath"},
+                "espnSessionState": {"$ref": "#/definitions/storePath"},
+                "triggerApiKey": {"$ref": "#/definitions/storePath"},
+                "groq": {"$ref": "#/definitions/storePath"},
+                "gemini": {"$ref": "#/definitions/storePath"},
+                "rabbitmq": {"$ref": "#/definitions/storePath"},
+                "ghcr": {"$ref": "#/definitions/storePath"},
+                "oauth2Proxy": {"$ref": "#/definitions/storePath"},
+                "oauth2ProxyDeployment": {"$ref": "#/definitions/storePath"},
+                "ntfy": {"$ref": "#/definitions/storePath"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "alerts": {"$ref": "#/definitions/toggle"},
+        "dashboards": {"$ref": "#/definitions/toggle"}
+      }
+    },
+    "imageUpdater": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "gitCredentialsKey": {"type": "string"},
+        "repoUrl": {"type": "string"}
+      }
+    }
+  }
+}
