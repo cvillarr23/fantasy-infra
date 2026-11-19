@@ -1,0 +1,29 @@
+# Draft-day window, layered on production:
+#   -f values-production.yaml -f values-draft-day.yaml
+# Later files win key by key; lists such as postgres.args are replaced whole.
+
+api:
+  # Headroom for the live draft clock math.
+  resources:
+    requests: {memory: 512Mi, cpu: 500m}
+    limits: {memory: 1500Mi, cpu: 3000m}
+
+postgres:
+  # Doubled buffers and more connections, so simultaneous draft sync lookups never lock out.
+  args:
+    - "-c"
+    - "shared_buffers=256MB"
+    - "-c"
+    - "work_mem=32MB"
+    - "-c"
+    - "maintenance_work_mem=64MB"
+    - "-c"
+    - "effective_cache_size=512MB"
+    - "-c"
+    - "max_connections=50"
+
+worker:
+  # One worker stays up, logged into the ESPN draft room, so there is no container start when
+  # it's your turn on the clock. Production stays scale-to-zero.
+  minReplicaCount: 1
+  idleExitSeconds: "0"

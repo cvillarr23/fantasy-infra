@@ -112,6 +112,9 @@ spec:
             # launcher does; without it every manual run answers 503.
             - name: JOB_CATALOG_PATH
               value: "/etc/fantasy-job-catalog/catalog.yaml"
+            # The namespace the API creates draft-sync Jobs in; core defaults to `default` without it.
+            - name: K8S_NAMESPACE
+              value: "default"
 
             # OTLP export target for homelab-deployment's shared Tempo instance
             # (homelab-deployment#5/#6) -- endpoint + service name only, actual

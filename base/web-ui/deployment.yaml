@@ -29,6 +29,9 @@ spec:
                 secretKeyRef:
                   name: trigger-api-key
                   key: trigger-api-key
+            # nginx proxies /v1/ here; the image's default assumes namespace `default`.
+            - name: CORE_API_UPSTREAM
+              value: "fantasy-core-pipeline.default.svc.cluster.local:8000"
             - name: GRAFANA_URL
               value: https://grafana.banjo-chroma.ts.net/
 

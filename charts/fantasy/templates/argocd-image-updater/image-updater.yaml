@@ -1,0 +1,10 @@
+{{- /*
+Argo CD Image Updater, always in the argocd namespace. Its config holds the updater's own
+commit template, so these stay plain files.
+*/}}
+{{- if .Values.imageUpdater.enabled }}
+{{- range $path, $_ := .Files.Glob "files/argocd-image-updater/*.yaml" }}
+---
+{{ $.Files.Get $path }}
+{{- end }}
+{{- end }}

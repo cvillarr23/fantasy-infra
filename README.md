@@ -28,6 +28,7 @@ this repository's `docs/` under `/infra` and rebuilds after docs changes land on
 | `base/` | Application workloads, stateful stores, auth proxy, scaler, dashboards and alerts |
 | `overlays/production/` | Configuration, ExternalSecrets and application digest pins |
 | `overlays/draft-day/` | Production plus draft-window resource and warm-worker patches |
+| `charts/fantasy/` | Helm chart for [self-hosting](https://fantasy-docs.roo-net.cc/installation/kubernetes); kept equal to the overlays by CI |
 | `scripts/` | Image refresh, draft environment preflight and schedule generation |
 | `tests/` | Offline render checks and isolated broker/alert integration suites |
 
@@ -41,6 +42,8 @@ kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
 kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
 ./scripts/preflight-draft-sync-env.sh
 python3 scripts/generate-schedules.py --check
+helm lint charts/fantasy
+python3 scripts/compare-renders.py
 ```
 
 Provision [private deployment values](docs/deployment.md#supply-private-deployment-values)

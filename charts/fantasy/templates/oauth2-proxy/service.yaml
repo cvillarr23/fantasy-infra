@@ -1,0 +1,20 @@
+# Public UI traffic reaches this Service: from the chart's Ingress, or, as a NodePort, from an
+# external TLS reverse proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  labels:
+    app: oauth2-proxy
+spec:
+  type: {{ .Values.oauth2Proxy.service.type }}
+  ports:
+    - port: 4180
+      targetPort: 4180
+      {{- with .Values.oauth2Proxy.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
+      protocol: TCP
+      name: http
+  selector:
+    app: oauth2-proxy

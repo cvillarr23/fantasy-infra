@@ -95,6 +95,9 @@ spec:
                 value: "grpc"
               - name: OTEL_SERVICE_NAME
                 value: "browser-worker"
+              # The trade bots call core here; the worker's built-in default assumes namespace `default`.
+              - name: CORE_PIPELINE_URL
+                value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
               # Full stored login (fantasy-infra#129): auth.js prefers this over the cookie pair
               # above. If the secret is absent the file is missing and auth falls back to cookies.
               - name: ESPN_SESSION_STATE_FILE

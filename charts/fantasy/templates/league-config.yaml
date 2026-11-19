@@ -1,0 +1,13 @@
+# Read through envFrom by the API, the worker and launched jobs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-league-config
+  namespace: {{ .Release.Namespace }}
+data:
+  CURRENT_YEAR: {{ .Values.league.currentYear | quote }}
+  SPORT_TYPE: {{ .Values.league.sportType | quote }}
+  AUTO_PUBLISH_IR_MOVES: {{ .Values.league.autoPublishIrMoves | quote }}
+  {{- if not (kindIs "invalid" .Values.league.dryRun) }}
+  DRY_RUN: {{ .Values.league.dryRun | quote }}
+  {{- end }}

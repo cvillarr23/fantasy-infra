@@ -23,6 +23,23 @@ flowchart LR
 | `base/` | Databases, API, UI, OAuth proxy, job launcher, worker scaler, telemetry and image updater resources |
 | `overlays/production/` | Base plus configuration, ExternalSecrets and application image digests |
 | `overlays/draft-day/` | Inherits production; increases API resources and Postgres buffers/connections, keeps one worker warm and disables its idle exit |
+| `charts/fantasy/` | The Helm chart for self-hosted installs. `values-production.yaml` and `values-draft-day.yaml` reproduce the two overlays. |
+
+## Keep the Helm chart in step
+
+Self-hosters install `charts/fantasy` (see its [README](https://github.com/cvillarr23/fantasy-infra/blob/main/charts/fantasy/README.md)). Argo CD deploys the overlays here until it switches to the chart. Until then, every change to `base/` or `overlays/` needs the same change in the chart, and CI's `Helm chart` workflow fails when the two renders differ:
+
+```bash
+python3 scripts/compare-renders.py
+```
+
+| You changed | Also change |
+|---|---|
+| A workload, Service or RBAC file in `base/` | Its template under `charts/fantasy/templates/`, in the same subdirectory |
+| The catalog, a Grafana alert or dashboard, or the Image Updater manifests | Run `scripts/sync-chart-files.sh`; the chart ships these files verbatim |
+| An overlay patch or ExternalSecret | `values-production.yaml`, `values-draft-day.yaml`, or `templates/secrets/externalsecrets.yaml` |
+
+Image digests are the exception: Image Updater writes them to the production kustomization, and the comparison passes them to the chart render.
 
 ## Supply private deployment values
 
@@ -98,6 +115,8 @@ Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+, Ar
    kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
    kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
    ./scripts/preflight-draft-sync-env.sh
+   helm lint charts/fantasy
+   python3 scripts/compare-renders.py
    ```
 
 2. Review the rendered images, runtime Job image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.

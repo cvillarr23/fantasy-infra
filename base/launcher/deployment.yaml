@@ -33,6 +33,9 @@ spec:
           env:
             - name: JOB_CATALOG_PATH
               value: "/etc/fantasy-job-catalog/catalog.yaml"
+            # The namespace the launcher creates Jobs in; core defaults to `default` without it.
+            - name: K8S_NAMESPACE
+              value: "default"
             # PLACEHOLDERS ONLY: overlays/production/kustomization.yaml replaces both with the
             # digest-pinned images, the same way as DRAFT_SYNC_IMAGE on the gateway.
             - name: CORE_IMAGE

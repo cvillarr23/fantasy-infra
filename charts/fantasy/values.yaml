@@ -1,0 +1,193 @@
+# Defaults for a self-hosted install: every write to ESPN off, the in-cluster stores on,
+# and everything specific to the original homelab (Tailscale, OpenBao, Grafana, Argo CD Image
+# Updater) off. values-production.yaml is that homelab's configuration; read it as an example.
+#
+# Resource names are fixed (fantasy-db, fantasy-job-launcher, ...), not prefixed with the
+# release name, so install one release per namespace.
+
+# Pull secrets added to every pod, by Secret name. The images are public, so none are needed.
+imagePullSecrets: []
+
+# Each image is repository@digest when `digest` is set, else repository:tag.
+images:
+  core:
+    repository: ghcr.io/cvillarr23/fantasy-core-pipeline
+    tag: latest
+    digest: ""
+    pullPolicy: Always
+  worker:
+    repository: ghcr.io/cvillarr23/fantasy-browser-worker
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+  webUi:
+    repository: ghcr.io/cvillarr23/fantasy-web-ui
+    tag: latest
+    digest: ""
+    pullPolicy: Always
+
+# The fantasy-league-config ConfigMap, read by the API, the worker and launched jobs.
+league:
+  currentYear: "2026"
+  sportType: nfl
+  # Unattended IR stashes require deliberate approval before a live waiver week.
+  autoPublishIrMoves: false
+  # Any value other than 0, false or no makes every bot dry-run. Leave it on until the
+  # install is verified; null removes the key, and then each bot uses its own default
+  # (lineup changes are live).
+  dryRun: "true"
+
+# The FastAPI gateway (fantasy-core-pipeline Deployment).
+api:
+  resources:
+    requests: {memory: 256Mi, cpu: 250m}
+    limits: {memory: 512Mi, cpu: 1000m}
+
+launcher:
+  # The job catalog as a string. Empty uses the bundled files/catalog.yaml. Supply your own
+  # with `--set-file launcher.catalog=my-catalog.yaml`; it can't be a YAML map here, because
+  # Helm's parser would turn a chain's `on:` key into `true`. The bundled catalog schedules in
+  # America/Chicago; change each `tz` in your copy.
+  catalog: ""
+  resources:
+    requests: {memory: 192Mi, cpu: 50m}
+    limits: {memory: 512Mi, cpu: 500m}
+
+# The KEDA-scaled browser worker (fantasy-browser-worker-scaler ScaledJob).
+worker:
+  # Seconds without a message before a worker exits. 0 keeps it running (draft day).
+  idleExitSeconds: "45"
+  # null leaves KEDA's default of 0 (scale to zero).
+  minReplicaCount: null
+  maxReplicaCount: 3
+  # Live trade submission from the queue worker. Keep it off until you mean it.
+  tradeDryRun: "true"
+  tradeSubmitEnabled: "false"
+  resources:
+    requests: {memory: 256Mi, cpu: 50m}
+    limits: {memory: 1200Mi, cpu: 1000m}
+
+webUi:
+  # Grafana base URL the run detail page links logs to. Empty hides the links.
+  grafanaUrl: ""
+  service:
+    # Pin only if something outside cluster DNS routes to the Service by IP.
+    clusterIP: ""
+
+# Google OIDC login in front of the UI and its /v1 proxy. Needs the oauth2-proxy-credentials
+# and oauth2-proxy-deployment-config Secrets.
+oauth2Proxy:
+  service:
+    type: ClusterIP
+    nodePort: null
+
+# An Ingress to oauth2-proxy, for clusters with an ingress controller (ingress-nginx, Traefik).
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  annotations: {}
+  # e.g. [{secretName: fantasy-tls, hosts: [draft.example.com]}]
+  tls: []
+
+# Tailnet-only Ingresses for the UI (fantasy-draft) and the RabbitMQ management UI
+# (fantasy-broker), through the Tailscale operator.
+tailscale:
+  enabled: false
+
+postgres:
+  # false: use an existing Postgres with the TimescaleDB extension at `host`.
+  enabled: true
+  host: ""
+  image: timescale/timescaledb:latest-pg15
+  args:
+    - "-c"
+    - "shared_buffers=128MB"
+    - "-c"
+    - "work_mem=16MB"
+    - "-c"
+    - "maintenance_work_mem=32MB"
+    - "-c"
+    - "effective_cache_size=256MB"
+    - "-c"
+    - "max_connections=20"
+  resources:
+    requests: {memory: 512Mi, cpu: 200m}
+    limits: {memory: 1024Mi, cpu: 1000m}
+  storage: 10Gi
+  # Empty uses the cluster's default StorageClass.
+  storageClassName: ""
+  # A grafana_reader login role for a Grafana datasource. Needs readonly-database-credentials.
+  readonlyRole:
+    enabled: false
+
+redis:
+  # false: use an existing Redis at `host`.
+  enabled: true
+  host: ""
+  port: "6379"
+
+rabbitmq:
+  # The worker's KEDA triggers and the launcher's queues need this broker's topology, so it
+  # can't be swapped for an external one yet.
+  storage: 2Gi
+  storageClassName: ""
+
+# OTLP trace export. Empty endpoints disable it.
+otel:
+  # Core and the launcher export OTLP over HTTP, e.g. http://tempo.monitoring.svc.cluster.local:4318
+  httpEndpoint: ""
+  # The Node worker exports gRPC, e.g. http://tempo.monitoring.svc.cluster.local:4317. Keep the
+  # http:// prefix: anything else makes the exporter use TLS.
+  grpcEndpoint: ""
+
+# Phone pushes from the worker through ntfy. Empty ntfyUrl sends nothing.
+notify:
+  ntfyUrl: ""
+  topic: fantasy
+  # Links in each push open pages under this URL.
+  webUiBaseUrl: ""
+
+secrets:
+  # existing: you create the Secrets yourself (see the chart README for names and keys).
+  # externalSecrets: the chart renders External Secrets Operator ExternalSecrets that fill them
+  # from your secret store.
+  provider: existing
+  externalSecrets:
+    refreshInterval: 1h
+    storeRef:
+      name: ""
+      kind: ClusterSecretStore
+    # The store path for each Secret. Property names inside each path are fixed; see the README.
+    # An empty path skips that ExternalSecret.
+    remoteKeys:
+      postgres: ""
+      postgresReadonly: ""
+      espn: ""
+      deployment: ""
+      espnSessionState: ""
+      triggerApiKey: ""
+      groq: ""
+      gemini: ""
+      rabbitmq: ""
+      ghcr: ""
+      oauth2Proxy: ""
+      oauth2ProxyDeployment: ""
+      ntfy: ""
+
+# Grafana alert rules and dashboards as sidecar-discovered ConfigMaps (labels grafana_alert
+# and grafana_dashboard). Built for the original homelab's Grafana and datasources.
+telemetry:
+  alerts:
+    enabled: false
+  dashboards:
+    enabled: false
+
+# Argo CD Image Updater in the argocd namespace, with its credentials from the secret store.
+# Only for a GitOps install that writes digests back to its own fork.
+imageUpdater:
+  enabled: false
+  # Store path of the deploy key (ssh-private-key, ssh-public-key).
+  gitCredentialsKey: ""
+  # Also create the Argo CD repository credential for this git URL from the same key.
+  repoUrl: ""

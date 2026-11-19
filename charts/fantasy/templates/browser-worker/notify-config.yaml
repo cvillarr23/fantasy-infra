@@ -1,0 +1,16 @@
+# Phone pushes from fantasy-browser-worker to an ntfy server. Every worker container reads this
+# plus the optional ntfy-credentials Secret (NTFY_TOKEN); nothing is sent without NTFY_URL. Links
+# in each push open pages under WEB_UI_BASE_URL.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-notify-config
+  namespace: {{ .Release.Namespace }}
+data:
+  {{- with .Values.notify.ntfyUrl }}
+  NTFY_URL: {{ . | quote }}
+  {{- end }}
+  NTFY_TOPIC: {{ .Values.notify.topic | quote }}
+  {{- with .Values.notify.webUiBaseUrl }}
+  WEB_UI_BASE_URL: {{ . | quote }}
+  {{- end }}

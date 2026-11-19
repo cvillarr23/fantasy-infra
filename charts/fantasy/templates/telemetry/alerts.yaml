@@ -1,0 +1,7 @@
+{{- /*
+Grafana alert rules, discovered by a Grafana sidecar through the grafana_alert: "1" label (see
+docs/cronjob-alerts.md). Kept as plain files: their bodies are Grafana templates.
+*/}}
+{{- if .Values.telemetry.alerts.enabled }}
+{{- include "fantasy.rawFiles" (list . "files/telemetry/*.yaml") }}
+{{- end }}
