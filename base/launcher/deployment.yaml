@@ -34,7 +34,7 @@ spec:
             - name: JOB_CATALOG_PATH
               value: "/etc/fantasy-job-catalog/catalog.yaml"
             # PLACEHOLDERS ONLY: overlays/production/kustomization.yaml replaces both with the
-            # digest-pinned images, the same way as DRAFT_SYNC_IMAGE on the gateway.
+            # digest-pinned images (see the replacements there).
             - name: CORE_IMAGE
               value: "ghcr.io/cvillarr23/fantasy-core-pipeline:placeholder-set-by-kustomize-replacement"
             - name: WORKER_IMAGE

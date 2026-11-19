@@ -22,13 +22,7 @@ This is one of three repos that make up the platform:
 
 **These MUST be set or the app fails silently at runtime**:
 
-- `DRAFT_SYNC_IMAGE`: Container image for the draft_matrix.py listener Job spawned by `POST /v1/draft/start`.
-  - **Issue fantasy-web-ui#7**: If missing, practice draft start fails with `"DRAFT_SYNC_IMAGE is not configured..."`.
-  - Must match a published image ref from `fantasy-core-pipeline` repo (e.g., `ghcr.io/cvillarr23/fantasy-core-pipeline:073aad9a8b4db94f8fdf7da23bcfc8d29e9d06e6`)
-  - Set in `base/core-pipeline/fastapi-deployment.yaml` under `containers[0].env`
-  - **After adding/updating**: Push to main → ArgoCD syncs within 3–5 min (or force via `argocd app sync fantasy-infra --force`)
-
-- `BROWSER_WORKER_IMAGE`: Draft room sync Job image (already configured — keep in sync with fantasy-browser-worker releases).
+- `JOB_CATALOG_PATH`: The job catalog the Jobs API and the draft endpoints read. Draft runs (`POST /v1/draft/start`, `/v1/draft/practice/sync-job`) are launcher service jobs in `base/launcher/catalog.yaml`; without the catalog they answer 503.
 
 - `DB_HOST`, `DB_NAME`, `DB_USER`: Postgres topology — must match Service names in `base/databases/postgres.yaml`.
 - `REDIS_HOST`, `REDIS_PORT`: Redis connection — must match Service in `base/databases/redis-deployment.yaml`.
@@ -38,7 +32,7 @@ This is one of three repos that make up the platform:
 
 - **Env var names and default Service DNS hostnames** (`*.svc.cluster.local`) referenced here must match what `fantasy-core-pipeline`/`fantasy-browser-worker` actually read via `os.getenv(...)`/`process.env` — a namespace or name mismatch between a Deployment's env and the app's fallback default fails silently at runtime, not at manifest-render time.
 - **Check `metadata.namespace` consistency** across a change — this codebase has previously had mismatches between a manifest's namespace and another repo's hardcoded fallback default (e.g. `default` vs `databases`).
-- **DRAFT_SYNC_IMAGE is set and valid** — don't merge a PR that removes or empties this env var without confirming with fantasy-core-pipeline maintainers.
+- **The four draft jobs stay in the catalog** (`draft-listener`, `practice-draft-listener`, `draft-connector`, `practice-draft-connector`) — the draft API requests them by name.
 - **Resource requests/limits should stay conservative** (this runs on homelab-scale nodes) — flag any request/limit bump that isn't clearly justified.
 - **Image refs** must exist in ghcr.io — if bumping a commit SHA, verify it was published (check GitHub Actions in the source repo).
 

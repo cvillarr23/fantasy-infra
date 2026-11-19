@@ -78,9 +78,9 @@ fi
 
 echo
 echo "==> Images actually running"
-# These two env values name the images core-pipeline pulls when it spawns draft Jobs at
-# runtime. They are the ones that historically drifted, so they are worth printing even
-# when everything reports Synced - a healthy Deployment says nothing about them.
+# The launcher's CORE_IMAGE and WORKER_IMAGE env values name the images every launched pod
+# (draft runs included) pulls. Env strings are the ones that historically drifted, so they are
+# worth printing even when everything reports Synced - a healthy Deployment says nothing about them.
 kubectl get deployment fantasy-core-pipeline -n default -o jsonpath='{range .spec.template.spec.containers[*]}{.name}: {.image}{"\n"}{end}' 2>/dev/null || true
-kubectl get deployment fantasy-core-pipeline -n default \
-  -o jsonpath='{range .spec.template.spec.containers[0].env[?(@.name=="DRAFT_SYNC_IMAGE")]}DRAFT_SYNC_IMAGE: {.value}{"\n"}{end}{range .spec.template.spec.containers[0].env[?(@.name=="BROWSER_WORKER_IMAGE")]}BROWSER_WORKER_IMAGE: {.value}{"\n"}{end}' 2>/dev/null || true
+kubectl get deployment fantasy-job-launcher -n default \
+  -o jsonpath='{range .spec.template.spec.containers[0].env[?(@.name=="CORE_IMAGE")]}CORE_IMAGE: {.value}{"\n"}{end}{range .spec.template.spec.containers[0].env[?(@.name=="WORKER_IMAGE")]}WORKER_IMAGE: {.value}{"\n"}{end}' 2>/dev/null || true

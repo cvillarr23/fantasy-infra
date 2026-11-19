@@ -14,16 +14,19 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 ### Catalog jobs
 | Job | Schedule | Command |
 |---|---|---|
+| `draft-connector` | — | `node src/bots/draft_sync.js` |
+| `draft-listener` | — | `python -m src.optimization.draft_matrix` |
 | `espn-ownership-sync` | `45 17 * * *` (America/Chicago) | `python -m src.ingestion.sync_espn_ownership` |
 | `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
 | `lineup-optimizer` | — | `python -m src.optimization.lineup_solver` |
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |
+| `practice-draft-connector` | — | `node src/bots/draft_sync.js` |
+| `practice-draft-listener` | — | `python -m src.optimization.draft_matrix` |
 | `projections-refresh` | `0 18 * * *` (America/Chicago) | `python -m src.jobs.draft_prep_refresh` |
 | `rapid-status-syncer` | `*/10 * * * 4,0,1` (America/Chicago) | `python -m src.ingestion.sync_players` |
 | `rumor-action-trigger` | `45 21 * * *` (America/Chicago)<br/>on `rumor.signal_created` (debounce 30m) | `python -m src.services.rumor_action_service --team-id $(ESPN_TEAM_ID) --season $(CURRENT_YEAR)` |
 | `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
 | `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |
-| `stale-draft-job-sweeper` | `*/15 * * * *` (America/Chicago) | `python -m src.ops.sweep_stale_draft_jobs` |
 | `sync-actual-scores` | `0 10 * * 5` (America/Chicago) | `python -m src.ingestion.sync_actual_scores --season $(CURRENT_YEAR)` |
 | `sync-league` | — | `python -m src.ingestion.sync_league --season $(CURRENT_YEAR)` |
 | `trade-candidates` | `0 7 * * *` (America/Chicago)<br/>`30 12 * * 3,5` (America/Chicago) | `python -m src.jobs.trade_candidates` |
