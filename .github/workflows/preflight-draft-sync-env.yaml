@@ -27,8 +27,12 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
 
-      - name: Run draft-sync env preflight
-        run: ./scripts/preflight-draft-sync-env.sh
+      # The draft-sync env vars this used to check are gone: draft runs go through the job
+      # launcher (fantasy-core-pipeline#350). The workflow keeps its name for required checks.
+      - name: Render both overlays
+        run: |
+          kubectl kustomize overlays/production > /dev/null
+          kubectl kustomize overlays/draft-day > /dev/null
 
       - name: Validate private deployment configuration
         run: python -m unittest discover -s tests -p test_deployment_values.py

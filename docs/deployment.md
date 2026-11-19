@@ -80,7 +80,7 @@ The registered Application selects production. Merging draft-day patches does no
 | Image Updater | This repository's `base/argocd-image-updater/`; GHCR registry configuration, RBAC and deployment in `argocd` |
 | Update annotations | On `fantasy-infra`; `digest` strategy for API, UI and browser-worker `latest`, Git write-back to `main`, target `kustomization` |
 
-The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into `DRAFT_SYNC_IMAGE` and `BROWSER_WORKER_IMAGE`, which the API uses for runtime-created draft Jobs, and into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches.
+The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches, the draft listener and room connector included.
 
 :::warning[Existing Jobs keep their image]
 Changing the catalog, an image or a ScaledJob template affects future Jobs. Inspect active Jobs separately; deployment health alone does not prove every workload uses the new digest.
@@ -97,10 +97,9 @@ Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+, Ar
    ```bash
    kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
    kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
-   ./scripts/preflight-draft-sync-env.sh
    ```
 
-2. Review the rendered images, runtime Job image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
+2. Review the rendered images, the launcher's image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
 3. Merge the reviewed infra change. Argo CD applies it automatically; Image Updater may subsequently commit newer application digests.
 4. Verify the Application revision, health and workload image evidence below.
 

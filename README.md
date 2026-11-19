@@ -39,7 +39,6 @@ Shared controllers, model services, DNS and edge routing live in
 ```bash
 kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
 kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
-./scripts/preflight-draft-sync-env.sh
 python3 scripts/generate-schedules.py --check
 ```
 
