@@ -202,8 +202,14 @@ fires_for(COMMITTED_WARNING, 'committed rule, final failure and overlap skip', [
 # catch_up window alerts: nothing else reports a run that never started.
 reset()
 print(run('r1', 'trade-scan', 'failure', attempt=1) + run('r2', 'trade-candidates', 'timeout', attempt=1)
-      + run('r3', 'trade-inbox', 'skipped', end_reason='expired'))
-fires_for(COMMITTED_WARNING, 'committed rule, trade jobs alert on one attempt', ['trade-candidates', 'trade-inbox', 'trade-scan'])
+      + run('r3', 'trade-inbox', 'skipped', end_reason='expired') + run('r4', 'trade-submit', 'failure', attempt=1))
+fires_for(COMMITTED_WARNING, 'committed rule, trade jobs alert on one attempt',
+          ['trade-candidates', 'trade-inbox', 'trade-scan', 'trade-submit'])
+# Core's approve route starts trade-submit, so an approved send that waited behind the
+# espn-session group past its queue window alerts: the offer was never sent.
+reset()
+print(run('r1', 'trade-submit', 'skipped', end_reason='expired', trigger='manual'))
+fires_for(COMMITTED_WARNING, 'committed rule, expired trade send', ['trade-submit'])
 # The Tuesday chain's steps: lineup alerts critical on its third attempt, a step skipped
 # because its data parent failed alerts, and a daily slot the chain covers stays quiet.
 COMMITTED_CRITICAL = load_rule('launcher-run-failed-critical-alert.yaml')

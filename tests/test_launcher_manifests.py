@@ -34,7 +34,7 @@ def catalog(docs):
 
 TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "espn-ownership-sync",
                  "projections-refresh", "lineup-optimizer", "waiver-trigger", "rumor-action-trigger"]
-TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox"]
+TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox", "trade-submit"]
 # Started and cancelled by the draft API (core-pipeline#350), never scheduled.
 DRAFT_JOBS = ["draft-listener", "practice-draft-listener", "draft-connector", "practice-draft-connector"]
 
@@ -141,6 +141,8 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertNotIn("llm", profiles["worker"]["secrets"])
         self.assertEqual(jobs["trade-scan"]["profile"], "worker-scan")
         self.assertIn("llm", profiles["worker-scan"]["secrets"])
+        self.assertEqual(jobs["trade-submit"]["profile"], "worker-submit")
+        self.assertNotIn("llm", profiles["worker-submit"]["secrets"])
         # The digest and the inbox publish job_events facts (the amqp bundle's AMQP_URL).
         self.assertEqual(jobs["rumor-digest-bot"]["profile"], "worker-llm")
         for name in ("worker-llm", "worker"):

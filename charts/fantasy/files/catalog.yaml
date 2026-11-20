@@ -13,6 +13,8 @@ profiles:
   # amqp lets the inbox publish trade.offer_received to job_events.
   worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp], volumes: [espn-session-state]}
   worker-scan: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, llm], volumes: [espn-session-state]}
+  # The trade send: the scan's browser bundles without the LLM keys, which the builder never reads.
+  worker-submit: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config], volumes: [espn-session-state]}
   # Worker bots that never drive a browser, so no browser-worker SA or stored session state.
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   # amqp lets the digest publish rumor.signal_created to job_events.
@@ -20,7 +22,8 @@ profiles:
   # The draft room connector (draft_sync.js): ESPN cookies, the league ids and Redis, as the pods
   # the draft API used to create had. No browser-worker SA or stored session state.
   worker-draft: {image: WORKER_IMAGE, secrets: [espn, redis, league-config]}
-# trade-scan and trade-inbox drive the one stored ESPN browser session, so only one runs at a time.
+# trade-scan, trade-inbox and trade-submit drive the one stored ESPN browser session, so only one
+# runs at a time.
 # The KEDA browser worker shares it too but isn't counted until it runs under the launcher.
 groups:
   espn-session: {limit: 1}
@@ -229,6 +232,22 @@ jobs:
     resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
     schedules:
       - {cron: '0 8-22/2 * * *', tz: America/Chicago, catch_up: 30m}
+  # Sends one approved outgoing offer to ESPN. Core's approve route starts it with the offer_key
+  # (passed as --offer-key), parented to the scan run that staged the offer; no schedule. One
+  # attempt: a send whose ESPN outcome is unknown is never retried, a person checks pending trades.
+  # Sends of different offers queue behind each other and the espn-session group.
+  # TODO: not armed yet. Launched pods get neither TRADE_DRY_RUN=false nor TRADE_SUBMIT_ENABLED=true
+  # (those stay on the KEDA ScaledJob), so the builder only dry-fills until core's k8s.BUNDLES
+  # has an arming bundle that worker-submit alone names.
+  trade-submit:
+    profile: worker-submit
+    group: espn-session
+    command: [node, src/bots/trade_builder.js]
+    params: {offer_key: str}
+    deadline: 10m
+    overlap: queue
+    acts: true
+    resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
 # Data steps need their parent's success. The refresh and the acting steps run once their parent
 # finishes, so a failed ingestion still refreshes projections and still sets the lineup. `latest`
 # keeps the old CronJob times as upper bounds. On Tuesday the standalone 18:00 and 21:45 slots

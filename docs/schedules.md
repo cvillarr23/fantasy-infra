@@ -32,6 +32,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `trade-candidates` | `0 7 * * *` (America/Chicago)<br/>`30 12 * * 3,5` (America/Chicago) | `python -m src.jobs.trade_candidates` |
 | `trade-inbox` | `0 8-22/2 * * *` (America/Chicago) | `node src/bots/trade_inbox.js --refresh` |
 | `trade-scan` | `0 13 * * 3,5` (America/Chicago) | `node src/bots/trade_scan.js --stage` |
+| `trade-submit` | — | `node src/bots/trade_builder.js` |
 | `waiver-trigger` | — | `python -m src.optimization.waiver_evaluator` |
 
 ### Chain: tuesday-weekly
