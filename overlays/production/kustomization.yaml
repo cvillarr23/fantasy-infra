@@ -8,7 +8,7 @@ resources:
 - argocd-repo-ssh-externalsecret.yaml
 images:
 - name: ghcr.io/cvillarr23/fantasy-web-ui
-  digest: sha256:4b545929be2edc246b12a7b6f975a783f1086e751aa284cf9a4f759b31d73a67
+  digest: sha256:c907f932c1b56980f15c34f7d7e5f55d68b38f1a85718d8f8e1d4ef54f2c76da
 - name: ghcr.io/cvillarr23/fantasy-core-pipeline
   digest: sha256:2b74c3cbefcbcfaab3d9b7e830e06bf1ef3f35f1dccac71c07fe04f0f1b1034f
 - name: ghcr.io/cvillarr23/fantasy-browser-worker
