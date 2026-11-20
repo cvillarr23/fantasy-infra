@@ -1,6 +1,8 @@
 # The launcher creates and deletes Jobs and watches their pods, in this namespace only.
 # RBAC can't scope `create` by resourceNames (see core-pipeline/rbac.yaml), and Job names
-# are generated per run, so the Job rules are namespace-wide.
+# are generated per run, so the Job rules are namespace-wide. Its replicas elect a leader
+# over the `fantasy-job-launcher` Lease (core's src/launcher/leader.py): reads and writes are
+# scoped to that one Lease, and only its first creation needs the namespace-wide `create`.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -19,6 +21,13 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    resourceNames: ["fantasy-job-launcher"]
+    verbs: ["get", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
