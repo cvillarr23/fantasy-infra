@@ -35,7 +35,7 @@ flowchart LR
   rl --> alerts[Grafana SQL alerts → ntfy]
 ```
 
-The scheduler, consumer, watcher and inline runner are one process: `python -m src.launcher` in the core image, one replica, `Recreate` strategy.
+The scheduler, consumer, watcher and inline runner are one process: `python -m src.launcher` in the core image, one replica, `Recreate` strategy. (Amended by core-pipeline#354: two replicas with `RollingUpdate`. They elect a leader over the `fantasy-job-launcher` Lease, and only the leader acts.)
 
 ## What do the words mean?
 
@@ -218,7 +218,7 @@ Never open an infra PR that needs new core or worker code until that image is li
 
 ## Consequences
 
-- The launcher is a single point of failure for scheduled work. Catch-up windows cover restarts, and the heartbeat alert covers outages.
+- The launcher is a single point of failure for scheduled work. Catch-up windows cover restarts, and the heartbeat alert covers outages. (Amended by core-pipeline#354: a standby replica takes the Lease in about 17s after the leader dies, inside the 2-minute slot grace, and fails the dead leader's inline runs so they can't block the next slot.)
 - It adds one small always-on pod (50m / 192Mi, sized to hold an inline run). The two frequent syncers run inline, which removes about 110 pod starts a day.
 - `scripts/generate-schedules.py` reads the catalog and generates the schedule table and chain diagrams.
 
