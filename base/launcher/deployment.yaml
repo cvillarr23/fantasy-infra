@@ -1,5 +1,8 @@
 # The unified job launcher: scheduler, consumer, watcher and heartbeat in one process.
-# One replica with Recreate, so two launchers never admit the same run. It has no HTTP port;
+# Two replicas elect a leader over the `fantasy-job-launcher` Lease (see rbac.yaml); only the
+# leader acts, so two launchers never admit the same run, and the standby takes over in about
+# 17s if the leader dies (inside the scheduler's 2-minute slot grace). A rollout surges one new
+# pod at a time, and the old leader releases the Lease on SIGTERM. It has no HTTP port;
 # health is the `launcher_heartbeat` row, alerted on in base/telemetry.
 apiVersion: apps/v1
 kind: Deployment
@@ -8,9 +11,12 @@ metadata:
   labels:
     app: fantasy-job-launcher
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: fantasy-job-launcher
@@ -20,6 +26,16 @@ spec:
         app: fantasy-job-launcher
     spec:
       serviceAccountName: fantasy-job-launcher
+      # Spread the replicas when there is more than one node; a single node still takes both.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: fantasy-job-launcher
       # Longer than core's inline KILL_GRACE_SECONDS (30s), so a running inline job is killed
       # by the launcher rather than by SIGKILL from the kubelet.
       terminationGracePeriodSeconds: 45

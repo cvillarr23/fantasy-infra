@@ -48,8 +48,10 @@ class LauncherManifestTest(unittest.TestCase):
         for overlay, docs in self.rendered.items():
             with self.subTest(overlay=overlay):
                 spec = one(docs, "Deployment", "fantasy-job-launcher")["spec"]
-                self.assertEqual(spec["replicas"], 1)
-                self.assertEqual(spec["strategy"]["type"], "Recreate")
+                # Leader election over a Lease makes the second replica a standby.
+                self.assertEqual(spec["replicas"], 2)
+                self.assertEqual(spec["strategy"]["type"], "RollingUpdate")
+                self.assertEqual(spec["strategy"]["rollingUpdate"], {"maxSurge": 1, "maxUnavailable": 0})
                 (container,) = spec["template"]["spec"]["containers"]
                 self.assertEqual(container["command"], ["python", "-m", "src.launcher"])
                 self.assertEqual(container["resources"]["requests"], {"cpu": "50m", "memory": "192Mi"})
