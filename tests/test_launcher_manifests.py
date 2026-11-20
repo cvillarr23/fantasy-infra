@@ -228,10 +228,16 @@ class LauncherManifestTest(unittest.TestCase):
     def test_rbac_is_namespaced_and_minimal(self):
         docs = self.rendered["production"]
         role = one(docs, "Role", "fantasy-job-launcher")
-        rules = {(tuple(r["apiGroups"]), tuple(r["resources"])): sorted(r["verbs"]) for r in role["rules"]}
+        rules = {
+            (tuple(r["apiGroups"]), tuple(r["resources"]), tuple(r.get("resourceNames", ()))): sorted(r["verbs"])
+            for r in role["rules"]
+        }
         self.assertEqual(rules, {
-            (("batch",), ("jobs",)): ["create", "delete", "get", "list", "watch"],
-            (("",), ("pods",)): ["get", "list"],
+            (("batch",), ("jobs",), ()): ["create", "delete", "get", "list", "watch"],
+            (("",), ("pods",), ()): ["get", "list"],
+            # Leader election: only the launcher's own Lease can be read or renewed.
+            (("coordination.k8s.io",), ("leases",), ()): ["create"],
+            (("coordination.k8s.io",), ("leases",), ("fantasy-job-launcher",)): ["get", "update"],
         })
         binding = one(docs, "RoleBinding", "fantasy-job-launcher")
         self.assertEqual(binding["subjects"][0]["name"], "fantasy-job-launcher")
