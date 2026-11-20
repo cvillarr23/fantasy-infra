@@ -84,13 +84,13 @@ chains:
 | Field | Rule |
 |---|---|
 | `overlap` | `forbid` refuses a second concurrent run (409 or `skipped`); `queue` waits. Under either mode, a schedule, chain or event run waits when only event runs hold the job (see [What happens when an event run holds a job?](#what-happens-when-an-event-run-holds-a-job)) |
-| `max_attempts` | Launcher-owned retries; k8s `backoffLimit` is always 0. trade-scan, trade-inbox, trade-candidates and draft-prep stay at 1 |
+| `max_attempts` | Launcher-owned retries; k8s `backoffLimit` is always 0. trade-scan, trade-inbox, trade-submit, trade-candidates and draft-prep stay at 1 |
 | `catch_up` | A slot missed while the launcher was down still fires if inside this window |
 | `seasons` | Slots only fire in the listed season windows |
 | `executor` | `pod` (default) or `inline` for tiny, frequent jobs once measured |
 | `after.on` | `success` stops the chain on failure; `finish` runs either way. Data steps use `success`, acting steps (lineup, waivers) use `finish` |
 | `latest` | A chain step starts by this time even if its parent is still running |
-| `group` | Names a top-level `groups.<name>` with a `limit`: at most that many runs of the group's jobs run at once, across jobs. A run behind a full group waits (never skipped or 409) until its expiry. trade-scan and trade-inbox share `espn-session` (limit 1) |
+| `group` | Names a top-level `groups.<name>` with a `limit`: at most that many runs of the group's jobs run at once, across jobs. A run behind a full group waits (never skipped or 409) until its expiry. trade-scan, trade-inbox and trade-submit share `espn-session` (limit 1) |
 
 Reserved for v2 (parsed, rejected until implemented): `class: service`, `fan_out`, `approval`.
 

@@ -105,15 +105,31 @@ class WorkerTriggerTest(unittest.TestCase):
                 for job in (inbox, scan):
                     self.assertNotIn('overlap', job)
 
+    def test_trade_submit_sends_one_approved_offer_on_demand(self):
+        for overlay, docs in self.overlays.items():
+            with self.subTest(overlay=overlay):
+                submit = launcher_catalog(docs)['jobs']['trade-submit']
+                # The launcher appends the offer_key param as --offer-key <key>.
+                self.assertEqual(submit['command'], ['node', 'src/bots/trade_builder.js'])
+                self.assertEqual(submit['params'], {'offer_key': 'str'})
+                self.assertEqual((submit['group'], submit['overlap'], submit['deadline'], submit['acts']),
+                                 ('espn-session', 'queue', '10m', 'true'))
+                self.assertEqual(submit['resources'], WORKER_RESOURCES)
+                # Core's approve route starts it; nothing else may send an offer.
+                self.assertNotIn('schedules', submit)
+                self.assertNotIn('on_event', submit)
+
     def test_trade_job_profiles_match_the_worker_contract(self):
         for overlay, docs in self.overlays.items():
             with self.subTest(overlay=overlay):
                 catalog = launcher_catalog(docs)
                 inbox = catalog['profiles'][catalog['jobs']['trade-inbox']['profile']]
                 scan = catalog['profiles'][catalog['jobs']['trade-scan']['profile']]
+                submit = catalog['profiles'][catalog['jobs']['trade-submit']['profile']]
                 self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES)
                 self.assertEqual(set(scan['secrets']), BROWSER_BUNDLES | {'llm'})
-                for profile in (inbox, scan):
+                self.assertEqual(set(submit['secrets']), BROWSER_BUNDLES)
+                for profile in (inbox, scan, submit):
                     self.assertEqual(profile['image'], 'WORKER_IMAGE')
                     self.assertEqual(profile['serviceAccount'], 'fantasy-browser-worker')
                     self.assertEqual(profile['volumes'], ['espn-session-state'])

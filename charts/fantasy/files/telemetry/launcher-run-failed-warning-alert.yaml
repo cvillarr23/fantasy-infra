@@ -45,7 +45,7 @@ data:
             rawSql: |-
               SELECT r.job_name, COUNT(*)::double precision AS value
               FROM run_log r
-              JOIN unnest(ARRAY['espn-ownership-sync', 'espn-session-healthcheck', 'metrics-extractor', 'projections-refresh', 'rapid-status-syncer', 'rumor-action-trigger', 'rumor-digest-bot', 'rumor-syncer', 'sync-actual-scores', 'sync-league', 'trade-candidates', 'trade-inbox', 'trade-scan']::text[], ARRAY[2, 2, 2, 1, 2, 3, 2, 2, 2, 2, 1, 1, 1]::int[], ARRAY[true, true, true, true, true, true, true, true, true, true, true, true, true]::boolean[]) AS j(job_name, max_attempts, event_covered) ON j.job_name = r.job_name
+              JOIN unnest(ARRAY['espn-ownership-sync', 'espn-session-healthcheck', 'metrics-extractor', 'projections-refresh', 'rapid-status-syncer', 'rumor-action-trigger', 'rumor-digest-bot', 'rumor-syncer', 'sync-actual-scores', 'sync-league', 'trade-candidates', 'trade-inbox', 'trade-scan', 'trade-submit']::text[], ARRAY[2, 2, 2, 1, 2, 3, 2, 2, 2, 2, 1, 1, 1, 1]::int[], ARRAY[true, true, true, true, true, true, true, true, true, true, true, true, true, false]::boolean[]) AS j(job_name, max_attempts, event_covered) ON j.job_name = r.job_name
               WHERE r.finished_at > now() - interval '10 minutes'
                 AND (
                   (
