@@ -14,7 +14,7 @@ profiles:
   worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp], volumes: [espn-session-state]}
   worker-scan: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, llm], volumes: [espn-session-state]}
   # The trade send: the scan's browser bundles without the LLM keys, which the builder never reads.
-  worker-submit: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config], volumes: [espn-session-state]}
+  worker-submit: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, trade-arming], volumes: [espn-session-state]}
   # Worker bots that never drive a browser, so no browser-worker SA or stored session state.
   worker-session-check: {image: WORKER_IMAGE, secrets: [db, espn, notify, league-config]}
   # amqp lets the digest publish rumor.signal_created to job_events.
@@ -210,8 +210,9 @@ jobs:
       - {cron: '30 12 * * 3,5', tz: America/Chicago, catch_up: 2m}
   # Stages outgoing proposals for human review; a retry would generate a different pitch and
   # offer_key. Scheduled runs share a daily claim that manual runs skip, so the UI confirms them.
-  # Trade sends are armed on the KEDA ScaledJob only: nothing here may set TRADE_DRY_RUN or
-  # TRADE_SUBMIT_ENABLED, so scans keep dry-filling. The deadline sits above the CLI's 15m bound.
+  # Trade sends are armed only on the KEDA ScaledJob and trade-submit (worker-submit's
+  # trade-arming bundle): nothing else here may set TRADE_DRY_RUN or TRADE_SUBMIT_ENABLED, so
+  # scans keep dry-filling. The deadline sits above the CLI's 15m bound.
   trade-scan:
     profile: worker-scan
     group: espn-session
@@ -236,9 +237,8 @@ jobs:
   # (passed as --offer-key), parented to the scan run that staged the offer; no schedule. One
   # attempt: a send whose ESPN outcome is unknown is never retried, a person checks pending trades.
   # Sends of different offers queue behind each other and the espn-session group.
-  # TODO: not armed yet. Launched pods get neither TRADE_DRY_RUN=false nor TRADE_SUBMIT_ENABLED=true
-  # (those stay on the KEDA ScaledJob), so the builder only dry-fills until core's k8s.BUNDLES
-  # has an arming bundle that worker-submit alone names.
+  # Armed: worker-submit alone names core's trade-arming bundle (TRADE_DRY_RUN=false,
+  # TRADE_SUBMIT_ENABLED=true), so this run sends for real once a person has approved the offer.
   trade-submit:
     profile: worker-submit
     group: espn-session

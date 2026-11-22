@@ -128,7 +128,11 @@ class WorkerTriggerTest(unittest.TestCase):
                 submit = catalog['profiles'][catalog['jobs']['trade-submit']['profile']]
                 self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES)
                 self.assertEqual(set(scan['secrets']), BROWSER_BUNDLES | {'llm'})
-                self.assertEqual(set(submit['secrets']), BROWSER_BUNDLES)
+                self.assertEqual(set(submit['secrets']), BROWSER_BUNDLES | {'trade-arming'})
+                # Only the send job may arm trade_builder.js.
+                armed = [name for name, profile in catalog['profiles'].items()
+                         if 'trade-arming' in profile.get('secrets', [])]
+                self.assertEqual(armed, [catalog['jobs']['trade-submit']['profile']])
                 for profile in (inbox, scan, submit):
                     self.assertEqual(profile['image'], 'WORKER_IMAGE')
                     self.assertEqual(profile['serviceAccount'], 'fantasy-browser-worker')
@@ -143,7 +147,8 @@ class WorkerTriggerTest(unittest.TestCase):
             with self.subTest(overlay=overlay):
                 worker = scaler_worker(docs)
                 worker_env = {e['name']: e for e in worker['env']}
-                # TRADE_DRY_RUN / TRADE_SUBMIT_ENABLED arm trade submissions on the queue worker only.
+                # TRADE_DRY_RUN / TRADE_SUBMIT_ENABLED arm the queue worker; trade-submit gets them from
+                # core's trade-arming bundle on the launched pod, not from any rendered manifest.
                 for name, value in TRADE_ARMING.items():
                     self.assertEqual(worker_env[name], {'name': name, 'value': value})
                 others = [c for key, doc in docs.items() if key != SCALER for c in containers(doc)]

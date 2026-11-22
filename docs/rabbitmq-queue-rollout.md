@@ -125,6 +125,6 @@ An empty or absent queue isn't a reason to enqueue a test trade response. Keep `
 
 The queue worker's container (the `fantasy-browser-worker-scaler` ScaledJob) sets `TRADE_DRY_RUN=false` and `TRADE_SUBMIT_ENABLED=true`. Only the trade builder reads `TRADE_DRY_RUN`, so `DRY_RUN` stays unset everywhere and the waiver sniper, draft clicker and trade responses stay dry. A message on `trade_submissions` still sends nothing unless it carries a human approval matching the offer, and the worker's selector and counter-linkage locks still apply.
 
-The launcher's trade-scan and trade-inbox jobs and the shared `fantasy-league-config` ConfigMap don't set either variable, so scans keep dry-filling.
+The launcher's `trade-submit` job is armed too: its `worker-submit` profile alone names core's `trade-arming` bundle, which sets both variables as literal pod env. A `trade-submit` run sends for real; core starts one only after a person approves the offer. The launcher's trade-scan and trade-inbox jobs and the shared `fantasy-league-config` ConfigMap don't set either variable, so scans keep dry-filling.
 
 Deploy a worker image that supports `TRADE_DRY_RUN` before syncing this change. An older image ignores the variable and stays dry, which is a safe ordering.
