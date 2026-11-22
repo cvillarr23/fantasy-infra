@@ -2,7 +2,8 @@
 # One series per job. Fires once per run_log row that ended failure or timeout on its last attempt,
 # or was skipped for a reason that needs a person (not a pause, or a skip the chain's own timeout
 # or cancel already alerts on, or the overlap or expired skip of an event run of a job its
-# schedule or chain covers). A failure the watcher will still retry doesn't alert, nor does a
+# schedule or chain covers, or a person's dismissal, a replacement or the expiry of an approval
+# run). A failure the watcher will still retry doesn't alert, nor does a
 # fan-out parent's (its failed child alerts). Level `critical`.
 # Runbook: docs/cronjob-alerts.md#launcher-run-failed
 apiVersion: v1
@@ -59,8 +60,9 @@ data:
                   )
                   OR (
                     r.status = 'skipped'
-                    AND COALESCE(r.end_reason, '') NOT IN ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended')
+                    AND COALESCE(r.end_reason, '') NOT IN ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended', 'dismissed', 'superseded')
                     AND NOT (r.trigger_type = 'event' AND j.event_covered AND COALESCE(r.end_reason, '') IN ('overlap', 'expired'))
+                    AND NOT (r.executor = 'approval' AND COALESCE(r.end_reason, '') IN ('expired'))
                   )
                 )
               GROUP BY r.job_name;

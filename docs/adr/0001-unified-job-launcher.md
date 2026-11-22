@@ -92,7 +92,7 @@ chains:
 | `latest` | A chain step starts by this time even if its parent is still running |
 | `group` | Names a top-level `groups.<name>` with a `limit`: at most that many runs of the group's jobs run at once, across jobs. A run behind a full group waits (never skipped or 409) until its expiry. trade-scan, trade-inbox and trade-submit share `espn-session` (limit 1) |
 
-Reserved for v2 (parsed, rejected until implemented): `class: service`, `fan_out`, `approval`.
+Reserved for v2 (parsed, rejected until implemented): `class: service`, `fan_out`. `approval` is implemented: a step that waits for a person as an approval run (executor `approval`, status `waiting`).
 
 ## What travels on RabbitMQ?
 
@@ -204,7 +204,7 @@ Never open an infra PR that needs new core or worker code until that image is li
 | Batch C | trade-candidates ×2, scores reconcile, trade-scan, trade-inbox; delete remaining CronJob alerts |
 | After | web UI Jobs page, rumor and trade-offer events, CLI/MCP, right-sizing |
 
-**v2** (designed, not built): draft Jobs under the launcher (before the August draft), approval steps in chains, fan-out steps, KEDA worker under the launcher (decided: shared pod cap only), concurrency groups, per-run resource accounting, launcher HA, Helm packaging.
+**v2** (designed, not built; approval runs and the `approval:` chain step have since shipped, see [Approval steps in job chains](https://github.com/cvillarr23/fantasy-project/issues/84)): draft Jobs under the launcher (before the August draft), fan-out steps, KEDA worker under the launcher (decided: shared pod cap only), concurrency groups, per-run resource accounting, launcher HA, Helm packaging.
 
 ## What else was considered?
 

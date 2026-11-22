@@ -68,6 +68,11 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
         self.assertIn("j.event_covered", sql)
         self.assertIn("IN ('overlap', 'expired')", sql)
 
+    def test_approval_skips_are_quiet(self):
+        sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "warning"))
+        self.assertIn("'dismissed', 'superseded'", sql)
+        self.assertIn("r.executor = 'approval'", sql)
+
     def test_event_only_job_is_not_event_covered(self):
         catalog = generator._load_catalog(ROOT / "tests/fixtures/job-catalog-event-only.yaml")
         self.assertEqual(
