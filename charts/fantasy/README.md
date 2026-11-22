@@ -126,9 +126,6 @@ python3 -m unittest tests.test_chart
 
 ## Known limits
 
-- The web-ui image hardcodes the homelab's DNS resolver (`10.152.183.152`) in its nginx config.
-  On other clusters the UI loads, but its `/v1` calls fail with 502 until that image reads the
-  resolver from the environment.
 - Pods the launcher starts don't receive `K8S_NAMESPACE` or `CORE_PIPELINE_URL`. In a namespace
   other than `default`, `stale-draft-job-sweeper` fails with a 403 listing Jobs in `default`, and
   the trade bots' calls to the core API miss. The API, the launcher itself and the queue worker
