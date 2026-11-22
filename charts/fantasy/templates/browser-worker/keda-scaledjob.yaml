@@ -163,7 +163,7 @@ spec:
       authenticationRef:
         name: rabbitmq-trigger-auth
     # These consumers also need wake-up triggers when the worker is scaled to zero.
-    # The broker predeclares submission/response queues; the other queues are asserted
+    # The broker predeclares the response queue; the other queues are asserted
     # durable by the worker and may report scaler errors until its first startup.
     - type: rabbitmq
       metadata:
@@ -182,13 +182,6 @@ spec:
     - type: rabbitmq
       metadata:
         queueName: llm_requests
-        mode: QueueLength
-        value: "1"
-      authenticationRef:
-        name: rabbitmq-trigger-auth
-    - type: rabbitmq
-      metadata:
-        queueName: trade_submissions
         mode: QueueLength
         value: "1"
       authenticationRef:
