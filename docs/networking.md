@@ -72,7 +72,7 @@ Production polls RabbitMQ every 10 seconds, requests a worker per queued message
 | KEDA trigger queues | Provisioning |
 |---|---|
 | `lineup_updates`, `waiver_actions`, `draft_targets` | Broker startup definitions; dead-letter policy to `dlx` and matching `.dlq` |
-| `trade_submissions`, `trade_responses` | Broker startup definitions and worker declarations; no added DLQ policy |
+| `trade_responses` | Broker startup definitions and worker declarations; no added DLQ policy |
 | `trade_evaluations`, `trade_negotiations`, `llm_requests` | Worker declares durable queues; a fresh scaler can report missing queues before first worker startup |
 
 KEDA reads broker credentials through a TriggerAuthentication; workers use a Secret-backed AMQP URL. Queue existence and authentication must succeed even when workers scale to zero.

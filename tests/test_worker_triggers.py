@@ -7,7 +7,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUES = {'lineup_updates', 'waiver_actions', 'draft_targets', 'trade_evaluations',
-          'trade_negotiations', 'llm_requests', 'trade_submissions', 'trade_responses'}
+          'trade_negotiations', 'llm_requests', 'trade_responses'}
 # Set only on the ScaledJob worker container: trade_builder reads TRADE_DRY_RUN, so DRY_RUN stays
 # unset everywhere and no other bot is armed.
 TRADE_ARMING = {'TRADE_DRY_RUN': 'false', 'TRADE_SUBMIT_ENABLED': 'true'}

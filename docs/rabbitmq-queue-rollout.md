@@ -97,7 +97,7 @@ The broker's startup and readiness probes run `rabbitmqctl authenticate_user` wi
 
 ## Trade queue provisioning
 
-KEDA watches `trade_submissions` and `trade_responses`.
+KEDA watches `trade_responses`. The `trade_submissions` trigger was removed once the approve route started `trade-submit` runs; the queue itself stays predeclared until the worker's consumer and the queue are deleted in their own repos.
 
 :::info[Definitions load only at boot]
 Updating the definitions ConfigMap doesn't import definitions into a running broker. Its rendered file and configuration are mounted with subPath and loaded at boot, and this change doesn't force a restart.
