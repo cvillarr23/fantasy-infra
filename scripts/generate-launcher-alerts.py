@@ -23,7 +23,8 @@ HEADER = """\
 # One series per job. Fires once per run_log row that ended failure or timeout on its last attempt,
 # or was skipped for a reason that needs a person (not a pause, or a skip the chain's own timeout
 # or cancel already alerts on, or the overlap or expired skip of an event run of a job its
-# schedule or chain covers). A failure the watcher will still retry doesn't alert, nor does a
+# schedule or chain covers, or a person's dismissal, a replacement or the expiry of an approval
+# run). A failure the watcher will still retry doesn't alert, nor does a
 # fan-out parent's (its failed child alerts). Level `{level}`.
 # Runbook: docs/cronjob-alerts.md#launcher-run-failed
 """
@@ -43,14 +44,18 @@ data:
 
 # Skips that are expected or already covered by another alert: a pause, a slot a chain covers,
 # the steps of a chain that timed out or was cancelled (the chain alert covers those), and the
-# children of a fan-out someone cancelled.
-QUIET_SKIPS = ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended')
+# children of a fan-out someone cancelled, and an approval a person dismissed or a newer one replaced.
+QUIET_SKIPS = ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended',
+               'dismissed', 'superseded')
 # A fan-out parent fails because a child did, and that child's own row already alerts.
 QUIET_FAILURES = ('fan_out_failed',)
 # An event run is a speed-up over its job's schedule or chain, so an event that found the job busy
 # or couldn't start in time is routine: the next event or the scheduled slot covers it. A job
 # with neither has nothing to catch up, so its event skips alert.
 EVENT_QUIET_SKIPS = ('overlap', 'expired')
+# An approval run that nobody answered before its deadline is routine. Only approval runs: a
+# launched run's `expired` skip means it never started, and that still alerts.
+APPROVAL_QUIET_SKIPS = ('expired',)
 
 
 def _load_catalog(path):
@@ -107,10 +112,13 @@ def _alerting_skip():
 
     Event runs of a job with a schedule or chain step drop the `overlap` and `expired` skips that
     schedule and chain runs keep; an event-only job keeps them, since nothing else would run it.
+    An approval run's `expired` skip is quiet too. A `waiting` run isn't a skip, failure or
+    timeout, so it never matches here until it resolves.
     """
     return f"""r.status = 'skipped'
       AND COALESCE(r.end_reason, '') NOT IN ({_in_list(QUIET_SKIPS)})
-      AND NOT (r.trigger_type = 'event' AND j.event_covered AND COALESCE(r.end_reason, '') IN ({_in_list(EVENT_QUIET_SKIPS)}))"""
+      AND NOT (r.trigger_type = 'event' AND j.event_covered AND COALESCE(r.end_reason, '') IN ({_in_list(EVENT_QUIET_SKIPS)}))
+      AND NOT (r.executor = 'approval' AND COALESCE(r.end_reason, '') IN ({_in_list(APPROVAL_QUIET_SKIPS)}))"""
 
 
 def _failed_runs_sql(jobs):

@@ -45,11 +45,12 @@ def fires_for(rule, name, jobs):
           f"IS DISTINCT FROM ARRAY[{array}]::text[] THEN RAISE EXCEPTION 'failed: {name}'; END IF; END $$;")
 
 
-def run(run_id, job, status, finished='1 minute', end_reason=None, root=None, attempt=1, trigger='schedule'):
+def run(run_id, job, status, finished='1 minute', end_reason=None, root=None, attempt=1, trigger='schedule',
+        executor='pod'):
     reason = 'NULL' if end_reason is None else f"'{end_reason}'"
-    return (f"INSERT INTO run_log (id, job_name, status, end_reason, chain_root_id, attempt, trigger_type, finished_at) VALUES "
+    return (f"INSERT INTO run_log (id, job_name, status, end_reason, chain_root_id, attempt, trigger_type, finished_at, executor) VALUES "
             f"('{run_id}', '{job}', '{status}', {reason}, {'NULL' if root is None else repr(root)}, {attempt}, '{trigger}', "
-            f"now() - interval '{finished}');")
+            f"now() - interval '{finished}', '{executor}');")
 
 
 def reset():
@@ -59,7 +60,8 @@ def reset():
 print('''BEGIN;
 CREATE TEMP TABLE run_log (
   id TEXT PRIMARY KEY, job_name TEXT, status TEXT, end_reason TEXT,
-  attempt INT DEFAULT 1, chain_root_id TEXT, trigger_type TEXT NOT NULL, finished_at TIMESTAMPTZ
+  attempt INT DEFAULT 1, chain_root_id TEXT, trigger_type TEXT NOT NULL, finished_at TIMESTAMPTZ,
+  executor TEXT
 );
 CREATE TEMP TABLE launcher_heartbeat (id SMALLINT PRIMARY KEY, at TIMESTAMPTZ, queue_depths JSONB);
 ''')
@@ -245,4 +247,21 @@ for reason in ('overlap', 'expired'):
         reset()
         print(run('r1', job, 'skipped', end_reason=reason, trigger='event'))
         fires_for(EVENT_ONLY, f'event {reason} skip of {job}', [job] if expected else [])
+# Approval runs: a dismissal, a replacement or an expiry is quiet, and so is one still waiting
+# (it has no finished_at). Only an approval's own expiry is quiet: a launched run that expired
+# before it started still alerts, and so does a failed send.
+for status, reason, executor, expected in (
+    ('skipped', 'dismissed', 'approval', False), ('skipped', 'superseded', 'approval', False),
+    ('skipped', 'expired', 'approval', False), ('skipped', 'expired', 'pod', True),
+    ('failure', None, 'pod', True), ('success', 'approved', 'approval', False),
+):
+    for name, rule, job in (('fixture', WARNING, 'sync-league'), ('committed', COMMITTED_WARNING, 'trade-submit')):
+        reset()
+        print(run('r1', job, status, end_reason=reason, executor=executor, trigger='manual', attempt=3))
+        fires_for(rule, f'{name} rule, {executor} {status}/{reason}', [job] if expected else [])
+reset()
+print("INSERT INTO run_log (id, job_name, status, trigger_type, executor, finished_at) "
+      "VALUES ('w1', 'trade-submit', 'waiting', 'manual', 'approval', NULL), "
+      "('w2', 'trade-submit', 'waiting', 'manual', 'approval', now() - interval '3 days');")
+fires_for(COMMITTED_WARNING, 'a waiting approval is not a failure or a skip', [])
 print('ROLLBACK;')
