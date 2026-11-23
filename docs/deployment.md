@@ -61,7 +61,7 @@ flowchart LR
 | `secret/fantasy/deployment` | `ESPN_LEAGUE_ID`, `ESPN_TEAM_ID` (strings) | `espn-session-secrets`, alongside existing session keys |
 | `secret/fantasy/oauth2-proxy-deployment` | `authenticated-emails-list` (one email per line), `redirect-url`, `cookie-domain` | `oauth2-proxy-deployment-config` |
 
-Keep `CURRENT_YEAR`, `SPORT_TYPE`, `AUTO_PUBLISH_IR_MOVES` and `ESPN_MARKET_WEIGHT` in the public `fantasy-league-config` ConfigMap. Every workload consuming that ConfigMap reads the IDs through required Secret references; runtime draft Jobs inherit the same IDs through `DRAFT_SYNC_ENV_SECRET`.
+Keep `CURRENT_YEAR`, `SPORT_TYPE`, `AUTO_PUBLISH_IR_MOVES`, `ESPN_MARKET_WEIGHT` and `NEWS_BLUESKY_HANDLES` in the public `fantasy-league-config` ConfigMap. `NEWS_BLUESKY_HANDLES` (`league.newsBlueskyHandles` in the chart) lists the Bluesky accounts core's `sync_rumors` stores as display-only player news. The launcher reads it, with `ESPN_LEAGUE_ID` and `ESPN_TEAM_ID`, because `rumor-syncer` runs inline in the launcher's own container. Every workload consuming that ConfigMap reads the IDs through required Secret references; runtime draft Jobs inherit the same IDs through `DRAFT_SYNC_ENV_SECRET`.
 
 For a new installation, provision both private paths through your authenticated operator workflow before the first sync. Use `https://draft.example.com/oauth2/callback` and `draft.example.com` as domain examples, and `operator@example.com` as a synthetic email; supply your actual league/team IDs privately. Register the exact callback with Google and align the cookie domain, TLS proxy route and DNS.
 

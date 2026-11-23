@@ -34,6 +34,9 @@ league:
   autoPublishIrMoves: false
   # Weight of ESPN start% in vorp_score, chosen by core's market-weight backtest.
   espnMarketWeight: "0.2"
+  # Bluesky handles whose original posts core stores as player news (display-only). Empty
+  # skips Bluesky.
+  newsBlueskyHandles: []
   # Any value other than 0, false or no makes every bot dry-run. Leave it on until the
   # install is verified; null removes the key, and then each bot uses its own default
   # (lineup changes are live).

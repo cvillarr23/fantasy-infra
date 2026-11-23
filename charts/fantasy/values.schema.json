@@ -50,6 +50,7 @@
         "sportType": {"type": "string"},
         "autoPublishIrMoves": {"type": "boolean"},
         "espnMarketWeight": {"type": "string", "pattern": "^(0(\\.[0-9]+)?|1(\\.0+)?)$"},
+        "newsBlueskyHandles": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9.-]+$"}},
         "dryRun": {"type": ["string", "null"]}
       }
     },
