@@ -81,6 +81,24 @@ spec:
               value: "6379"
             - name: CORE_API_BASE_URL
               value: "http://fantasy-core-pipeline.default.svc.cluster.local:8000"
+            # rumor-syncer runs inline, so it sees only this env: our team and league pick whose
+            # ESPN athlete news it fetches, and the handles pick the Bluesky accounts.
+            - name: ESPN_LEAGUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_LEAGUE_ID
+            - name: ESPN_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: espn-session-secrets
+                  key: ESPN_TEAM_ID
+            - name: NEWS_BLUESKY_HANDLES
+              valueFrom:
+                configMapKeyRef:
+                  name: fantasy-league-config
+                  key: NEWS_BLUESKY_HANDLES
+                  optional: true
             # Core pods export OTLP over HTTP; the Node worker exports gRPC on another port.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tempo.default.svc.cluster.local:4318"

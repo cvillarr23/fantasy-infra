@@ -12,6 +12,13 @@ imagePullSecrets: [ghcr-pull-secret]
 league:
   # Production bots use their own per-bot defaults (lineup changes are live).
   dryRun: null
+  newsBlueskyHandles:
+    - rapsheet.bsky.social
+    - tompelissero.bsky.social
+    - nfltraderumors.bsky.social
+    - mattlombardo.bsky.social
+    - greggrosenthal.bsky.social
+    - 4for4football.bsky.social
 
 worker:
   # Arms live trade submission on this queue worker only. TRADE_DRY_RUN is read by trade_builder

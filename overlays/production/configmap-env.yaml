@@ -11,3 +11,6 @@ data:
   # Weight of ESPN start% in vorp_score, chosen by core's market-weight backtest.
   # TODO(fantasy-core-pipeline#410): recheck against real ESPN start% snapshots.
   ESPN_MARKET_WEIGHT: "0.2"
+  # Bluesky accounts whose original posts core's sync_rumors stores for the player news feed.
+  # Display-only: the rumor digest never reads them.
+  NEWS_BLUESKY_HANDLES: "rapsheet.bsky.social,tompelissero.bsky.social,nfltraderumors.bsky.social,mattlombardo.bsky.social,greggrosenthal.bsky.social,4for4football.bsky.social"
