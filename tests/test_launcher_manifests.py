@@ -148,6 +148,13 @@ class LauncherManifestTest(unittest.TestCase):
         for name in ("worker-llm", "worker"):
             self.assertIn("amqp", profiles[name]["secrets"], name)
 
+    def test_only_the_profiles_whose_bots_call_core_name_the_core_url_bundle(self):
+        # The trade bots (inbox, scan, submit) fetch from the core API; the session check, the
+        # digest and the draft connector never do.
+        profiles = catalog(self.rendered["production"])["profiles"]
+        named = {name for name, profile in profiles.items() if "core-url" in profile["secrets"]}
+        self.assertEqual(named, {"worker", "worker-scan", "worker-submit"})
+
     def test_only_the_frequent_syncers_run_inline_with_the_launchers_env(self):
         # Inline runs get the launcher's env, not their profile's secrets.
         for overlay, docs in self.rendered.items():

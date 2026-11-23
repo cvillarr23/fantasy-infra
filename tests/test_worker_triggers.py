@@ -126,9 +126,9 @@ class WorkerTriggerTest(unittest.TestCase):
                 inbox = catalog['profiles'][catalog['jobs']['trade-inbox']['profile']]
                 scan = catalog['profiles'][catalog['jobs']['trade-scan']['profile']]
                 submit = catalog['profiles'][catalog['jobs']['trade-submit']['profile']]
-                self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES)
-                self.assertEqual(set(scan['secrets']), BROWSER_BUNDLES | {'llm'})
-                self.assertEqual(set(submit['secrets']), BROWSER_BUNDLES | {'trade-arming'})
+                self.assertEqual(set(inbox['secrets']), INBOX_BUNDLES | {'core-url'})
+                self.assertEqual(set(scan['secrets']), BROWSER_BUNDLES | {'llm', 'core-url'})
+                self.assertEqual(set(submit['secrets']), BROWSER_BUNDLES | {'trade-arming', 'core-url'})
                 # Only the send job may arm trade_builder.js.
                 armed = [name for name, profile in catalog['profiles'].items()
                          if 'trade-arming' in profile.get('secrets', [])]

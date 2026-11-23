@@ -126,9 +126,5 @@ python3 -m unittest tests.test_chart
 
 ## Known limits
 
-- Pods the launcher starts don't receive `K8S_NAMESPACE` or `CORE_PIPELINE_URL`. In a namespace
-  other than `default`, `stale-draft-job-sweeper` fails with a 403 listing Jobs in `default`, and
-  the trade bots' calls to the core API miss. The API, the launcher itself and the queue worker
-  (the ScaledJob) are configured correctly.
 - The RabbitMQ broker always runs in-cluster: it owns the queue topology that the KEDA triggers
   and the launcher expect.
