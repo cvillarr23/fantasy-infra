@@ -9,6 +9,7 @@ data:
   SPORT_TYPE: {{ .Values.league.sportType | quote }}
   AUTO_PUBLISH_IR_MOVES: {{ .Values.league.autoPublishIrMoves | quote }}
   ESPN_MARKET_WEIGHT: {{ .Values.league.espnMarketWeight | quote }}
+  NEWS_BLUESKY_HANDLES: {{ join "," .Values.league.newsBlueskyHandles | quote }}
   {{- if not (kindIs "invalid" .Values.league.dryRun) }}
   DRY_RUN: {{ .Values.league.dryRun | quote }}
   {{- end }}
