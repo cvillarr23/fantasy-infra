@@ -37,6 +37,8 @@ spec:
             # Write-back target: fantasy-infra repo on main branch
             - name: ARGOCD_IMAGE_UPDATER_WRITE_BACK_METHOD
               value: "git"
+            - name: ARGOCD_IMAGE_UPDATER_WRITE_BACK_TARGET
+              value: "kustomization"
             # Log level
             - name: ARGOCD_IMAGE_UPDATER_LOG_LEVEL
               value: "info"
