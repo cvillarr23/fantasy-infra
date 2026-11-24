@@ -78,7 +78,7 @@ class LauncherManifestTest(unittest.TestCase):
         jobs = catalog(docs)["jobs"]
         self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer",
                                      "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS, *TRADE_JOBS,
-                                     *DRAFT_JOBS})
+                                     *DRAFT_JOBS, "live-games"})
         self.assertEqual(set(catalog(docs)["chains"]), {"tuesday-weekly"})
 
     def test_tuesday_chain_orders_the_weekly_jobs(self):
@@ -213,6 +213,18 @@ class LauncherManifestTest(unittest.TestCase):
         # The connector's pods carried only the ESPN cookies, league ids and Redis.
         self.assertEqual(set(content["profiles"]["worker-draft"]["secrets"]), {"espn", "redis", "league-config"})
         self.assertNotIn("serviceAccount", content["profiles"]["worker-draft"])
+
+    def test_live_games_is_a_scheduled_service_that_retires_on_a_lapsed_heartbeat(self):
+        job = catalog(self.rendered["production"])["jobs"]["live-games"]
+        self.assertEqual(job["class"], "service")
+        self.assertEqual(job["command"], ["python", "-m", "src.ingestion.live_games"])
+        self.assertEqual(job["health"], {"key": "live:health", "grace": "10m"})
+        self.assertEqual(job["deadline"], "8h")
+        # One run per game window: the poller exits itself, so the schedule only starts it.
+        self.assertTrue(all(s["tz"] == "America/Chicago" and s["seasons"] == ["regular"]
+                            for s in job["schedules"]))
+        self.assertEqual({s["cron"] for s in job["schedules"]},
+                         {"30 18 * * 4", "30 8,15 * * 0", "30 17 * * 1"})
 
     def test_gateway_only_reads_jobs_and_pods(self):
         # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.
