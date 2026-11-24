@@ -1,8 +1,7 @@
 # The original homelab's production install, layered on values.yaml:
 #   helm template fantasy-infra charts/fantasy -n default \
 #     -f charts/fantasy/values-production.yaml -f charts/fantasy/values-images.yaml
-# Until Argo CD deploys the chart, overlays/production is what runs, and CI
-# (scripts/compare-renders.py) fails if this render and that one differ.
+# homelab-deployment's argo-controllers/fantasy-infra.yaml deploys exactly this.
 
 # No image digests here: they live in values-images.yaml, a file only Argo CD Image Updater
 # writes, because each write re-encodes the whole file and would reflow these comments.

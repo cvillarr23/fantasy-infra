@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 import yaml
 
+from tests.chart_render import render_text
+
 ROOT = Path(__file__).resolve().parents[1]
 IDS = ('ESPN_LEAGUE_ID', 'ESPN_TEAM_ID')
 spec = importlib.util.spec_from_file_location('migration', ROOT / 'scripts/migrate-deployment-values.py')
@@ -25,11 +27,10 @@ def containers(node):
 
 
 class DeploymentValuesTest(unittest.TestCase):
-    def test_private_values_in_both_overlays(self):
-        for overlay in ('production', 'draft-day'):
-            with self.subTest(overlay=overlay):
-                docs = list(yaml.safe_load_all(subprocess.check_output(
-                    ['kubectl', 'kustomize', str(ROOT / 'overlays' / overlay)], text=True)))
+    def test_private_values_in_both_environments(self):
+        for environment in ('production', 'draft-day'):
+            with self.subTest(environment=environment):
+                docs = list(yaml.safe_load_all(render_text(environment)))
                 resources = {(d['kind'], d['metadata']['name']): d for d in docs if d}
                 config = resources[('ConfigMap', 'fantasy-league-config')]['data']
                 self.assertTrue(all(key not in config for key in IDS))

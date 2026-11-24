@@ -1,6 +1,5 @@
 {{/*
-An image reference. A digest pins it (repository@digest, like the kustomize `images:`
-transformer); otherwise repository:tag.
+An image reference. A digest pins it (repository@digest); otherwise repository:tag.
 Argo CD Image Updater's digest strategy writes the tag as `latest@sha256:...`. That renders
 as repository@digest too, so a pinned image keeps one spelling however it was pinned.
 Usage: include "fantasy.image" .Values.images.core

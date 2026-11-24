@@ -54,7 +54,7 @@ def render_catalog(path):
 
 
 def inventory():
-    return '\n'.join([START, render_catalog(ROOT / 'base/launcher/catalog.yaml'), END])
+    return '\n'.join([START, render_catalog(ROOT / 'charts/fantasy/files/catalog.yaml'), END])
 
 
 def main():

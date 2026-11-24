@@ -6,10 +6,10 @@
 # /v1/* internally. There is deliberately no separate ingress rule for
 # /v1/* to misconfigure, unlike the classic nginx-ingress annotation
 # pitfall - this cluster has no ingress-nginx controller at all (see
-# base/web-ui/ingress.yaml's tailscale IngressClass), so oauth2-proxy sits
+# charts/fantasy/templates/web-ui/ingress.yaml's tailscale IngressClass), so oauth2-proxy sits
 # in front as its own reverse proxy instead.
 #
-# The Tailscale ingress in base/web-ui/ (fantasy-draft.<tailnet>.ts.net)
+# The Tailscale ingress in charts/fantasy/templates/web-ui/ (fantasy-draft.<tailnet>.ts.net)
 # stays untouched as a separate, additive access path - tailnet membership
 # is already its own auth boundary, same treatment homelab-deployment
 # already gives openbao/argocd (public gated host + separate tailnet-only

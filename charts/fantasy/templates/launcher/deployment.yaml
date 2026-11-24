@@ -3,7 +3,7 @@
 # leader acts, so two launchers never admit the same run, and the standby takes over in about
 # 17s if the leader dies (inside the scheduler's 2-minute slot grace). A rollout surges one new
 # pod at a time, and the old leader releases the Lease on SIGTERM. It has no HTTP port;
-# health is the `launcher_heartbeat` row, alerted on in base/telemetry.
+# health is the `launcher_heartbeat` row, alerted on in charts/fantasy/files/telemetry.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -8,7 +8,7 @@ Use this page to understand the dependency order of the Tuesday jobs and what th
 
 ## Why do Tuesday jobs run in this order?
 
-The launcher's `tuesday-weekly` chain (`base/launcher/catalog.yaml`) starts at 16:00 America/Chicago each regular-season Tuesday. Each step starts when its parent ends, so a slow step delays the rest instead of overlapping them. The generated [schedule inventory](schedules.md#chain-tuesday-weekly) draws the chain from the catalog.
+The launcher's `tuesday-weekly` chain (`charts/fantasy/files/catalog.yaml`) starts at 16:00 America/Chicago each regular-season Tuesday. Each step starts when its parent ends, so a slow step delays the rest instead of overlapping them. The generated [schedule inventory](schedules.md#chain-tuesday-weekly) draws the chain from the catalog.
 
 ```mermaid
 flowchart LR

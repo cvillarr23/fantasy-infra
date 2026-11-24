@@ -111,18 +111,18 @@ else.
 
 ## The original homelab
 
-The homelab's production install is `values-production.yaml`, and the draft-day window layers
-`values-draft-day.yaml` on top of it. Until Argo CD deploys the chart, it still deploys
-`overlays/production`, and `scripts/compare-renders.py` fails CI if the two renders differ.
+Argo CD deploys the homelab from this chart with `values-production.yaml` and
+`values-images.yaml`. The draft-day window layers `values-draft-day.yaml` between them. Argo CD
+Image Updater writes the digest pins to `values-images.yaml`; don't edit that file by hand.
 
 Files under `files/`, namely the catalog, Grafana alerts, dashboards and Image Updater manifests,
-are verbatim copies from `base/`. After editing those in `base/`, run
-`scripts/sync-chart-files.sh`.
+ship verbatim: their bodies hold Grafana's own `{{ }}` templates or the updater's, so they can't
+be Helm templates themselves.
 
 ```bash
-helm template fantasy charts/fantasy -n default -f charts/fantasy/values-production.yaml
-python3 scripts/compare-renders.py
-python3 -m unittest tests.test_chart
+helm template fantasy-infra charts/fantasy -n default \
+  -f charts/fantasy/values-production.yaml -f charts/fantasy/values-images.yaml
+python3 -m unittest discover tests
 ```
 
 ## Known limits

@@ -2,7 +2,7 @@ name: Rumor action alert
 on:
   pull_request:
     paths:
-      - base/telemetry/rumor-action-outcome-alert.yaml
+      - 'charts/fantasy/files/telemetry/rumor-action-outcome-alert.yaml'
       - tests/rumor_action_alert/**
       - .github/workflows/rumor-action-alert.yml
 permissions:

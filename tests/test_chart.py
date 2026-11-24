@@ -1,6 +1,5 @@
-"""The Helm chart renders a self-contained install with its defaults, and the parity check catches drift."""
+"""The Helm chart renders a self-contained install with its defaults."""
 
-import importlib.util
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,10 +10,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts" / "fantasy"
 NAMESPACE = "fantasy"
-
-spec = importlib.util.spec_from_file_location("compare_renders", ROOT / "scripts" / "compare-renders.py")
-compare_renders = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(compare_renders)
 
 
 def helm(*args):
@@ -84,7 +79,7 @@ class SelfHostDefaultsTest(unittest.TestCase):
 
     def test_bundled_catalog_is_the_infra_catalog(self):
         catalog = one(self.docs, "ConfigMap", "fantasy-job-catalog")["data"]["catalog.yaml"]
-        self.assertEqual(catalog, (ROOT / "base" / "launcher" / "catalog.yaml").read_text())
+        self.assertEqual(catalog, (CHART / "files" / "catalog.yaml").read_text())
 
 
 class OptionsTest(unittest.TestCase):
@@ -132,27 +127,6 @@ class OptionsTest(unittest.TestCase):
 
     def test_unknown_values_are_rejected(self):
         self.assertIn("additional properties 'tailscal' not allowed", helm("--set", "tailscal.enabled=true").stderr)
-
-
-class CompareRendersTest(unittest.TestCase):
-    def test_reports_missing_extra_and_changed_objects(self):
-        key = lambda name: ("ConfigMap", "default", name)
-        expected = {key("a"): {"data": {"x": "1"}}, key("b"): {}}
-        actual = {key("a"): {"data": {"x": "2"}}, key("c"): {}}
-        problems = compare_renders.diff(expected, actual)
-        self.assertEqual([p.splitlines()[0] for p in problems], [
-            "missing from the chart: ConfigMap default/b",
-            "only in the chart: ConfigMap default/c",
-            "differs: ConfigMap default/a",
-        ])
-
-    def test_identical_renders_pass(self):
-        docs = {("Service", "", "fantasy-db"): {"spec": {"clusterIP": "None"}}}
-        self.assertEqual(compare_renders.diff(docs, docs), [])
-
-    def test_checksum_annotations_are_ignored(self):
-        doc = {"metadata": {}, "spec": {"template": {"metadata": {"annotations": {"checksum/catalog": "abc"}}}}}
-        self.assertEqual(compare_renders._without_checksums(doc), {"metadata": {}, "spec": {"template": {"metadata": {}}}})
 
 
 if __name__ == "__main__":

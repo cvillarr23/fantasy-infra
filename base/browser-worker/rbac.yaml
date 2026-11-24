@@ -1,8 +1,0 @@
-# Pod identity for the fantasy-browser-worker ScaledJob (keda-scaledjob.yaml's
-# serviceAccountName). Its ollama-scaler Role/RoleBinding is gone — Ollama scale-up is now
-# triggered by the KEDA HTTP Add-on interceptor instead.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: fantasy-browser-worker
-  namespace: default

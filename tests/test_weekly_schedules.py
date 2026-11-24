@@ -1,14 +1,13 @@
 """Keep rendered weekly consumers behind publication and upstream run deadlines."""
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-import subprocess
 import unittest
 from zoneinfo import ZoneInfo
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+from tests.chart_render import render_text
+
 CENTRAL = ZoneInfo("America/Chicago")
 ACTING_STEPS = ("lineup-optimizer", "waiver-trigger", "rumor-action-trigger")
 DURATION = {"m": 60, "h": 3600}
@@ -61,17 +60,15 @@ def schedule_slots(catalog):
 class WeeklyScheduleTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.overlays = {}
+        cls.environments = {}
         cls.catalogs = {}
-        for overlay in ("production", "draft-day"):
-            rendered = subprocess.check_output(
-                ["kubectl", "kustomize", str(ROOT / "overlays" / overlay)], text=True
-            )
+        for environment in ("production", "draft-day"):
+            rendered = render_text(environment)
             docs = {(doc["kind"], doc["metadata"]["name"]): doc
                     for doc in yaml.safe_load_all(rendered) if doc}
             catalog = launcher_catalog(docs)
-            cls.overlays[overlay] = schedule_slots(catalog)
-            cls.catalogs[overlay] = catalog
+            cls.environments[environment] = schedule_slots(catalog)
+            cls.catalogs[environment] = catalog
 
     def scheduled_time(self, slot, day, weekday):
         self.assertEqual(slot.tz, "America/Chicago")
@@ -81,10 +78,10 @@ class WeeklyScheduleTest(unittest.TestCase):
         return day.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
 
     def test_tuesday_chain_starts_after_publication_across_dst(self):
-        for overlay, catalog in self.catalogs.items():
+        for environment, catalog in self.catalogs.items():
             chain = Slot(catalog["chains"]["tuesday-weekly"]["schedule"])
             for date in ((2026, 10, 13), (2026, 11, 3)):
-                with self.subTest(overlay=overlay, date=date):
+                with self.subTest(environment=environment, date=date):
                     start = self.scheduled_time(chain, datetime(*date, tzinfo=CENTRAL), "2")
                     # Current evidence includes schedules published near 20:00Z.
                     # Retain publication headroom even during daylight saving time.
@@ -93,8 +90,8 @@ class WeeklyScheduleTest(unittest.TestCase):
                                      21 if date[1] == 10 else 22)
 
     def test_daily_cadences_and_roster_sync_are_preserved(self):
-        for overlay, catalog in self.catalogs.items():
-            with self.subTest(overlay=overlay):
+        for environment, catalog in self.catalogs.items():
+            with self.subTest(environment=environment):
                 jobs = catalog["jobs"]
                 # The refresh and rumor actions also run every other day; on Tuesday the
                 # launcher skips these slots while the chain runs them.
@@ -117,18 +114,18 @@ class WeeklyScheduleTest(unittest.TestCase):
                                  ["python", "-m", "src.ingestion.metrics_extractor"])
 
     def test_trade_scan_follows_previous_evening_refresh(self):
-        for overlay, slots in self.overlays.items():
+        for environment, slots in self.environments.items():
             for date in ((2026, 10, 14), (2026, 10, 16), (2026, 11, 4), (2026, 11, 6)):
-                with self.subTest(overlay=overlay, date=date):
+                with self.subTest(environment=environment, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
                     scan = self.scheduled_time(slots["trade-scan"], day, "3,5")
                     refresh = self.scheduled_time(slots["projections-refresh"], day - timedelta(days=1), "*")
                     self.assertGreater(scan, slots["projections-refresh"].latest_finish(refresh))
 
     def test_score_reconciliation_precedes_friday_trade_jobs(self):
-        for overlay, slots in self.overlays.items():
+        for environment, slots in self.environments.items():
             for date in ((2026, 10, 16), (2026, 11, 6)):
-                with self.subTest(overlay=overlay, date=date):
+                with self.subTest(environment=environment, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
                     reconcile = slots["reconcile"]
                     end = reconcile.latest_finish(self.scheduled_time(reconcile, day, "5"))
@@ -137,9 +134,9 @@ class WeeklyScheduleTest(unittest.TestCase):
                     self.assertLess(end, self.scheduled_time(slots["projections-refresh"], day, "*"))
 
     def test_trade_candidates_finish_before_consumers_across_dst(self):
-        for overlay, slots in self.overlays.items():
+        for environment, slots in self.environments.items():
             for date in ((2026, 10, 14), (2026, 10, 16), (2026, 11, 4), (2026, 11, 6)):
-                with self.subTest(overlay=overlay, date=date):
+                with self.subTest(environment=environment, date=date):
                     day = datetime(*date, tzinfo=CENTRAL)
                     daily = self.scheduled_time(slots["trade-candidates"], day, "*")
                     prescan = self.scheduled_time(slots["trade-candidates-prescan"], day, "3,5")
@@ -151,8 +148,8 @@ class WeeklyScheduleTest(unittest.TestCase):
                                     self.scheduled_time(slots["trade-scan"], day, "3,5"))
 
     def test_score_reconcile_keeps_its_limits_and_env(self):
-        for overlay, catalog in self.catalogs.items():
-            with self.subTest(overlay=overlay):
+        for environment, catalog in self.catalogs.items():
+            with self.subTest(environment=environment):
                 job = catalog["jobs"]["sync-actual-scores"]
                 self.assertEqual(job["command"], ["python", "-m", "src.ingestion.sync_actual_scores",
                                                   "--season", "$(CURRENT_YEAR)"])
@@ -168,9 +165,9 @@ class WeeklyScheduleTest(unittest.TestCase):
         # publish through the gateway's /v1/trigger/* routes, which reject requests without
         # X-API-Key; a missing key only surfaces once a run proposes an action. The `espn` and
         # `trigger-api` bundles (k8s.BUNDLES in core) carry both.
-        for overlay, catalog in self.catalogs.items():
+        for environment, catalog in self.catalogs.items():
             for name in ACTING_STEPS:
-                with self.subTest(overlay=overlay, name=name):
+                with self.subTest(environment=environment, name=name):
                     profile = catalog["profiles"][catalog["jobs"][name]["profile"]]
                     self.assertIn("espn", profile["secrets"])
                     self.assertIn("trigger-api", profile["secrets"])

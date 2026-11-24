@@ -1,18 +1,11 @@
 """The launcher Deployment, RBAC, catalog and broker topology render as the ADR specifies."""
 
 import json
-from pathlib import Path
-import subprocess
 import unittest
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def render(overlay):
-    out = subprocess.check_output(["kubectl", "kustomize", str(ROOT / "overlays" / overlay)], text=True)
-    return [doc for doc in yaml.safe_load_all(out) if doc]
+from tests.chart_render import render
 
 
 def one(docs, kind, name):
@@ -42,11 +35,11 @@ DRAFT_JOBS = ["draft-listener", "practice-draft-listener", "draft-connector", "p
 class LauncherManifestTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.rendered = {overlay: render(overlay) for overlay in ("production", "draft-day")}
+        cls.rendered = {environment: render(environment) for environment in ("production", "draft-day")}
 
     def test_deployment_shape(self):
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 spec = one(docs, "Deployment", "fantasy-job-launcher")["spec"]
                 # Leader election over a Lease makes the second replica a standby.
                 self.assertEqual(spec["replicas"], 2)
@@ -58,8 +51,8 @@ class LauncherManifestTest(unittest.TestCase):
                 self.assertEqual(spec["template"]["spec"]["serviceAccountName"], "fantasy-job-launcher")
 
     def test_image_placeholders_are_replaced_with_digests(self):
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 (container,) = one(docs, "Deployment", "fantasy-job-launcher")["spec"]["template"]["spec"]["containers"]
                 values = env(container)
                 self.assertIn("fantasy-core-pipeline@sha256:", values["CORE_IMAGE"])
@@ -114,16 +107,16 @@ class LauncherManifestTest(unittest.TestCase):
                           "rumor-action-trigger": "21:45"})
 
     def test_trade_jobs_never_auto_retry(self):
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 content = catalog(docs)
                 self.assertEqual(content["defaults"]["max_attempts"], "1")
                 for name in TRADE_JOBS:
                     self.assertNotIn("max_attempts", content["jobs"][name], name)
 
     def test_every_job_runs_from_the_catalog(self):
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 self.assertEqual([d["metadata"]["name"] for d in docs if d["kind"] == "CronJob"], [])
 
     def test_cutover_profiles_match_what_their_cronjobs_carried(self):
@@ -157,8 +150,8 @@ class LauncherManifestTest(unittest.TestCase):
 
     def test_only_the_frequent_syncers_run_inline_with_the_launchers_env(self):
         # Inline runs get the launcher's env, not their profile's secrets.
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 jobs = catalog(docs)["jobs"]
                 inline = {name for name, job in jobs.items() if job.get("executor") == "inline"}
                 self.assertEqual(inline, {"rumor-syncer", "rapid-status-syncer"})
@@ -167,8 +160,8 @@ class LauncherManifestTest(unittest.TestCase):
                     self.assertIn(name, env(container), name)
 
     def test_rumor_actions_run_on_digest_events(self):
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 job = catalog(docs)["jobs"]["rumor-action-trigger"]
                 self.assertEqual(job["on_event"], [{"key": "rumor.signal_created", "debounce": "30m"}])
                 # A dead pod holds the job for its deadline plus the watcher's 10m orphan grace,
@@ -177,8 +170,8 @@ class LauncherManifestTest(unittest.TestCase):
 
     def test_gateway_mounts_the_same_catalog(self):
         # The Jobs API reads the catalog from the gateway pod; without it manual runs answer 503.
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 pod = one(docs, "Deployment", "fantasy-core-pipeline")["spec"]["template"]["spec"]
                 (gateway,) = pod["containers"]
                 self.assertEqual(env(gateway)["JOB_CATALOG_PATH"], "/etc/fantasy-job-catalog/catalog.yaml")
@@ -223,8 +216,8 @@ class LauncherManifestTest(unittest.TestCase):
 
     def test_gateway_only_reads_jobs_and_pods(self):
         # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.
-        for overlay, docs in self.rendered.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
                 role = one(docs, "Role", "draft-sync-orchestrator")
                 rules = {(tuple(r["apiGroups"]), tuple(r["resources"])): sorted(r["verbs"]) for r in role["rules"]}
                 self.assertEqual(rules, {
