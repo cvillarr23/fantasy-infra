@@ -36,7 +36,7 @@ jobs:
           version: 'v3.19.0'
       - run: pip install PyYAML
       - run: helm lint charts/fantasy
-      - run: helm lint charts/fantasy -f charts/fantasy/values-production.yaml
+      - run: helm lint charts/fantasy -f charts/fantasy/values-production.yaml -f charts/fantasy/values-images.yaml
       - run: python3 -m unittest tests.test_chart
       # Argo CD still deploys the overlays; the chart must render the same objects until it
       # switches. On failure after editing base/, run scripts/sync-chart-files.sh or mirror the

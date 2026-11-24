@@ -23,16 +23,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts" / "fantasy"
-# Each overlay and the chart values files that reproduce it.
+# Each overlay and the chart values files that reproduce it. values-images.yaml holds the same
+# digests as the production kustomization, so an image bump to only one of them fails here.
 OVERLAY_VALUES = {
-    "production": ["values-production.yaml"],
-    "draft-day": ["values-production.yaml", "values-draft-day.yaml"],
-}
-# kustomization `images:` names and the chart's images.<key>.
-IMAGE_KEYS = {
-    "ghcr.io/cvillarr23/fantasy-core-pipeline": "core",
-    "ghcr.io/cvillarr23/fantasy-browser-worker": "worker",
-    "ghcr.io/cvillarr23/fantasy-web-ui": "webUi",
+    "production": ["values-production.yaml", "values-images.yaml"],
+    "draft-day": ["values-production.yaml", "values-draft-day.yaml", "values-images.yaml"],
 }
 GENERATED_CATALOG = re.compile(r"\bfantasy-job-catalog-[a-z0-9]{10}\b")
 
@@ -75,15 +70,7 @@ def _helm(values_files):
     command = ["helm", "template", "fantasy", str(CHART), "--namespace", "default"]
     for name in values_files:
         command += ["-f", str(CHART / name)]
-    command += _production_digests()
     return [_without_checksums(doc) for doc in _docs(subprocess.check_output(command, text=True))]
-
-
-def _production_digests():
-    """--set flags carrying overlays/production's digest pins, which Image Updater still owns."""
-    kustomization = yaml.safe_load((ROOT / "overlays" / "production" / "kustomization.yaml").read_text())
-    return [flag for image in kustomization.get("images", [])
-            for flag in ("--set", f"images.{IMAGE_KEYS[image['name']]}.digest={image['digest']}")]
 
 
 def _docs(text):

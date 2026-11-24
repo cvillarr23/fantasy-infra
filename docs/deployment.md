@@ -39,7 +39,7 @@ python3 scripts/compare-renders.py
 | The catalog, a Grafana alert or dashboard, or the Image Updater manifests | Run `scripts/sync-chart-files.sh`; the chart ships these files verbatim |
 | An overlay patch or ExternalSecret | `values-production.yaml`, `values-draft-day.yaml`, or `templates/secrets/externalsecrets.yaml` |
 
-Image digests are the exception: Image Updater writes them to the production kustomization, and the comparison passes them to the chart render.
+Image digests live in both `overlays/production/kustomization.yaml` and `charts/fantasy/values-images.yaml` until Argo CD deploys the chart, and the comparison fails when they differ. Until then Image Updater writes only the kustomization: copy a new digest into `values-images.yaml` as `tag: latest@<digest>`.
 
 ## Supply private deployment values
 
