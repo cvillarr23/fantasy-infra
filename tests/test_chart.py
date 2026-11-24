@@ -88,6 +88,19 @@ class SelfHostDefaultsTest(unittest.TestCase):
 
 
 class OptionsTest(unittest.TestCase):
+    def test_an_image_updater_tag_pins_the_digest_like_a_digest_does(self):
+        core, worker, web = ("sha256:" + c * 64 for c in "abc")
+        docs = render("--set", f"images.core.tag=latest@{core}", "--set", f"images.worker.tag=latest@{worker}",
+                      "--set", f"images.webUi.tag=latest@{web}")
+        launcher = one(docs, "Deployment", "fantasy-job-launcher")
+        self.assertEqual(containers(launcher)[0]["image"], f"ghcr.io/cvillarr23/fantasy-core-pipeline@{core}")
+        self.assertEqual(env(launcher)["CORE_IMAGE"], f"ghcr.io/cvillarr23/fantasy-core-pipeline@{core}")
+        self.assertEqual(env(launcher)["WORKER_IMAGE"], f"ghcr.io/cvillarr23/fantasy-browser-worker@{worker}")
+        self.assertEqual(containers(one(docs, "ScaledJob", "fantasy-browser-worker-scaler"))[0]["image"],
+                         f"ghcr.io/cvillarr23/fantasy-browser-worker@{worker}")
+        self.assertEqual(containers(one(docs, "Deployment", "fantasy-web-ui"))[0]["image"],
+                         f"ghcr.io/cvillarr23/fantasy-web-ui@{web}")
+
     def test_a_custom_catalog_replaces_the_bundled_one_and_rolls_the_launcher(self):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml") as catalog:
             catalog.write("version: 1\njobs: {}\n")

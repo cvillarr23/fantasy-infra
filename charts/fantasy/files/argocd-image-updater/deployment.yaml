@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argocd-image-updater
       containers:
         - name: argocd-image-updater
-          image: quay.io/argoprojlabs/argocd-image-updater:v0.12.2
+          image: quay.io/argoprojlabs/argocd-image-updater:v0.19.0
           imagePullPolicy: Always
           command:
             - argocd-image-updater
@@ -37,8 +37,6 @@ spec:
             # Write-back target: fantasy-infra repo on main branch
             - name: ARGOCD_IMAGE_UPDATER_WRITE_BACK_METHOD
               value: "git"
-            - name: ARGOCD_IMAGE_UPDATER_WRITE_BACK_TARGET
-              value: "kustomization"
             # Log level
             - name: ARGOCD_IMAGE_UPDATER_LOG_LEVEL
               value: "info"

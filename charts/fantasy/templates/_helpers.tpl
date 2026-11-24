@@ -1,11 +1,15 @@
 {{/*
 An image reference. A digest pins it (repository@digest, like the kustomize `images:`
 transformer); otherwise repository:tag.
+Argo CD Image Updater's digest strategy writes the tag as `latest@sha256:...`. That renders
+as repository@digest too, so a pinned image keeps one spelling however it was pinned.
 Usage: include "fantasy.image" .Values.images.core
 */}}
 {{- define "fantasy.image" -}}
 {{- if .digest -}}
 {{ .repository }}@{{ .digest }}
+{{- else if contains "@" (.tag | toString) -}}
+{{ .repository }}@{{ splitList "@" .tag | last }}
 {{- else -}}
 {{ .repository }}:{{ .tag }}
 {{- end -}}
