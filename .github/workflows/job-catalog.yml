@@ -6,7 +6,7 @@ on:
       - 'base/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
       - 'base/launcher/deployment.yaml'
-      - 'overlays/production/kustomization.yaml'
+      - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
   push:
     branches: [main]
@@ -15,10 +15,10 @@ on:
       - 'base/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
       - 'base/launcher/deployment.yaml'
-      - 'overlays/production/kustomization.yaml'
+      - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
 # The catalog is validated by the core image the production launcher is pinned to (the digest
-# argocd-image-updater writes to overlays/production), so it passes only if the launcher that
+# argocd-image-updater writes to charts/fantasy/values-images.yaml), so it passes only if the launcher that
 # will load it accepts it. A catalog using a new core field fails here until an image with that
 # field is deployed, rather than crash-looping the launcher. Image bumps rerun it on main.
 # Pulling the private package needs fantasy-infra granted read access in its package settings.
@@ -34,10 +34,15 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: 'v3.19.0'
       - run: pip install check-jsonschema PyYAML
       - name: Find the production launcher image
         run: |
-          image=$(kubectl kustomize overlays/production | python3 scripts/launcher-image.py)
+          image=$(helm template fantasy-infra charts/fantasy -n default \
+            -f charts/fantasy/values-production.yaml -f charts/fantasy/values-images.yaml \
+            | python3 scripts/launcher-image.py)
           echo "Validating against $image"
           echo "LAUNCHER_IMAGE=$image" >> "$GITHUB_ENV"
       - name: Pull it

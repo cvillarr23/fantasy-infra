@@ -2,7 +2,8 @@
 """Print the launcher container's image from rendered manifests on stdin.
 
 Job catalog CI validates the catalog with this image, the one the launcher actually runs.
-Usage: kubectl kustomize overlays/production | python3 scripts/launcher-image.py
+Usage: helm template fantasy-infra charts/fantasy -n default -f charts/fantasy/values-production.yaml \
+         -f charts/fantasy/values-images.yaml | python3 scripts/launcher-image.py
 """
 
 import sys
