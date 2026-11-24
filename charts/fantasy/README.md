@@ -86,6 +86,7 @@ These are the ones you're most likely to set:
 | `launcher.catalog` | bundled | Your job catalog, via `--set-file launcher.catalog=catalog.yaml`. The bundled schedules use `America/Chicago`. |
 | `ingress.enabled`, `.host`, `.className`, `.tls` | off | An Ingress to oauth2-proxy |
 | `images.<core\|worker\|webUi>.digest` | empty (`latest`) | Pin an image digest |
+| `images.<core\|worker\|webUi>.tag` | `latest` | A tag, or `<tag>@sha256:...` as Argo CD Image Updater writes it, which pins that digest |
 | `postgres.enabled` / `redis.enabled` | `true` | `false` plus `.host` to use your own |
 | `postgres.storage`, `rabbitmq.storage`, `*.storageClassName` | 10Gi, 2Gi, default class | Volumes |
 | `otel.httpEndpoint`, `otel.grpcEndpoint` | off | OTLP trace export |
