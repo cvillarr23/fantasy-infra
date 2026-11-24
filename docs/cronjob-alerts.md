@@ -6,7 +6,7 @@ sidebar_position: 8
 
 Every scheduled job runs from the [unified job launcher](adr/0001-unified-job-launcher.md), which replaced the CronJobs. Job alerts read Postgres, not kube-state-metrics. Use this page to triage an alert, find what a job depends on and run read-only checks.
 
-Rules live in `base/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`. homelab-deployment's Grafana alert sidecar loads them into the **Fantasy** folder. They query `run_log` and `launcher_heartbeat` through the `FantasyFootballDB` datasource and route to the ntfy contact point. They read columns (`status`, `job_name`, `end_reason`, `attempt`, `chain_root_id`, `finished_at`), never keys inside `run_log.trigger`.
+Rules live in `charts/fantasy/files/telemetry/` as ConfigMaps labeled `grafana_alert: "1"`. homelab-deployment's Grafana alert sidecar loads them into the **Fantasy** folder. They query `run_log` and `launcher_heartbeat` through the `FantasyFootballDB` datasource and route to the ntfy contact point. They read columns (`status`, `job_name`, `end_reason`, `attempt`, `chain_root_id`, `finished_at`), never keys inside `run_log.trigger`.
 
 ```mermaid
 flowchart LR
@@ -78,7 +78,7 @@ The heartbeat is arriving but the launcher couldn't read a queue's depth: `job_r
 
 ### Launcher run failed
 
-These rules are generated from `base/launcher/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names and `max_attempts` at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
+These rules are generated from `charts/fantasy/files/catalog.yaml`, because `run_log` doesn't record a job's `alert` level: the critical and warning rules each list the job names and `max_attempts` at that level, and an empty catalog matches nothing. Jobs with `alert: none` never alert. After editing the catalog, run `python3 scripts/generate-launcher-alerts.py` and commit the result; CI fails on a stale rule.
 
 Each rule returns one series per job, so the page names the job, and carries a `severity` label (`critical` or `warning`) to route on. A failure or timeout alerts only on a job's last attempt (`attempt >= max_attempts`), or when a chain step's root has already ended, since the watcher can no longer retry it. Skips with `end_reason` `paused`, `chain_step`, `max_duration`, `chain_ended`, `fan_out_ended`, `dismissed` or `superseded` are excluded: a chain timeout alerts once, on the chain rule, and a cancelled fan-out's children were stopped on purpose, and an approval a person dismissed or a newer one replaced is a decision, not a fault. An approval run (`executor = 'approval'`) that expires unanswered is quiet too; the same `expired` skip of a launched run, which never started, still alerts. A `waiting` approval is neither a failure nor a skip, so it never alerts while it waits, and it isn't a `queued` run or a `job_runs` message, so the backlog alert ignores it. A `trade-submit` failure alerts like any other run. A fan-out parent's `failure (fan_out_failed)` is excluded too, since the failed child's own row alerts. Event-triggered runs (`trigger_type = 'event'`) also drop `overlap` and `expired` skips: an event is a speed-up over the job's schedule, so one that finds the job busy or can't start in time is routine, and the next event or scheduled slot covers it. Schedule and chain skips keep alerting. To inspect a run, query `run_log` by `job_name` and `finished_at`, then see `summary.log_tail`.
 
@@ -150,13 +150,13 @@ kubectl logs -n default -l fantasy.job=<job> --tail=200
 
 ## Testing and adding coverage
 
-Removing a rule's file does not remove the rule: Grafana keeps a provisioned rule until a `deleteRules` entry names its UID. List the UID in `base/telemetry/delete-orphaned-alert-rules.yaml` in the same PR that drops the rule, or it keeps firing on no data.
+Removing a rule's file does not remove the rule: Grafana keeps a provisioned rule until a `deleteRules` entry names its UID. List the UID in `charts/fantasy/files/telemetry/delete-orphaned-alert-rules.yaml` in the same PR that drops the rule, or it keeps firing on no data.
 
 `./tests/launcher_alerts/run.sh` loads the committed SQL into a disposable `postgres:16` and asserts fire and no-fire cases for every rule, including the generated ones rendered from a fixture catalog. `python3 -m unittest tests.test_generate_launcher_alerts` checks the committed rules match the catalog.
 
 To add a job:
 
-1. Add it to `base/launcher/catalog.yaml`.
+1. Add it to `charts/fantasy/files/catalog.yaml`.
 2. Run `python3 scripts/generate-launcher-alerts.py` and `python3 scripts/generate-schedules.py`, and commit the result. CI fails on a stale rule or inventory.
 3. Add its row to [What each job depends on](#what-each-job-depends-on).
 

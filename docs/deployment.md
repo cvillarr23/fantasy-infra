@@ -4,46 +4,32 @@ description: Trace GitOps releases and verify the images used by deployments and
 sidebar_position: 2
 ---
 
-Argo CD reconciles `overlays/production` from the default branch. Application image releases reach production through digest updates committed by Argo CD Image Updater.
+Argo CD renders `charts/fantasy` from the default branch with `values-production.yaml` and `values-images.yaml`. Application image releases reach production through digest updates committed by Argo CD Image Updater.
 
 ```mermaid
 flowchart LR
     Merge[Application merge] -->|application CI publishes latest| Registry[GHCR]
     Registry -->|resolve digest of latest| Updater[Argo CD Image Updater]
-    Updater -->|Git write-back| Infra[production kustomization]
-    Config[Infra merge] -->|manifests| Infra
+    Updater -->|Git write-back| Infra[values-images.yaml]
+    Config[Infra merge] -->|templates and values| Infra
     Infra -->|automatic sync| Argo[Argo CD]
     Argo -->|pod templates| Pods[Deployments and future Jobs]
 ```
 
-## Choose the overlay
+## Find the files
 
 | Path | Purpose |
 |---|---|
-| `base/` | Databases, API, UI, OAuth proxy, job launcher, worker scaler, telemetry and image updater resources |
-| `overlays/production/` | Base plus configuration, ExternalSecrets and application image digests |
-| `overlays/draft-day/` | Inherits production; increases API resources and Postgres buffers/connections, keeps one worker warm and disables its idle exit |
-| `charts/fantasy/` | The Helm chart for self-hosted installs. `values-production.yaml` and `values-draft-day.yaml` reproduce the two overlays. |
-
-## Keep the Helm chart in step
-
-Self-hosters install `charts/fantasy` (see its [README](https://github.com/cvillarr23/fantasy-infra/blob/main/charts/fantasy/README.md)). Argo CD deploys the overlays here until it switches to the chart. Until then, every change to `base/` or `overlays/` needs the same change in the chart, and CI's `Helm chart` workflow fails when the two renders differ:
-
-```bash
-python3 scripts/compare-renders.py
-```
-
-| You changed | Also change |
-|---|---|
-| A workload, Service or RBAC file in `base/` | Its template under `charts/fantasy/templates/`, in the same subdirectory |
-| The catalog, a Grafana alert or dashboard, or the Image Updater manifests | Run `scripts/sync-chart-files.sh`; the chart ships these files verbatim |
-| An overlay patch or ExternalSecret | `values-production.yaml`, `values-draft-day.yaml`, or `templates/secrets/externalsecrets.yaml` |
-
-Image digests live in both `overlays/production/kustomization.yaml` and `charts/fantasy/values-images.yaml` until Argo CD deploys the chart, and the comparison fails when they differ. Until then Image Updater writes only the kustomization: copy a new digest into `values-images.yaml` as `tag: latest@<digest>`.
+| `charts/fantasy/templates/` | Databases, API, UI, OAuth proxy, job launcher, worker scaler, telemetry and image updater resources |
+| `charts/fantasy/files/` | Files the chart ships verbatim: the job catalog, Grafana alerts and dashboards, and the Image Updater manifests |
+| `charts/fantasy/values.yaml` | Self-host defaults (see the chart's [README](https://github.com/cvillarr23/fantasy-infra/blob/main/charts/fantasy/README.md)) |
+| `charts/fantasy/values-production.yaml` | The homelab install: configuration, ExternalSecrets, ingress and telemetry |
+| `charts/fantasy/values-draft-day.yaml` | Layered on production; increases API resources and Postgres buffers/connections, keeps one worker warm and disables its idle exit |
+| `charts/fantasy/values-images.yaml` | Application image digests. Only Image Updater writes it; each write re-encodes the whole file. |
 
 ## Supply private deployment values
 
-League/team IDs, the approved-email list and public OAuth domain live in OpenBao. The public overlays contain references only; DNS, tunnel routes and OAuth provider registration stay in your private deployment configuration.
+League/team IDs, the approved-email list and public OAuth domain live in OpenBao. The public values contain references only; DNS, tunnel routes and OAuth provider registration stay in your private deployment configuration.
 
 ```mermaid
 flowchart LR
@@ -85,7 +71,7 @@ After provisioning, merge the manifests and let Argo CD reconcile. Verify both E
 When IDs or OAuth settings change later, wait for Secret reconciliation and restart the API/OAuth deployments through your normal operator workflow. Environment variables refresh in new pods, and future scheduled/runtime Jobs read the new Secret values. Existing Jobs keep their initial environment; account for them before changing identity.
 
 :::note[Draft-day is an explicit switch]
-The registered Application selects production. Merging draft-day patches does not select that overlay. Coordinate any Application path change in the cluster repository, then return it to production after the window.
+The registered Application selects production. Merging a change to `values-draft-day.yaml` does not apply it. In the cluster repository, add `values-draft-day.yaml` to the Application's `helm.valueFiles` between `values-production.yaml` and `values-images.yaml`, then remove it after the window.
 :::
 
 ## Find the Argo CD configuration
@@ -94,10 +80,10 @@ The registered Application selects production. Merging draft-day patches does no
 |---|---|
 | `fantasy-infra` Application | Cluster repository's `argo-controllers/fantasy-infra.yaml`; destination namespace `default`, source revision `HEAD`, automated prune and self-heal |
 | Argo CD controller Application | Cluster repository's `argo-controllers/argocd.yaml`; installs the shared controller |
-| Image Updater | This repository's `base/argocd-image-updater/`; GHCR registry configuration, RBAC and deployment in `argocd` |
-| Update annotations | On `fantasy-infra`; `digest` strategy for API, UI and browser-worker `latest`, Git write-back to `main`, target `kustomization` |
+| Image Updater | This repository's `charts/fantasy/files/argocd-image-updater/`; GHCR registry configuration, RBAC and deployment in `argocd` |
+| Update annotations | On `fantasy-infra`; `digest` strategy for API, UI and browser-worker `latest`, Git write-back to `main`, target `helmvalues:values-images.yaml`, with `helm.image-name`/`helm.image-tag` mapping each image to `images.<core\|worker\|webUi>` |
 
-The production `images` transformer pins application `image:` fields, including the job launcher and the ScaledJob. Replacements also copy the transformed API and worker images into the launcher's `CORE_IMAGE` and `WORKER_IMAGE`, which it uses for every pod it launches, the draft listener and room connector included.
+Image Updater writes each digest as `tag: latest@sha256:...`, which the chart renders as `repository@sha256:...` in every `image:` field, the job launcher and the ScaledJob included. The launcher's `CORE_IMAGE` and `WORKER_IMAGE` come from the same values, and it uses them for every pod it launches, the draft listener and room connector included.
 
 :::warning[Existing Jobs keep their image]
 Changing the catalog, an image or a ScaledJob template affects future Jobs. Inspect active Jobs separately; deployment health alone does not prove every workload uses the new digest.
@@ -106,19 +92,20 @@ Changing the catalog, an image or a ScaledJob template affects future Jobs. Insp
 ## Validate before merging
 
 :::info[Prerequisites]
-Install `kubectl` with Kustomize support. The cluster needs Kubernetes 1.27+, Argo CD, KEDA, Tailscale ingress, a default StorageClass, and OpenBao with External Secrets Operator.
+Install Helm 3. The cluster needs Kubernetes 1.27+, Argo CD, KEDA, Tailscale ingress, a default StorageClass, and OpenBao with External Secrets Operator.
 :::
 
-1. Render both overlays locally:
+1. Render production and draft day locally:
 
    ```bash
-   kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
-   kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
-   helm lint charts/fantasy
-   python3 scripts/compare-renders.py
+   cd charts/fantasy
+   helm lint . -f values-production.yaml -f values-images.yaml
+   helm template fantasy-infra . -n default -f values-production.yaml -f values-images.yaml > /tmp/fantasy-production.yaml
+   helm template fantasy-infra . -n default -f values-production.yaml -f values-draft-day.yaml \
+     -f values-images.yaml > /tmp/fantasy-draft-day.yaml
    ```
 
-2. Review the rendered images, the launcher's image variables and resource changes. Public overlays render Secret references; keep live Secret values and any private overrides out of review logs.
+2. Review the rendered images, the launcher's image variables and resource changes. The public values render Secret references; keep live Secret values and any private overrides out of review logs.
 3. Merge the reviewed infra change. Argo CD applies it automatically; Image Updater may subsequently commit newer application digests.
 4. Verify the Application revision, health and workload image evidence below.
 
@@ -133,7 +120,7 @@ kubectl get pods -n default \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.containerStatuses[*]}{.name}{"="}{.imageID}{" "}{end}{"\n"}{end}'
 ```
 
-Compare the reconciled revision's `overlays/production/kustomization.yaml` with pod `imageID` values and the rendered templates. For multi-platform images, the runtime platform digest can differ from the pinned index digest; resolve its registry manifest before calling that a mismatch.
+Compare the reconciled revision's `charts/fantasy/values-images.yaml` with pod `imageID` values and the rendered templates. For multi-platform images, the runtime platform digest can differ from the pinned index digest; resolve its registry manifest before calling that a mismatch.
 
 Check the API Deployment's two runtime image variables and the actual draft Job pod when investigating stale draft code. Confirm desired replicas are updated and available; a successful sync can precede pod readiness.
 
@@ -141,6 +128,6 @@ Check the API Deployment's two runtime image variables and the actual draft Job 
 |---|---|
 | Merge has no image update | Application CI publish, GHCR access, updater logs, annotations and Git write-back credentials |
 | Sync fails | Application conditions/events, render errors and missing CRDs or Secrets |
-| API updated but draft Job is old | Replacement output, active Job creation time and pod image ID |
+| API updated but draft Job is old | The launcher's `CORE_IMAGE` and `WORKER_IMAGE`, active Job creation time and pod image ID |
 
 Related: [Rollback runbook](operations.md#roll-back-a-deploy), [Secrets](secrets.md).

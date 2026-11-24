@@ -8,7 +8,7 @@ Use this page to confirm unattended IR publication is off, to enable it after ap
 
 ## How is the flag wired?
 
-`overlays/production/configmap-env.yaml` owns the shared `fantasy-league-config.data.AUTO_PUBLISH_IR_MOVES` key, explicitly set to `"false"`. Three workloads import it through `envFrom`:
+The chart's `league.autoPublishIrMoves` value (`charts/fantasy/values.yaml`, `false`) sets the shared `fantasy-league-config.data.AUTO_PUBLISH_IR_MOVES` key to `"false"`. Three workloads import it through `envFrom`:
 
 | Workload | Kind |
 |---|---|
@@ -16,7 +16,7 @@ Use this page to confirm unattended IR publication is off, to enable it after ap
 | `rumor-action-trigger` | Launcher job; same profile |
 | `fantasy-core-pipeline` | FastAPI Deployment |
 
-Other consumers of this ConfigMap inherit the key but don't read the flag. The draft-day overlay inherits the same OFF value; it isn't a separate environment switch.
+Other consumers of this ConfigMap inherit the key but don't read the flag. Draft day (`values-draft-day.yaml`) inherits the same OFF value; it isn't a separate environment switch.
 
 ```mermaid
 flowchart LR
@@ -44,15 +44,15 @@ FastAPI's activity service sets the held add-only claim's deadline when it creat
 ## Enable only after live-week approval
 
 1. Obtain explicit approval for the live IR week before proposing an enabling change.
-2. Change only `AUTO_PUBLISH_IR_MOVES` in the shared ConfigMap and review the rendered overlays.
+2. Change only `league.autoPublishIrMoves` in `values-production.yaml` and review the production and draft-day renders.
 3. Update the safety test's expected value in the same separately approved PR.
 4. The user merges the reviewed PR, and Argo CD auto-sync deploys it.
 
-:::warning[No separate enabled overlay]
-Don't add an enabled overlay as part of the OFF wiring. This procedure needs no cluster mutation commands or manually triggered waiver run.
+:::warning[No separate enabled values file]
+Don't add an enabled values file as part of the OFF wiring. This procedure needs no cluster mutation commands or manually triggered waiver run.
 :::
 
-The production kustomization copies the shared flag into the Deployment's `spec.template.metadata.annotations["fantasy-infra/auto-publish-ir-moves"]`. That changes the pod template and triggers a gateway rollout through Argo CD, because updating a ConfigMap alone doesn't refresh a container's environment.
+The chart writes the same value into the Deployment's `spec.template.metadata.annotations["fantasy-infra/auto-publish-ir-moves"]`. That changes the pod template and triggers a gateway rollout through Argo CD, because updating a ConfigMap alone doesn't refresh a container's environment.
 
 | Pod type | When it sees the new value |
 |---|---|
@@ -62,7 +62,7 @@ The production kustomization copies the shared flag into the Deployment's `spec.
 
 ## Roll back
 
-1. Change the same shared key back to `"false"` through a reviewed GitOps PR.
+1. Change `league.autoPublishIrMoves` back to `false` through a reviewed GitOps PR.
 2. Restore the safety test's OFF expectation.
 3. The gateway rolls again, and new launched pods load OFF.
 4. Inspect any older active publisher pods. Their process environments don't change during a ConfigMap update.
@@ -74,13 +74,15 @@ Disabling the flag doesn't cancel previously queued actions or reverse moves alr
 ## Validate locally
 
 ```sh
-kubectl kustomize overlays/production/
-kubectl kustomize overlays/draft-day/
+cd charts/fantasy
+helm template fantasy-infra . -n default -f values-production.yaml -f values-images.yaml
+helm template fantasy-infra . -n default -f values-production.yaml -f values-draft-day.yaml -f values-images.yaml
+cd ../..
 python3 -m unittest discover -s tests -p 'test_*.py'
 git diff --check
 ```
 
-These kustomize commands render locally without contacting the cluster. Alerts are unchanged, so this change doesn't need promtool validation.
+These `helm template` commands render locally without contacting the cluster. Alerts are unchanged, so this change doesn't need promtool validation.
 
 ## Read-only post-deploy checks
 

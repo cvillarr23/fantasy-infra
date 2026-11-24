@@ -2,19 +2,19 @@ name: Job catalog
 on:
   pull_request:
     paths:
-      - 'base/launcher/catalog.yaml'
-      - 'base/telemetry/launcher-run-failed-*-alert.yaml'
+      - 'charts/fantasy/files/catalog.yaml'
+      - 'charts/fantasy/files/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
-      - 'base/launcher/deployment.yaml'
+      - 'charts/fantasy/templates/launcher/deployment.yaml'
       - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
   push:
     branches: [main]
     paths:
-      - 'base/launcher/catalog.yaml'
-      - 'base/telemetry/launcher-run-failed-*-alert.yaml'
+      - 'charts/fantasy/files/catalog.yaml'
+      - 'charts/fantasy/files/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
-      - 'base/launcher/deployment.yaml'
+      - 'charts/fantasy/templates/launcher/deployment.yaml'
       - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
 # The catalog is validated by the core image the production launcher is pinned to (the digest
@@ -56,7 +56,7 @@ jobs:
       - name: Validate with the launcher's own schema and check
         run: |
           docker run --rm --network none "$LAUNCHER_IMAGE" python -m src.launcher.catalog --json-schema > "$RUNNER_TEMP/catalog-schema.json"
-          check-jsonschema --schemafile "$RUNNER_TEMP/catalog-schema.json" base/launcher/catalog.yaml
-          docker run --rm --network none -v "$PWD/base/launcher:/catalog:ro" "$LAUNCHER_IMAGE" python -m src.launcher.catalog --check /catalog/catalog.yaml
+          check-jsonschema --schemafile "$RUNNER_TEMP/catalog-schema.json" charts/fantasy/files/catalog.yaml
+          docker run --rm --network none -v "$PWD/charts/fantasy/files:/catalog:ro" "$LAUNCHER_IMAGE" python -m src.launcher.catalog --check /catalog/catalog.yaml
       - name: Generated alert rules match the catalog
         run: python3 scripts/generate-launcher-alerts.py --check

@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-TELEMETRY = ROOT / 'base/telemetry'
+TELEMETRY = ROOT / 'charts/fantasy/files/telemetry'
 
 
 def load_rule(filename):

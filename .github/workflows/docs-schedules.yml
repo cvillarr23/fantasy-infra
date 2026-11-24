@@ -3,16 +3,14 @@ on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'base/**'
-      - 'overlays/**'
+      - 'charts/fantasy/files/catalog.yaml'
       - 'scripts/generate-schedules.py'
       - '.github/workflows/docs-schedules.yml'
   push:
     branches: [main]
     paths:
       - 'docs/**'
-      - 'base/**'
-      - 'overlays/**'
+      - 'charts/fantasy/files/catalog.yaml'
       - 'scripts/generate-schedules.py'
       - '.github/workflows/docs-schedules.yml'
 permissions:

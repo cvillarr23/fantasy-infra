@@ -1,8 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - postgres.yaml
-  - redis-deployment.yaml
-  - rabbitmq-deployment.yaml
-  - rabbitmq-ingress.yaml
-  - postgres-readonly-role-job.yaml

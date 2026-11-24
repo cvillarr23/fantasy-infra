@@ -4,7 +4,7 @@ description: Generated inventory of production schedules, commands and timezones
 sidebar_position: 5
 ---
 
-Catalog schedules and dependency chains are generated from `base/launcher/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. Event subscriptions are listed with the schedules. A job with neither runs only as a chain step or on request.
+Catalog schedules and dependency chains are generated from `charts/fantasy/files/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. Event subscriptions are listed with the schedules. A job with neither runs only as a chain step or on request.
 
 :::note[Timezones and alerts]
 America/Chicago jobs follow daylight saving time, so their UTC time shifts twice a year. For alerts, see [Job alerts](cronjob-alerts.md).

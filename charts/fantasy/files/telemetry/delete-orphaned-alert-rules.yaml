@@ -1,5 +1,5 @@
 # Grafana keeps a provisioned alert rule after its file is removed, so a rule dropped from
-# base/telemetry must be listed here or it keeps evaluating (and, with noDataState: Alerting,
+# charts/fantasy/files/telemetry must be listed here or it keeps evaluating (and, with noDataState: Alerting,
 # keeps firing). Entries can go once Grafana has processed them.
 apiVersion: v1
 kind: ConfigMap

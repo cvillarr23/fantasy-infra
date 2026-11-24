@@ -87,7 +87,7 @@ For a broker replacement or first persistent-storage rollout, use the [storage a
 
 1. Identify the failing reconciled Git revision and running image IDs using [Deployment](deployment.md#verify-the-running-digest). Record the known-good digests and whether database migrations or queued actions occurred.
 2. For an image regression, coordinate pausing Image Updater for the affected image in the owning Application configuration. Otherwise its tracking of `latest` can overwrite a reverted digest. Preserve the other Application annotations.
-3. Prepare a reviewed Git revert or digest-pinning change in `overlays/production`. Check both overlay renders and runtime Job image replacements. Keep compatible schema changes and persistent-store mounts; an image rollback does not reverse migrations.
+3. Prepare a reviewed Git revert or digest-pinning change in `charts/fantasy/values-images.yaml`. Check the production and draft-day renders and the launcher's `CORE_IMAGE` and `WORKER_IMAGE`. Keep compatible schema changes and persistent-store mounts; an image rollback does not reverse migrations.
 4. Merge the recovery change and let Argo CD reconcile it. Its self-heal can undo direct cluster edits; changing live state alone is not a durable rollback.
 5. Verify synced revision, ready replicas, pod image IDs and newly created Job templates. Inspect older active Jobs separately and validate normal application reads/outcomes before resuming publishers.
 6. Restore updater tracking only when the published `latest` image is safe again, then verify the next write-back.

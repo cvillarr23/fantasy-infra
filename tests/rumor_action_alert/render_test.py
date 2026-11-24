@@ -4,7 +4,7 @@ import yaml
 import json
 
 ROOT = Path(__file__).resolve().parents[2]
-config = yaml.safe_load((ROOT / 'base/telemetry/rumor-action-outcome-alert.yaml').read_text())
+config = yaml.safe_load((ROOT / 'charts/fantasy/files/telemetry/rumor-action-outcome-alert.yaml').read_text())
 provisioning = yaml.safe_load(next(iter(config['data'].values())))
 rule = provisioning['groups'][0]['rules'][0]
 assert config['metadata']['labels']['grafana_alert'] == '1'
@@ -14,7 +14,7 @@ assert rule['noDataState'] == 'OK'
 assert rule['execErrState'] == 'Error'
 assert rule['data'][0]['datasourceUid'] == 'FantasyFootballDB'
 assert rule['data'][2]['model']['conditions'][0]['evaluator'] == {'type': 'gt', 'params': [0]}
-dashboard_config = yaml.safe_load((ROOT / 'base/core-pipeline/fantasy-execution-log-dashboard.yaml').read_text())
+dashboard_config = yaml.safe_load((ROOT / 'charts/fantasy/files/dashboards/fantasy-execution-log-dashboard.yaml').read_text())
 dashboard = json.loads(dashboard_config['data']['fantasy-execution-log.json'])
 outcome_panel = next(p for p in dashboard['panels'] if p['id'] == 6)
 assert outcome_panel.get('timeFrom') == '26h', 'Linked panel must include the entire alert window'

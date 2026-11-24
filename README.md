@@ -2,7 +2,7 @@
 
 Kubernetes manifests for the fantasy platform: API, UI, browser-worker Jobs,
 scheduled pipelines, Postgres/TimescaleDB, Redis, RabbitMQ and telemetry.
-Argo CD reconciles the production overlay; Image Updater commits application digest pins.
+Argo CD deploys the `charts/fantasy` Helm chart with its production values; Image Updater commits application digest pins.
 
 This project is unofficial and not affiliated with ESPN or Disney. Read the
 [disclaimer and scope](https://github.com/cvillarr23/fantasy-project/blob/main/DISCLAIMER.md).
@@ -14,7 +14,7 @@ this repository's `docs/` under `/infra` and rebuilds after docs changes land on
 
 | Topic | Guide |
 |---|---|
-| GitOps, overlays and running digests | [Deployment](docs/deployment.md) |
+| GitOps, values files and running digests | [Deployment](docs/deployment.md) |
 | Services, access boundaries, queues and DNS | [Networking](docs/networking.md) |
 | Storage, backup, restore and reader role | [Databases](docs/databases.md) |
 | Generated job inventory | [Schedules](docs/schedules.md) |
@@ -25,10 +25,10 @@ this repository's `docs/` under `/infra` and rebuilds after docs changes land on
 
 | Path | Purpose |
 |---|---|
-| `base/` | Application workloads, stateful stores, auth proxy, scaler, dashboards and alerts |
-| `overlays/production/` | Configuration, ExternalSecrets and application digest pins |
-| `overlays/draft-day/` | Production plus draft-window resource and warm-worker patches |
-| `charts/fantasy/` | Helm chart for [self-hosting](https://fantasy-docs.roo-net.cc/installation/kubernetes); kept equal to the overlays by CI |
+| `charts/fantasy/` | The Helm chart: application workloads, stateful stores, auth proxy, scaler, dashboards and alerts. Also for [self-hosting](https://fantasy-docs.roo-net.cc/installation/kubernetes). |
+| `charts/fantasy/values-production.yaml` | The homelab's configuration, ExternalSecrets, ingress and telemetry |
+| `charts/fantasy/values-draft-day.yaml` | Production plus draft-window resources and a warm worker |
+| `charts/fantasy/values-images.yaml` | Application digest pins, written by Image Updater |
 | `scripts/` | Image refresh, draft environment preflight and schedule generation |
 | `tests/` | Offline render checks and isolated broker/alert integration suites |
 
@@ -38,11 +38,14 @@ Shared controllers, model services, DNS and edge routing live in
 ## Validate locally
 
 ```bash
-kubectl kustomize overlays/production/ > /tmp/fantasy-production.yaml
-kubectl kustomize overlays/draft-day/ > /tmp/fantasy-draft-day.yaml
+cd charts/fantasy
+helm lint . -f values-production.yaml -f values-images.yaml
+helm template fantasy-infra . -n default -f values-production.yaml -f values-images.yaml > /tmp/fantasy-production.yaml
+helm template fantasy-infra . -n default -f values-production.yaml -f values-draft-day.yaml \
+  -f values-images.yaml > /tmp/fantasy-draft-day.yaml
+cd ../..
 python3 scripts/generate-schedules.py --check
-helm lint charts/fantasy
-python3 scripts/compare-renders.py
+python3 -m unittest discover tests
 ```
 
 Provision [private deployment values](docs/deployment.md#supply-private-deployment-values)

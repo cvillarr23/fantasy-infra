@@ -1,33 +1,33 @@
 # Copilot instructions for fantasy-infra
 
-GitOps Kustomize repo for the fantasy football pipeline's Kubernetes deployment. Synced automatically by Argo CD (registered in `homelab-deployment`) — there's no manual `kubectl apply` step for normal changes.
+GitOps Helm chart repo for the fantasy football pipeline's Kubernetes deployment. Synced automatically by Argo CD (registered in `homelab-deployment`) — there's no manual `kubectl apply` step for normal changes.
 
 ## System architecture
 
 This is one of three repos that make up the platform:
-- **`fantasy-core-pipeline`**: the brain. A FastAPI gateway + Python ingestion/optimization scripts, deployed here as `base/core-pipeline/`. Reads Postgres/Redis/RabbitMQ connection info from env vars whose defaults must match the Service names/namespaces defined in `base/databases/`.
-- **`fantasy-browser-worker`**: the hands. A Node/Playwright worker, deployed here as a KEDA-scaled job under `base/browser-worker/`, that consumes RabbitMQ messages published by `fantasy-core-pipeline` and executes them against the ESPN UI.
+- **`fantasy-core-pipeline`**: the brain. A FastAPI gateway + Python ingestion/optimization scripts, deployed here as `charts/fantasy/templates/core-pipeline/`. Reads Postgres/Redis/RabbitMQ connection info from env vars whose defaults must match the Service names/namespaces defined in `charts/fantasy/templates/databases/`.
+- **`fantasy-browser-worker`**: the hands. A Node/Playwright worker, deployed here as a KEDA-scaled job under `charts/fantasy/templates/browser-worker/`, that consumes RabbitMQ messages published by `fantasy-core-pipeline` and executes them against the ESPN UI.
 - **`fantasy-infra`** (this repo): the plumbing. Owns the actual Kubernetes topology (namespaces, Services, PVCs, secrets) both application repos assume exists. A change here that renames a Service, moves a namespace, or changes a port silently breaks whichever application repo's hardcoded/default connection string assumed the old value.
 - This repo itself is deployed onto a cluster managed by **`homelab-deployment`** (registers this repo as an Argo CD `Application`, provisions shared cluster infra like KEDA/OpenBao/storage).
 
 ## Stack conventions
 
-- Layout: `base/` holds environment-agnostic manifests (`databases/`, `core-pipeline/`, `browser-worker/`); `overlays/production` and `overlays/draft-day` hold environment-specific patches. Validate any manifest change with `kubectl kustomize overlays/production/` (and `overlays/draft-day/`) rather than assuming a base-only change is sufficient.
-- `charts/fantasy/` is the Helm chart for self-hosting and must render the same objects as the overlays: mirror every `base/` or overlay change in its templates or values (`scripts/sync-chart-files.sh` copies the verbatim files), then run `python3 scripts/compare-renders.py`.
-- Secrets are never committed in cleartext — they're materialized via `ExternalSecret` from the shared OpenBao `ClusterSecretStore` (see `overlays/production/externalsecrets.yaml`). Any manifest introducing a credential/token/API key must go through that path, not a plain `Secret` with inline `data`/`stringData`.
+- Layout: `charts/fantasy/` is the one source for the homelab and self-hosters. `templates/` holds the manifests (`databases/`, `core-pipeline/`, `browser-worker/`, ...), `files/` the verbatim catalog, Grafana alerts/dashboards and Image Updater manifests, and `values.yaml` the self-host defaults. The homelab layers `values-production.yaml` and `values-images.yaml` (digest pins, written only by Image Updater); draft day adds `values-draft-day.yaml` between them.
+- Validate a change by rendering both: `helm template fantasy-infra charts/fantasy -n default -f charts/fantasy/values-production.yaml -f charts/fantasy/values-images.yaml` (add `-f charts/fantasy/values-draft-day.yaml` before the images file for draft day), plus `python3 -m unittest discover tests`. Resource names are what Argo CD tracks: renaming one deletes and recreates it, which for the `fantasy-db` StatefulSet or the `fantasy-broker-data` PVC loses data.
+- Secrets are never committed in cleartext — they're materialized via `ExternalSecret` from the shared OpenBao `ClusterSecretStore` (see `charts/fantasy/templates/secrets/externalsecrets.yaml` and `secrets.externalSecrets` in `values-production.yaml`). Any manifest introducing a credential/token/API key must go through that path, not a plain `Secret` with inline `data`/`stringData`.
 - Playwright worker pods scale via KEDA off queue depth and are expected to scale to zero when idle — don't suggest a fixed `replicas` count or a plain `Deployment` for that workload without checking whether it should stay a KEDA-scaled resource.
 - Postgres/TimescaleDB needs a real PVC — don't suggest `emptyDir` or removing volume claims for stateful services.
-- Grafana dashboards (`grafana_dashboard: "1"`) and alert rules (`grafana_alert: "1"`, `base/telemetry/`) are ConfigMaps in this repo, loaded by sidecars in homelab-deployment's Grafana; datasources are still provisioned in `homelab-deployment/apps/telemetry/`. Alert rule changes must keep `./tests/launcher_alerts/run.sh` passing (runbook: `docs/cronjob-alerts.md`).
+- Grafana dashboards (`grafana_dashboard: "1"`) and alert rules (`grafana_alert: "1"`, `charts/fantasy/files/telemetry/`) are ConfigMaps in this repo, loaded by sidecars in homelab-deployment's Grafana; datasources are still provisioned in `homelab-deployment/apps/telemetry/`. Alert rule changes must keep `./tests/launcher_alerts/run.sh` passing (runbook: `docs/cronjob-alerts.md`).
 
 ## Critical Environment Variables (fantasy-core-pipeline)
 
 **These MUST be set or the app fails silently at runtime**:
 
-- `JOB_CATALOG_PATH`: The job catalog the Jobs API and the draft endpoints read. Draft runs (`POST /v1/draft/start`, `/v1/draft/practice/sync-job`) are launcher service jobs in `base/launcher/catalog.yaml`; without the catalog they answer 503.
+- `JOB_CATALOG_PATH`: The job catalog the Jobs API and the draft endpoints read. Draft runs (`POST /v1/draft/start`, `/v1/draft/practice/sync-job`) are launcher service jobs in `charts/fantasy/files/catalog.yaml`; without the catalog they answer 503.
 
-- `DB_HOST`, `DB_NAME`, `DB_USER`: Postgres topology — must match Service names in `base/databases/postgres.yaml`.
-- `REDIS_HOST`, `REDIS_PORT`: Redis connection — must match Service in `base/databases/redis-deployment.yaml`.
-- `AMQP_URL`: RabbitMQ credentials — from `rabbitmq-credentials` Secret (configured in overlays).
+- `DB_HOST`, `DB_NAME`, `DB_USER`: Postgres topology — must match Service names in `charts/fantasy/templates/databases/postgres.yaml`.
+- `REDIS_HOST`, `REDIS_PORT`: Redis connection — must match Service in `charts/fantasy/templates/databases/redis-deployment.yaml`.
+- `AMQP_URL`: RabbitMQ credentials — from `rabbitmq-credentials` Secret (an ExternalSecret in the production values).
 
 ## Things to double-check in review
 

@@ -2,9 +2,8 @@ name: Core pipeline refresh and schedules
 on:
   pull_request:
     paths:
-      - 'base/core-pipeline/fastapi-deployment.yaml'
-      - 'base/launcher/catalog.yaml'
-      - 'overlays/**'
+      - 'charts/fantasy/**'
+      - 'tests/chart_render.py'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_auto_publish_ir_moves.py'
       - 'tests/test_core_pipeline_probes.py'
@@ -12,9 +11,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'base/core-pipeline/fastapi-deployment.yaml'
-      - 'base/launcher/catalog.yaml'
-      - 'overlays/**'
+      - 'charts/fantasy/**'
+      - 'tests/chart_render.py'
       - 'tests/test_weekly_schedules.py'
       - 'tests/test_auto_publish_ir_moves.py'
       - 'tests/test_core_pipeline_probes.py'
@@ -30,9 +28,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: 'v1.35.0'
+          version: 'v3.19.0'
       - run: pip install PyYAML
       - run: python -m unittest discover -s tests -p test_weekly_schedules.py
       - run: python -m unittest discover -s tests -p test_auto_publish_ir_moves.py

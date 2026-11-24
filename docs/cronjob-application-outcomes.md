@@ -12,7 +12,7 @@ Use this page when the rumor-action outcome alert fires, or when you need the sc
 
 | Property | Value |
 |---|---|
-| Rule file | `base/telemetry/rumor-action-outcome-alert.yaml` |
+| Rule file | `charts/fantasy/files/telemetry/rumor-action-outcome-alert.yaml` |
 | Evaluation | Every 5m |
 | Fires | Immediately when any `failure` or `partial_failure` was recorded in the last 26h |
 | Dashboard | **Fantasy → Fantasy Execution Log Overview → Rumor Action Outcomes** (panel 6) |

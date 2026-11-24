@@ -32,7 +32,7 @@ spec:
 # user is missing or its password doesn't match the secret.
 #
 # Pre-declares the queues KEDA's rabbitmq ScaledJob triggers depend on
-# (base/browser-worker/keda-scaledjob.yaml). The KEDA rabbitmq scaler errors out
+# (charts/fantasy/templates/browser-worker/keda-scaledjob.yaml). The KEDA rabbitmq scaler errors out
 # (rather than reporting zero messages) when a queue doesn't exist yet, and with the
 # worker running as a scale-to-zero job there's no permanent consumer around to declare
 # them itself — so the broker has to own its own topology from boot.

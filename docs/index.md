@@ -9,7 +9,7 @@ Argo CD deploys this repository's Kubernetes manifests. Start here to trace a re
 
 ```mermaid
 flowchart LR
-    Git[Infra Git repository] -->|production overlay| Argo[Argo CD]
+    Git[Infra Git repository] -->|Helm chart and production values| Argo[Argo CD]
     Argo -->|reconcile| Apps[API and UI]
     Argo -->|templates| Jobs[Job launcher and KEDA workers]
     Bao[OpenBao] -->|External Secrets Operator| Secrets[Kubernetes Secrets]

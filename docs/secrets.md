@@ -28,7 +28,7 @@ flowchart LR
 | League/team identity and OAuth deployment configuration | API/Jobs and oauth2-proxy; see [private deployment values](deployment.md#supply-private-deployment-values) |
 | Registry pull and Git write-back credentials | Private image pulls and Image Updater |
 
-The production overlay owns ExternalSecret definitions, including a separate updater resource in `argocd`. The shared store and operator authentication policy belong to the cluster repository. These docs omit private values and tokens; deployment configuration paths are documented for provisioning.
+The chart's production values (`values-production.yaml`, `secrets.externalSecrets`) own the ExternalSecret definitions, including a separate updater resource in `argocd`. The shared store and operator authentication policy belong to the cluster repository. These docs omit private values and tokens; deployment configuration paths are documented for provisioning.
 
 ## Verify delivery
 

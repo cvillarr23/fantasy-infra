@@ -1,17 +1,15 @@
-"""Alert rules removed from base/telemetry are deleted from Grafana, not just unprovisioned."""
+"""Alert rules removed from the chart's telemetry files are deleted from Grafana, not just unprovisioned."""
 
 from pathlib import Path
-import subprocess
 import unittest
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+TELEMETRY = Path(__file__).resolve().parents[1] / "charts" / "fantasy" / "files" / "telemetry"
 
 
 def rendered_telemetry():
-    out = subprocess.check_output(["kubectl", "kustomize", str(ROOT / "base" / "telemetry")], text=True)
-    return [doc for doc in yaml.safe_load_all(out) if doc]
+    return [yaml.safe_load(path.read_text()) for path in sorted(TELEMETRY.glob("*.yaml"))]
 
 
 def provisioned(docs):

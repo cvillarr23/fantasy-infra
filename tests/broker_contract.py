@@ -18,6 +18,9 @@ import psycopg2.pool
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+# Run as a script, so the repo root isn't on the import path by default.
+sys.path.insert(0, str(ROOT))
+from tests.chart_render import render_text  # noqa: E402
 WORKER_ROOT = Path(
     os.environ.get("FANTASY_WORKER_ROOT", ROOT.parents[1] / "fantasy-browser-worker")
 ).resolve()
@@ -38,7 +41,7 @@ def command(*args, **kwargs):
 
 def rendered_definitions(directory):
     manifests = yaml.safe_load_all(
-        command("kubectl", "kustomize", str(ROOT / "overlays/production"))
+        render_text()
     )
     configmap = next(
         item
@@ -254,7 +257,7 @@ def broker_pod_storage():
     """The rabbitmq container's broker-data mount plus the pod-level settings that shape it,
     as rendered for production - so the restart scenario tests what Argo CD would apply."""
     manifests = yaml.safe_load_all(
-        command("kubectl", "kustomize", str(ROOT / "overlays/production"))
+        render_text()
     )
     deployment = next(
         item

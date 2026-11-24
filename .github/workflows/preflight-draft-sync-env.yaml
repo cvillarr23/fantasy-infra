@@ -24,15 +24,19 @@ jobs:
       - name: Install preflight dependencies
         run: python -m pip install --upgrade pip pyyaml
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
+      - name: Setup Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: 'v3.19.0'
 
       # The draft-sync env vars this used to check are gone: draft runs go through the job
       # launcher (fantasy-core-pipeline#350). The workflow keeps its name for required checks.
-      - name: Render both overlays
+      - name: Render production and draft day
         run: |
-          kubectl kustomize overlays/production > /dev/null
-          kubectl kustomize overlays/draft-day > /dev/null
+          cd charts/fantasy
+          helm template fantasy-infra . -n default -f values-production.yaml -f values-images.yaml > /dev/null
+          helm template fantasy-infra . -n default -f values-production.yaml -f values-draft-day.yaml \
+            -f values-images.yaml > /dev/null
 
       - name: Validate private deployment configuration
         run: python -m unittest discover -s tests -p test_deployment_values.py

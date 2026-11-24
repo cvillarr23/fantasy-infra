@@ -1,11 +1,10 @@
 """Offline rendered-manifest contract for every browser-worker consumer queue."""
 import json
-import subprocess
 import unittest
-from pathlib import Path
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+from tests.chart_render import render_text
+
 QUEUES = {'lineup_updates', 'waiver_actions', 'draft_targets', 'trade_evaluations',
           'trade_negotiations', 'llm_requests', 'trade_responses'}
 # Set only on the ScaledJob worker container: trade_builder reads TRADE_DRY_RUN, so DRY_RUN stays
@@ -52,18 +51,17 @@ def scaler_worker(docs):
 class WorkerTriggerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.overlays = {}
-        for overlay in ('production', 'draft-day'):
-            rendered = subprocess.check_output(
-                ['kubectl', 'kustomize', str(ROOT / 'overlays' / overlay)], text=True)
-            cls.overlays[overlay] = {
+        cls.environments = {}
+        for environment in ('production', 'draft-day'):
+            rendered = render_text(environment)
+            cls.environments[environment] = {
                 (doc['kind'], doc['metadata']['name']): doc
                 for doc in yaml.safe_load_all(rendered) if doc
             }
 
-    def test_all_overlays_cover_consumers(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+    def test_all_environments_cover_consumers(self):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 job = docs[SCALER]
                 triggers = job['spec']['triggers']
                 names = [t['metadata']['queueName'] for t in triggers]
@@ -76,8 +74,8 @@ class WorkerTriggerTest(unittest.TestCase):
                     self.assertEqual(trigger['authenticationRef']['name'], 'rabbitmq-trigger-auth')
 
     def test_trade_queues_are_predeclared(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 broker = docs['ConfigMap', 'fantasy-broker-definitions']
                 definitions = json.loads(broker['data']['definitions.template.json'])
                 queues = {q['name']: q for q in definitions['queues']}
@@ -88,8 +86,8 @@ class WorkerTriggerTest(unittest.TestCase):
                     })
 
     def test_trade_inbox_and_scan_run_from_the_catalog(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 catalog = launcher_catalog(docs)
                 inbox, scan = catalog['jobs']['trade-inbox'], catalog['jobs']['trade-scan']
                 self.assertEqual(inbox['command'], ['node', 'src/bots/trade_inbox.js', '--refresh'])
@@ -106,8 +104,8 @@ class WorkerTriggerTest(unittest.TestCase):
                     self.assertNotIn('overlap', job)
 
     def test_trade_submit_sends_one_approved_offer_on_demand(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 submit = launcher_catalog(docs)['jobs']['trade-submit']
                 # The launcher appends the offer_key param as --offer-key <key>.
                 self.assertEqual(submit['command'], ['node', 'src/bots/trade_builder.js'])
@@ -120,8 +118,8 @@ class WorkerTriggerTest(unittest.TestCase):
                 self.assertNotIn('on_event', submit)
 
     def test_trade_job_profiles_match_the_worker_contract(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 catalog = launcher_catalog(docs)
                 inbox = catalog['profiles'][catalog['jobs']['trade-inbox']['profile']]
                 scan = catalog['profiles'][catalog['jobs']['trade-scan']['profile']]
@@ -143,8 +141,8 @@ class WorkerTriggerTest(unittest.TestCase):
                 self.assertIn('@sha256:', image)
 
     def test_trade_arming_stays_on_the_scaled_job(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 worker = scaler_worker(docs)
                 worker_env = {e['name']: e for e in worker['env']}
                 # TRADE_DRY_RUN / TRADE_SUBMIT_ENABLED arm the queue worker; trade-submit gets them from
@@ -167,8 +165,8 @@ class WorkerTriggerTest(unittest.TestCase):
                     self.assertFalse(safe_defaults & config.keys(), name)
 
     def test_no_cronjobs_remain(self):
-        for overlay, docs in self.overlays.items():
-            with self.subTest(overlay=overlay):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
                 self.assertEqual([name for kind, name in docs if kind == 'CronJob'], [])
 
 
