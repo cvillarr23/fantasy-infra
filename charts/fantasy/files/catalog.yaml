@@ -103,6 +103,20 @@ jobs:
     alert: none
     resources: *connector-resources
     health: *practice-health
+  # Keeps the live game snapshot in Redis for the matchup page. The poller ends its own window
+  # once no game is live or due within 30 minutes, so the schedule only has to start it: Thursday
+  # night, Sunday morning (international games end before the early slate) and 15:30 (restarts it
+  # if the poller left in the gap before the late games), and Monday night. Its heartbeat is rewritten every tick, failed ones included, with a 10-minute TTL.
+  live-games:
+    class: service
+    profile: core
+    command: [python, -m, src.ingestion.live_games]
+    deadline: 8h
+    health: {key: 'live:health', grace: 10m}
+    schedules:
+      - {cron: '30 18 * * 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '30 8,15 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '30 17 * * 1', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
   espn-session-healthcheck:
     profile: worker-session-check
     command: [node, src/bots/check_espn_session.js]
