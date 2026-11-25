@@ -1,0 +1,76 @@
+# Our IR slot holds a player ESPN no longer lists as OUT or INJURY_RESERVE, or one core couldn't match.
+# ESPN's frontend then disables trade proposals and may reject other moves, and only a manager should
+# activate the player, since core keeps activate_from_ir a suggestion. Mirrors core's
+# src/ir_eligibility.load_ineligible_ir_occupants. "Our team" is the latest trade_candidate_runs
+# our_team_id, because ESPN_TEAM_ID is a Secret and this public file must not name it.
+# Runbook: docs/cronjob-application-outcomes.md#ir-slot-holds-an-ineligible-player
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantasy-ir-ineligible-occupant-alert
+  namespace: default
+  labels:
+    grafana_alert: "1"
+data:
+  ir-ineligible-occupant.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: ir-ineligible-occupant
+        folder: Fantasy
+        interval: 5m
+        rules:
+          - uid: ir-ineligible-occupant
+            title: IR slot holds an ineligible or unmatched player
+            condition: C
+            for: 30m
+            noDataState: OK
+            execErrState: Error
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $values.B.Value }} player(s) in our IR slot are not OUT or INJURY_RESERVE on ESPN, or could not be matched.'
+              description: 'Activating them is a manager decision. Before that, run the ESPN rejection capture in fantasy-browser-worker#261 if it is still open.'
+              runbook_url: https://github.com/cvillarr23/fantasy-infra/blob/main/docs/cronjob-application-outcomes.md#ir-slot-holds-an-ineligible-player
+            data:
+              - refId: A
+                relativeTimeRange: {from: 600, to: 0}
+                datasourceUid: FantasyFootballDB
+                model:
+                  refId: A
+                  format: table
+                  rawQuery: true
+                  rawSql: >
+                    WITH ours AS (
+                      SELECT our_team_id AS team_id FROM trade_candidate_runs
+                      ORDER BY computed_at DESC LIMIT 1
+                    ), matched AS (
+                      SELECT r.espn_injury_status FROM league_rosters r
+                      JOIN ours ON ours.team_id = r.team_id
+                      WHERE r.slot_position = 'IR'
+                    ), used AS (
+                      SELECT t.ir_slots_used FROM league_teams t
+                      JOIN ours ON ours.team_id = t.team_id
+                      WHERE t.ir_slots_used IS NOT NULL
+                      ORDER BY t.updated_at DESC LIMIT 1
+                    )
+                    SELECT (
+                      (SELECT COUNT(*) FROM matched
+                       WHERE espn_injury_status IS NULL
+                          OR espn_injury_status NOT IN ('OUT', 'INJURY_RESERVE'))
+                      + GREATEST(0, COALESCE((SELECT ir_slots_used FROM used), 0)
+                                    - (SELECT COUNT(*) FROM matched))
+                    )::double precision AS value;
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: {type: gt, params: [0]}

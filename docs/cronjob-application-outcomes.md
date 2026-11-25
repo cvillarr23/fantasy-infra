@@ -1,10 +1,10 @@
 ---
 title: Application outcomes and trade jobs
-description: The rumor-action outcome alert, its provisioning handoff, and how the trade scan and trade inbox jobs behave.
+description: The rumor-action and IR-occupant outcome alerts, the rumor rule's provisioning handoff, and how the trade scan and trade inbox jobs behave.
 sidebar_position: 10
 ---
 
-Use this page when the rumor-action outcome alert fires, or when you need the schedule and safety settings of `trade-scan` and `trade-inbox`. For launcher run alerts, see [Job alerts](cronjob-alerts.md).
+Use this page when the rumor-action or IR-occupant outcome alert fires, or when you need the schedule and safety settings of `trade-scan` and `trade-inbox`. For launcher run alerts, see [Job alerts](cronjob-alerts.md).
 
 ## Rumor-action application outcome
 
@@ -80,6 +80,25 @@ Run `./tests/rumor_action_alert/run.sh` (Python/PyYAML and Docker). It tests the
 - exact window boundaries
 
 The launcher's own rules are tested in `./tests/launcher_alerts/run.sh`.
+
+## IR slot holds an ineligible player
+
+**IR slot holds an ineligible or unmatched player** (`ir-ineligible-occupant`) fires when our IR slot holds a player whose ESPN status is no longer `OUT` or `INJURY_RESERVE`, or an occupant core couldn't match to a player. ESPN's frontend disables trade proposals in that state, and it may reject other moves too. Core only suggests activating the player (`activate_from_ir` on the matchup roster), and with `AUTO_PUBLISH_IR_MOVES` off nothing else reports it.
+
+| Property | Value |
+|---|---|
+| Rule file | `charts/fantasy/files/telemetry/ir-ineligible-occupant-alert.yaml` |
+| Evaluation | Every 5m, firing after 30m (`for`), so one `sync_league` refresh can't trip it |
+| Counts | Our `league_rosters` IR rows with another or no ESPN status, plus `league_teams.ir_slots_used` beyond those rows (unmatched occupants), as core's `load_ineligible_ir_occupants` does |
+| Our team | The latest `trade_candidate_runs.our_team_id`. `ESPN_TEAM_ID` is a Secret, so the rule doesn't name it. Before the season's first candidate run there's no team, and the rule reads 0. |
+
+### Respond
+
+1. If [fantasy-browser-worker#261](https://github.com/cvillarr23/fantasy-browser-worker/issues/261) is still open, this is its capture window. Get live-write approval and record ESPN's rejection before activating anyone: core's decision on auto-publishing activation ([core-pipeline#234](https://github.com/cvillarr23/fantasy-core-pipeline/issues/234)) waits on it.
+2. Activate the player from IR on ESPN, or through the web UI's activate suggestion. On a full roster that needs a drop, which is the manager's call.
+3. The alert clears on the next `sync_league` refresh after the slot is fixed.
+
+Run `./tests/ir_ineligible_alert/run.sh` (Python/PyYAML and Docker) to test the committed SQL on PostgreSQL 16.
 
 ## Outgoing trade scan
 
