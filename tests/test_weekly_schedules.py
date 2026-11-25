@@ -102,7 +102,9 @@ class WeeklyScheduleTest(unittest.TestCase):
                 # Scores run as a chain step on Tuesday and on their own only for Friday's reconcile.
                 self.assertEqual([s["cron"] for s in jobs["sync-actual-scores"]["schedules"]],
                                  ["0 10 * * 5"])
-                for name in ("sync-league", "metrics-extractor", "lineup-optimizer", "waiver-trigger"):
+                # The roster sync also runs daily so the IR-occupant alert sees status changes between Tuesdays.
+                self.assertEqual([s["cron"] for s in jobs["sync-league"]["schedules"]], ["30 7 * * *"])
+                for name in ("metrics-extractor", "lineup-optimizer", "waiver-trigger"):
                     self.assertNotIn("schedules", jobs[name], name)
                 # The roster sync is the chain's first step, so metrics and decisions follow it.
                 (first,) = [name for name, step in catalog["chains"]["tuesday-weekly"]["steps"].items()

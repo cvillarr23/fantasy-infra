@@ -29,7 +29,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
 | `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |
 | `sync-actual-scores` | `0 10 * * 5` (America/Chicago) | `python -m src.ingestion.sync_actual_scores --season $(CURRENT_YEAR)` |
-| `sync-league` | — | `python -m src.ingestion.sync_league --season $(CURRENT_YEAR)` |
+| `sync-league` | `30 7 * * *` (America/Chicago) | `python -m src.ingestion.sync_league --season $(CURRENT_YEAR)` |
 | `trade-candidates` | `0 7 * * *` (America/Chicago)<br/>`30 12 * * 3,5` (America/Chicago) | `python -m src.jobs.trade_candidates` |
 | `trade-inbox` | `0 8-22/2 * * *` (America/Chicago) | `node src/bots/trade_inbox.js --refresh` |
 | `trade-scan` | `0 13 * * 3,5` (America/Chicago) | `node src/bots/trade_scan.js --stage` |

@@ -93,7 +93,7 @@ A `skipped` run with `end_reason` `overlap` means the previous run, or its retry
 
 | Job | Check first |
 |---|---|
-| `sync-league` | First `tuesday-weekly` step. ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`), league configuration, Postgres. If it fails, `metrics-extractor` and `sync-actual-scores` are skipped (`dependency_failed`) and the rest of the chain still runs. |
+| `sync-league` | Daily at 07:30 in the regular season, and the first `tuesday-weekly` step. ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`), league configuration, Postgres. If it fails, `metrics-extractor` and `sync-actual-scores` are skipped (`dependency_failed`) and the rest of the chain still runs. |
 | `metrics-extractor` | Runs after `sync-league` succeeds. External play-by-play source and Postgres. It refreshes historical metrics; it doesn't replace the projection/VORP refresh. |
 | `sync-actual-scores` | Runs after `metrics-extractor` succeeds, and on its own Friday at 10:00 to reconcile. ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and `ESPN_LEAGUE_ID`, the public NFL scoreboard, Postgres, and Redis for read-cache invalidation. See [score sync failures](#score-sync-failures). |
 | `espn-ownership-sync` | Runs daily at 17:45, and in the chain once `sync-league` finishes. ESPN cookies (`espn-session-secrets` `espn_s2`/`swid`) and Postgres. It writes the `espn_player_ownership` snapshot for the upcoming week; a failure doesn't block the refresh, the lineup or waivers, but leaves a day missing from the history. |
