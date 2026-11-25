@@ -135,10 +135,14 @@ jobs:
     resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
     schedules:
       - {cron: '0 11 * * *', tz: America/Chicago, catch_up: 2h}
+  # Tuesday's run is a chain step. The daily run keeps league_rosters' ESPN injury statuses and IR
+  # occupancy fresh between Tuesdays for the ir-ineligible-occupant alert. It only reads ESPN.
   sync-league:
     profile: core
     command: [python, -m, src.ingestion.sync_league, --season, $(CURRENT_YEAR)]
     max_attempts: 2
+    schedules:
+      - {cron: '30 7 * * *', tz: America/Chicago, catch_up: 1h, seasons: [regular]}
   metrics-extractor:
     profile: core
     command: [python, -m, src.ingestion.metrics_extractor]
