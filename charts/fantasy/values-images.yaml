@@ -10,4 +10,4 @@ images:
     tag: latest@sha256:701c951a7008ff44881b4bbde37c3059eaac23f3fcaa701020c74770f5eb2ec2
   webUi:
     repository: ghcr.io/cvillarr23/fantasy-web-ui
-    tag: latest@sha256:3ee68d272a8b15af1648bc63bfe63d7797ffa2f1124be108788e88202340fdd0
+    tag: latest@sha256:868b4eea7a1af8b99a366c24e5b11fd6c86da890a5cc005de28d081e15c3a58f
