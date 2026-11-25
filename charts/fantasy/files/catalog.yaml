@@ -115,6 +115,9 @@ jobs:
     health: {key: 'live:health', grace: 10m}
     schedules:
       - {cron: '30 18 * * 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Thanksgiving's midday and afternoon games. Other November Thursdays start an empty window that exits at once.
+      - {cron: '30 10 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '0 15 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
       - {cron: '30 8,15 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
       - {cron: '30 17 * * 1', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
   espn-session-healthcheck:

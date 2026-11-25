@@ -224,7 +224,7 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertTrue(all(s["tz"] == "America/Chicago" and s["seasons"] == ["regular"]
                             for s in job["schedules"]))
         self.assertEqual({s["cron"] for s in job["schedules"]},
-                         {"30 18 * * 4", "30 8,15 * * 0", "30 17 * * 1"})
+                         {"30 18 * * 4", "30 10 * 11 4", "0 15 * 11 4", "30 8,15 * * 0", "30 17 * * 1"})
 
     def test_gateway_only_reads_jobs_and_pods(self):
         # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.
