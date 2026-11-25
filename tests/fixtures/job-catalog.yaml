@@ -1,6 +1,6 @@
-# Mirrors the 16 production CronJobs in fantasy-infra (base/core-pipeline, base/browser-worker):
+# Mirrors the 16 production launcher jobs (charts/fantasy/files/catalog.yaml, formerly CronJobs):
 # same commands, schedules, deadlines and resources. weekly-ingestor's initContainer split becomes
-# the sync-league -> metrics-extractor chain steps; the reconcile and prescan CronJobs become
+# the sync-league -> metrics-extractor chain steps; the reconcile and prescan jobs become
 # second schedules on their jobs; the Tuesday clock offsets become the tuesday-weekly chain.
 version: 1
 global:

@@ -126,7 +126,7 @@ jobs:
     max_attempts: 2
     resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 1000m, memory: 1200Mi}}
     schedules:
-      # 06:00 UTC Monday, the CronJob's controller-timezone slot.
+      # 06:00 UTC Monday; the former CronJob ran in the controller timezone.
       - {cron: '0 6 * * 1', tz: UTC, catch_up: 2h}
   rumor-digest-bot:
     profile: worker-llm
