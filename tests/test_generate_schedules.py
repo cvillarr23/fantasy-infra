@@ -2,6 +2,7 @@
 
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,18 @@ class CatalogScheduleTest(unittest.TestCase):
         self.assertIn("lineup-optimizer (latest 19:15)", page)
         self.assertIn("`rumor-action-trigger` | `45 21 * * *` (America/Chicago)<br/>"
                       "on `rumor.signal_created` (debounce 30m) |", page)
+
+    def test_kickoff_starts_are_listed_as_a_jobs_trigger(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "catalog.yaml"
+            path.write_text("jobs:\n  poller:\n    kickoffs: {lead: 20m, seasons: [regular], fallback_every: 15m}\n"
+                            "  default-fallback:\n    kickoffs: {lead: 10m, seasons: [regular]}\n")
+            page = generator.render_catalog(path)
+
+        self.assertIn("`poller` | 20m before each regular-season kickoff "
+                      "(every 15m while a time is unknown) |", page)
+        self.assertIn("`default-fallback` | 10m before each regular-season kickoff "
+                      "(every 30m while a time is unknown) |", page)
 
     def test_chain_edge_without_on_defaults_to_success(self):
         page = generator.render_catalog(ROOT / "tests/fixtures/job-catalog-defaults.yaml")

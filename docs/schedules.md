@@ -4,7 +4,7 @@ description: Generated inventory of production schedules, commands and timezones
 sidebar_position: 5
 ---
 
-Catalog schedules and dependency chains are generated from `charts/fantasy/files/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. Event subscriptions are listed with the schedules. A job with neither runs only as a chain step or on request.
+Catalog schedules and dependency chains are generated from `charts/fantasy/files/catalog.yaml`. Don't edit the table by hand: run `python3 scripts/generate-schedules.py`. Kickoff starts and event subscriptions are listed with the schedules. A job with none of these runs only as a chain step or on request.
 
 :::note[Timezones and alerts]
 America/Chicago jobs follow daylight saving time, so their UTC time shifts twice a year. For alerts, see [Job alerts](cronjob-alerts.md).
@@ -19,7 +19,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `espn-ownership-sync` | `45 17 * * *` (America/Chicago) | `python -m src.ingestion.sync_espn_ownership` |
 | `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
 | `lineup-optimizer` | — | `python -m src.optimization.lineup_solver` |
-| `live-games` | `0 19 * * 1,4` (America/Chicago)<br/>`15 8 * * 0` (America/Chicago)<br/>`45 11 * * 0` (America/Chicago)<br/>`0 15,19 * * 0` (America/Chicago)<br/>`45 11 * 11 4` (America/Chicago)<br/>`15 15 * 11 4` (America/Chicago)<br/>`45 13 * 11 5` (America/Chicago)<br/>`45 11 * 12,1 6` (America/Chicago)<br/>`30 15 * 12,1 6` (America/Chicago)<br/>`0 19 * 12,1 6` (America/Chicago)<br/>`45 11 25 12 *` (America/Chicago)<br/>`15 15 25 12 *` (America/Chicago)<br/>`0 19 25 12 *` (America/Chicago) | `python -m src.ingestion.live_games` |
+| `live-games` | 20m before each regular-season kickoff (every 30m while a time is unknown) | `python -m src.ingestion.live_games` |
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |
 | `practice-draft-connector` | — | `node src/bots/draft_sync.js` |
 | `practice-draft-listener` | — | `python -m src.optimization.draft_matrix` |
