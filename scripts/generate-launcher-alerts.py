@@ -23,9 +23,9 @@ HEADER = """\
 # One series per job. Fires once per run_log row that ended failure or timeout on its last attempt,
 # or was skipped for a reason that needs a person (not a pause, or a skip the chain's own timeout
 # or cancel already alerts on, or the overlap or expired skip of an event run of a job its
-# schedule or chain covers, or a person's dismissal, a replacement or the expiry of an approval
-# run). A failure the watcher will still retry doesn't alert, nor does a
-# fan-out parent's (its failed child alerts). Level `{level}`.
+# schedule or chain covers, or the overlap skip of a service job's scheduled start, or a person's
+# dismissal, a replacement or the expiry of an approval run). A failure the watcher will still
+# retry doesn't alert, nor does a fan-out parent's (its failed child alerts). Level `{level}`.
 # Runbook: docs/cronjob-alerts.md#launcher-run-failed
 """
 
@@ -53,6 +53,9 @@ QUIET_FAILURES = ('fan_out_failed',)
 # or couldn't start in time is routine: the next event or the scheduled slot covers it. A job
 # with neither has nothing to catch up, so its event skips alert.
 EVENT_QUIET_SKIPS = ('overlap', 'expired')
+# A service job's schedule only makes sure it is running, so a scheduled start that finds it
+# running is routine. A hung run still alerts when it times out.
+SERVICE_QUIET_SKIPS = ('overlap',)
 # An approval run that nobody answered before its deadline is routine. Only approval runs: a
 # launched run's `expired` skip means it never started, and that still alerts.
 APPROVAL_QUIET_SKIPS = ('expired',)
@@ -73,7 +76,7 @@ def _event_covered(catalog):
 
 
 def jobs_at_level(catalog, level):
-    """(name, max_attempts, event_covered) of each job at `level`, sorted by name."""
+    """(name, max_attempts, event_covered, service) of each job at `level`, sorted by name."""
     defaults = catalog.get('defaults') or {}
     default_level = defaults.get('alert') or 'warning'
     default_attempts = int(defaults.get('max_attempts') or 1)
@@ -82,7 +85,8 @@ def jobs_at_level(catalog, level):
     for name, job in (catalog.get('jobs') or {}).items():
         job = job or {}
         if (job.get('alert') or default_level) == level:
-            found.append((name, int(job.get('max_attempts') or default_attempts), name in covered))
+            attempts = int(job.get('max_attempts') or default_attempts)
+            found.append((name, attempts, name in covered, job.get('class') == 'service'))
     return sorted(found)
 
 
@@ -90,12 +94,17 @@ def _quoted(name):
     return "'" + name.replace("'", "''") + "'"
 
 
+def _bool_array(flags):
+    return f"ARRAY[{', '.join(str(flag).lower() for flag in flags)}]::boolean[]"
+
+
 def _job_attempts(jobs):
-    names = ', '.join(_quoted(name) for name, _, _ in jobs)
-    attempts = ', '.join(str(attempts) for _, attempts, _ in jobs)
-    covered = ', '.join(str(covered).lower() for _, _, covered in jobs)
-    return (f'unnest(ARRAY[{names}]::text[], ARRAY[{attempts}]::int[], ARRAY[{covered}]::boolean[]) '
-            'AS j(job_name, max_attempts, event_covered)')
+    names = ', '.join(_quoted(name) for name, _, _, _ in jobs)
+    attempts = ', '.join(str(attempts) for _, attempts, _, _ in jobs)
+    covered = _bool_array(covered for _, _, covered, _ in jobs)
+    service = _bool_array(service for _, _, _, service in jobs)
+    return (f'unnest(ARRAY[{names}]::text[], ARRAY[{attempts}]::int[], {covered}, {service}) '
+            'AS j(job_name, max_attempts, event_covered, service)')
 
 
 # A chain step is only retried while its root is running; once the root ended its failure is final.
@@ -112,12 +121,14 @@ def _alerting_skip():
 
     Event runs of a job with a schedule or chain step drop the `overlap` and `expired` skips that
     schedule and chain runs keep; an event-only job keeps them, since nothing else would run it.
-    An approval run's `expired` skip is quiet too. A `waiting` run isn't a skip, failure or
-    timeout, so it never matches here until it resolves.
+    A service job's scheduled run also drops `overlap`. An approval run's `expired` skip is quiet
+    too. A `waiting` run isn't a skip, failure or timeout, so it never matches here until it
+    resolves.
     """
     return f"""r.status = 'skipped'
       AND COALESCE(r.end_reason, '') NOT IN ({_in_list(QUIET_SKIPS)})
       AND NOT (r.trigger_type = 'event' AND j.event_covered AND COALESCE(r.end_reason, '') IN ({_in_list(EVENT_QUIET_SKIPS)}))
+      AND NOT (r.trigger_type = 'schedule' AND j.service AND COALESCE(r.end_reason, '') IN ({_in_list(SERVICE_QUIET_SKIPS)}))
       AND NOT (r.executor = 'approval' AND COALESCE(r.end_reason, '') IN ({_in_list(APPROVAL_QUIET_SKIPS)}))"""
 
 

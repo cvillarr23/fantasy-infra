@@ -133,7 +133,7 @@ FIXTURE = ROOT / 'tests/fixtures/job-catalog.yaml'
 failed = {level: rule_from(generator.render(FIXTURE, level)) for level in generator.LEVELS}
 CRITICAL, WARNING = failed['critical'], failed['warning']
 assert CRITICAL['labels'] == {'severity': 'critical'} and WARNING['labels'] == {'severity': 'warning'}
-assert generator.jobs_at_level(generator._load_catalog(FIXTURE), 'critical')[0] == ('lineup-optimizer', 3, True)
+assert generator.jobs_at_level(generator._load_catalog(FIXTURE), 'critical')[0] == ('lineup-optimizer', 3, True, False)
 
 # Final attempts (attempt >= max_attempts) alert; skips alert unless they are expected or covered elsewhere.
 FINAL = (
@@ -247,6 +247,16 @@ for reason in ('overlap', 'expired'):
         reset()
         print(run('r1', job, 'skipped', end_reason=reason, trigger='event'))
         fires_for(EVENT_ONLY, f'event {reason} skip of {job}', [job] if expected else [])
+# A service job's schedule only makes sure it is running, so a slot that finds it running is
+# routine. Its other skips and its failures still alert, as does a manual start's overlap.
+for trigger, status, reason, expected in (
+    ('schedule', 'skipped', 'overlap', False), ('schedule', 'skipped', 'expired', True),
+    ('manual', 'skipped', 'overlap', True), ('schedule', 'timeout', 'unhealthy', True),
+    ('schedule', 'failure', None, True),
+):
+    reset()
+    print(run('r1', 'live-games', status, end_reason=reason, trigger=trigger))
+    fires_for(COMMITTED_WARNING, f'service job {trigger} {status}/{reason}', ['live-games'] if expected else [])
 # Approval runs: a dismissal, a replacement or an expiry is quiet, and so is one still waiting
 # (it has no finished_at). Only an approval's own expiry is quiet: a launched run that expired
 # before it started still alerts, and so does a failed send.

@@ -19,7 +19,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `espn-ownership-sync` | `45 17 * * *` (America/Chicago) | `python -m src.ingestion.sync_espn_ownership` |
 | `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
 | `lineup-optimizer` | — | `python -m src.optimization.lineup_solver` |
-| `live-games` | `30 18 * * 4` (America/Chicago)<br/>`30 10 * 11 4` (America/Chicago)<br/>`0 15 * 11 4` (America/Chicago)<br/>`30 8,15 * * 0` (America/Chicago)<br/>`30 17 * * 1` (America/Chicago) | `python -m src.ingestion.live_games` |
+| `live-games` | `0 19 * * 1,4` (America/Chicago)<br/>`15 8 * * 0` (America/Chicago)<br/>`45 11 * * 0` (America/Chicago)<br/>`0 15,19 * * 0` (America/Chicago)<br/>`45 11 * 11 4` (America/Chicago)<br/>`15 15 * 11 4` (America/Chicago)<br/>`45 13 * 11 5` (America/Chicago)<br/>`45 11 * 12,1 6` (America/Chicago)<br/>`30 15 * 12,1 6` (America/Chicago)<br/>`0 19 * 12,1 6` (America/Chicago)<br/>`45 11 25 12 *` (America/Chicago)<br/>`15 15 25 12 *` (America/Chicago)<br/>`0 19 25 12 *` (America/Chicago) | `python -m src.ingestion.live_games` |
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |
 | `practice-draft-connector` | — | `node src/bots/draft_sync.js` |
 | `practice-draft-listener` | — | `python -m src.optimization.draft_matrix` |
