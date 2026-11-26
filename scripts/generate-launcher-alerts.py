@@ -67,9 +67,14 @@ def _load_catalog(path):
     return yaml.load(Path(path).read_text(), Loader=yaml.BaseLoader)
 
 
+def _starts_on_its_own(job):
+    """Whether the scheduler starts the job without an event: cron slots or NFL kickoffs."""
+    return bool(job) and bool(job.get('schedules') or job.get('kickoffs'))
+
+
 def _event_covered(catalog):
-    """Names of the jobs a schedule or a chain step runs, so a skipped event run is caught up."""
-    covered = {name for name, job in (catalog.get('jobs') or {}).items() if (job or {}).get('schedules')}
+    """Names of the jobs the scheduler or a chain step runs, so a skipped event run is caught up."""
+    covered = {name for name, job in (catalog.get('jobs') or {}).items() if _starts_on_its_own(job)}
     for chain in (catalog.get('chains') or {}).values():
         covered.update(((chain or {}).get('steps') or {}).keys())
     return covered

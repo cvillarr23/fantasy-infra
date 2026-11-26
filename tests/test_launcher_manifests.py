@@ -2,7 +2,6 @@
 
 import json
 import unittest
-from datetime import datetime, timedelta
 
 import yaml
 
@@ -12,30 +11,6 @@ from tests.chart_render import render
 def one(docs, kind, name):
     (doc,) = [d for d in docs if d["kind"] == kind and d["metadata"]["name"] == name]
     return doc
-
-
-def _field_matches(field, value):
-    """One cron field of the forms the catalog's live-games slots use: `*`, lists and ranges."""
-    if field == "*":
-        return True
-    ranges = (item.split("-") for item in field.split(","))
-    return any(int(bounds[0]) <= value <= int(bounds[-1]) for bounds in ranges)
-
-
-def cron_fires(cron, moment):
-    """Whether a five-field cron has a slot at `moment`. As in cron, restricting both the day of
-    month and the weekday fires on either."""
-    minute, hour, month_day, month, weekday = cron.split()
-    on_month_day = _field_matches(month_day, moment.day)
-    on_weekday = _field_matches(weekday, moment.isoweekday() % 7)
-    either_day = month_day != "*" and weekday != "*"
-    on_day = (on_month_day or on_weekday) if either_day else (on_month_day and on_weekday)
-    return (on_day and _field_matches(minute, moment.minute) and _field_matches(hour, moment.hour)
-            and _field_matches(month, moment.month))
-
-
-def minutes_from(start, span):
-    return (start + timedelta(minutes=offset) for offset in range(span // timedelta(minutes=1) + 1))
 
 
 def env(container):
@@ -55,29 +30,6 @@ TUESDAY_STEPS = ["sync-league", "metrics-extractor", "sync-actual-scores", "espn
 TRADE_JOBS = ["trade-candidates", "trade-scan", "trade-inbox", "trade-submit"]
 # Started and cancelled by the draft API (core-pipeline#350), never scheduled.
 DRAFT_JOBS = ["draft-listener", "practice-draft-listener", "draft-connector", "practice-draft-connector"]
-# The live-games poller (core src/ingestion/live_games.py) exits unless a game is in progress or
-# kicks off within this long.
-POLLER_LOOKAHEAD = timedelta(minutes=30)
-# An NFL game with a long overtime or delay.
-LONGEST_GAME = timedelta(hours=4)
-# Central-time kickoffs. 2026 times are the published schedule, except Dec 26 and Jan 2, whose
-# games aren't timed yet and use the usual Saturday windows. 2024 has Christmas on a Wednesday.
-KICKOFFS = {
-    "London Sunday": ["2026-11-15 08:30", "2026-11-15 12:00", "2026-11-15 15:05", "2026-11-15 15:25",
-                      "2026-11-15 19:20"],
-    "regular week": ["2026-11-19 19:15", "2026-11-22 12:00", "2026-11-22 15:05", "2026-11-22 15:25",
-                     "2026-11-22 19:20", "2026-11-23 19:15"],
-    "Thanksgiving": ["2026-11-26 12:00", "2026-11-26 15:30", "2026-11-26 19:20"],
-    "Black Friday": ["2026-11-27 14:00"],
-    "December Saturday": ["2026-12-19 16:00", "2026-12-19 19:20", "2026-12-26 12:00", "2026-12-26 15:30",
-                          "2026-12-26 19:15"],
-    "January Saturday": ["2027-01-02 15:30", "2027-01-02 19:15"],
-    "Christmas on a Friday": ["2026-12-25 12:00", "2026-12-25 15:30", "2026-12-25 19:15"],
-    "Christmas on a Wednesday": ["2024-12-25 12:00", "2024-12-25 15:30"],
-}
-DAYS_WITHOUT_GAMES = ["2026-10-09", "2026-10-10", "2026-12-18", "2026-12-22", "2026-12-23"]
-
-
 class LauncherManifestTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -260,50 +212,18 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(set(content["profiles"]["worker-draft"]["secrets"]), {"espn", "redis", "league-config"})
         self.assertNotIn("serviceAccount", content["profiles"]["worker-draft"])
 
-    def test_live_games_is_a_scheduled_service_that_retires_on_a_lapsed_heartbeat(self):
+    def test_live_games_is_a_kickoff_started_service_that_retires_on_a_lapsed_heartbeat(self):
         job = catalog(self.rendered["production"])["jobs"]["live-games"]
         self.assertEqual(job["class"], "service")
         self.assertEqual(job["command"], ["python", "-m", "src.ingestion.live_games"])
         self.assertEqual(job["health"], {"key": "live:health", "grace": "10m"})
-        # The poller ends its own run, so the schedule only starts it.
-        self.assertTrue(all(s["tz"] == "America/Chicago" and s["seasons"] == ["regular"]
-                            and s["catch_up"] == "0s" for s in job["schedules"]))
-
-    def test_live_games_starts_close_enough_to_every_kickoff_to_stay_running(self):
-        # A start inside the lookahead keeps its run alive; one skipped because a run is already
-        # going is as good, since that run can no longer exit before the kickoff.
-        crons = [s["cron"] for s in catalog(self.rendered["production"])["jobs"]["live-games"]["schedules"]]
-        for window, kickoffs in KICKOFFS.items():
-            for text in kickoffs:
-                with self.subTest(window=window, kickoff=text):
-                    kickoff = datetime.fromisoformat(text)
-                    starts = [moment for moment in minutes_from(kickoff - POLLER_LOOKAHEAD, POLLER_LOOKAHEAD)
-                              if any(cron_fires(cron, moment) for cron in crons)]
-                    self.assertTrue(starts, "no start in the 30 minutes before kickoff")
-
-    def test_live_games_deadline_outlasts_a_run_that_covers_a_whole_game_day(self):
-        # Back-to-back games keep one run up all day, and the slots it overlaps are skipped, so a
-        # run that hit its deadline mid-game would not be replaced.
-        job = catalog(self.rendered["production"])["jobs"]["live-games"]
-        crons = [s["cron"] for s in job["schedules"]]
-        deadline = timedelta(hours=int(job["deadline"].removesuffix("h")))
-        days = {}
-        for kickoff in sorted(datetime.fromisoformat(text) for texts in KICKOFFS.values() for text in texts):
-            days.setdefault(kickoff.date(), []).append(kickoff)
-        for day, kickoffs in days.items():
-            with self.subTest(day=str(day)):
-                first_start = next(moment for moment in minutes_from(kickoffs[0] - POLLER_LOOKAHEAD, POLLER_LOOKAHEAD)
-                                   if any(cron_fires(cron, moment) for cron in crons))
-                self.assertLessEqual(kickoffs[-1] + LONGEST_GAME - first_start, deadline)
-
-    def test_live_games_does_not_start_on_days_without_games(self):
-        crons = [s["cron"] for s in catalog(self.rendered["production"])["jobs"]["live-games"]["schedules"]]
-        for day in DAYS_WITHOUT_GAMES:
-            with self.subTest(day=day):
-                midnight = datetime.fromisoformat(day)
-                starts = [moment for moment in minutes_from(midnight, timedelta(hours=23, minutes=59))
-                          if any(cron_fires(cron, moment) for cron in crons)]
-                self.assertEqual(starts, [])
+        # The poller ends its own run, so a kickoff only starts it. A lead over the poller's
+        # 30-minute lookahead would start runs that exit at once.
+        self.assertNotIn("schedules", job)
+        self.assertEqual(job["kickoffs"], {"lead": "20m", "catch_up": "3h", "seasons": ["regular"],
+                                           "fallback_every": "30m"})
+        # Back-to-back games keep one run up from a London morning through the night game.
+        self.assertEqual(job["deadline"], "16h")
 
     def test_gateway_only_reads_jobs_and_pods(self):
         # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.

@@ -103,40 +103,22 @@ jobs:
     alert: none
     resources: *connector-resources
     health: *practice-health
-  # Keeps the live game snapshot in Redis for the matchup page. The poller ends its own run unless
-  # a game is live or kicks off within 30 minutes, so each slot sits in the 30 minutes before a
-  # usual kickoff (Central time). A slot that finds a run still going is skipped (overlap), which
-  # is fine: from then on that run stays up for the kickoff. A slot on a day without games starts
-  # a run that exits at once. Back-to-back games keep one run up from a London morning through the
-  # night game, so the deadline spans that day; a hung run is caught sooner by its heartbeat,
-  # rewritten every tick, failed ones included, with a 10-minute TTL.
+  # Keeps the live game snapshot in Redis for the matchup page. The scheduler starts it 20 minutes
+  # before each distinct regular-season kickoff in the nflverse schedule, on any weekday, and
+  # rereads kickoff times hourly. While the schedule can't be read, or on the day of a game whose
+  # time isn't set yet, it starts every 30 minutes instead. A start that finds a run still going
+  # is skipped (overlap), which is fine: from then on that run stays up for the kickoff. The poller
+  # ends its own run unless a game is live or kicks off within 30 minutes, so `lead` stays under
+  # that and a start with nothing to watch exits at once. Back-to-back games keep one run up from a
+  # London morning through the night game, so the deadline spans that day; a hung run is caught
+  # sooner by its heartbeat, rewritten every tick, failed ones included, with a 10-minute TTL.
   live-games:
     class: service
     profile: core
     command: [python, -m, src.ingestion.live_games]
     deadline: 16h
     health: {key: 'live:health', grace: 10m}
-    schedules:
-      # Thursday and Monday night.
-      - {cron: '0 19 * * 1,4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Sunday: international morning games, the noon slate, the afternoon slate and the night game.
-      - {cron: '15 8 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '45 11 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '0 15,19 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Thanksgiving's midday and afternoon games; its night game has the Thursday slot. Cron can't
-      # name the fourth Thursday, so every November Thursday starts these.
-      - {cron: '45 11 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '15 15 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Black Friday. It's the fourth or fifth Friday, so every November Friday starts it.
-      - {cron: '45 13 * 11 5', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Late-season Saturdays: noon, mid-afternoon and night.
-      - {cron: '45 11 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '30 15 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '0 19 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Christmas on any weekday. The weekday stays `*`: restricting it too would fire on either.
-      - {cron: '45 11 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '15 15 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '0 19 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+    kickoffs: {lead: 20m, catch_up: 3h, seasons: [regular], fallback_every: 30m}
   espn-session-healthcheck:
     profile: worker-session-check
     command: [node, src/bots/check_espn_session.js]

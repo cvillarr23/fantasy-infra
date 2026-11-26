@@ -11,9 +11,17 @@ START = '<!-- BEGIN GENERATED SCHEDULES -->'
 END = '<!-- END GENERATED SCHEDULES -->'
 
 
+def _kickoff_trigger(kickoffs):
+    """A job's kickoff starts. An omitted `fallback_every` is core's default, 30m."""
+    seasons = '/'.join(kickoffs['seasons'])
+    fallback = kickoffs.get('fallback_every', '30m')
+    return f'{kickoffs["lead"]} before each {seasons}-season kickoff (every {fallback} while a time is unknown)'
+
+
 def _triggers(job):
-    """A job's schedules and event subscriptions, one per line, or a dash for neither."""
+    """A job's schedules, kickoff starts and event subscriptions, one per line, or a dash for none."""
     triggers = [f'`{item["cron"]}` ({item["tz"]})' for item in job.get('schedules', [])]
+    triggers += [_kickoff_trigger(job['kickoffs'])] if 'kickoffs' in job else []
     triggers += [f'on `{item["key"]}` (debounce {item["debounce"]})' for item in job.get('on_event', [])]
     return '<br/>'.join(triggers) or '—'
 

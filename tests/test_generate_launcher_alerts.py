@@ -89,6 +89,10 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog-event-only.yaml", "warning"))
         self.assertIn("ARRAY[true, false, true]::boolean[]", sql)
 
+    def test_kickoff_started_job_is_event_covered(self):
+        catalog = {"jobs": {"poller": {"kickoffs": {"lead": "20m", "seasons": ["regular"]}}}}
+        self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("poller", 1, True, False)])
+
     def test_committed_rules_match_the_catalog(self):
         for level in generator.LEVELS:
             with self.subTest(level=level):
