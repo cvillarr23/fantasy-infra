@@ -5,6 +5,8 @@ on:
       - 'charts/fantasy/files/catalog.yaml'
       - 'charts/fantasy/files/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
+      - 'scripts/replay-live-games.py'
+      - 'tests/fixtures/nfl-schedule-2026.csv'
       - 'charts/fantasy/templates/launcher/deployment.yaml'
       - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
@@ -14,6 +16,8 @@ on:
       - 'charts/fantasy/files/catalog.yaml'
       - 'charts/fantasy/files/telemetry/launcher-run-failed-*-alert.yaml'
       - 'scripts/generate-launcher-alerts.py'
+      - 'scripts/replay-live-games.py'
+      - 'tests/fixtures/nfl-schedule-2026.csv'
       - 'charts/fantasy/templates/launcher/deployment.yaml'
       - 'charts/fantasy/values-images.yaml'
       - '.github/workflows/job-catalog.yml'
@@ -58,5 +62,12 @@ jobs:
           docker run --rm --network none "$LAUNCHER_IMAGE" python -m src.launcher.catalog --json-schema > "$RUNNER_TEMP/catalog-schema.json"
           check-jsonschema --schemafile "$RUNNER_TEMP/catalog-schema.json" charts/fantasy/files/catalog.yaml
           docker run --rm --network none -v "$PWD/charts/fantasy/files:/catalog:ro" "$LAUNCHER_IMAGE" python -m src.launcher.catalog --check /catalog/catalog.yaml
+      # Core's own scheduler and poller exit rule over a season of committed kickoffs, so a
+      # catalog change that leaves a game unwatched fails here.
+      - name: Replay live-games against a season of kickoffs
+        run: |
+          docker run --rm --network none -v "$PWD:/infra:ro" -w /app -e PYTHONPATH=/app "$LAUNCHER_IMAGE" \
+            python /infra/scripts/replay-live-games.py /infra/charts/fantasy/files/catalog.yaml \
+            /infra/tests/fixtures/nfl-schedule-2026.csv
       - name: Generated alert rules match the catalog
         run: python3 scripts/generate-launcher-alerts.py --check
