@@ -29,8 +29,8 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
                 "d": {"alert": "warning", "max_attempts": "1"},
             },
         }
-        self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("a", 3, False)])
-        self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("b", 2, False), ("d", 1, False)])
+        self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("a", 3, False, False)])
+        self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("b", 2, False, False), ("d", 1, False, False)])
 
     def test_empty_catalog_lists_no_jobs(self):
         self.assertEqual(generator.jobs_at_level({"jobs": {}}, "critical"), [])
@@ -42,8 +42,8 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
             path = Path(tmp) / "catalog.yaml"
             path.write_text("version: 1\ndefaults:\njobs:\n  bare:\n  full: {alert: critical, max_attempts: 3}\n")
             catalog = generator._load_catalog(path)
-            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("bare", 1, False)])
-            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("full", 3, False)])
+            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("bare", 1, False, False)])
+            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("full", 3, False, False)])
             generator.render(path, "warning")
 
     def test_yaml_1_1_booleans_stay_strings(self):
@@ -51,11 +51,11 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
             path = Path(tmp) / "catalog.yaml"
             path.write_text("jobs:\n  on: {alert: critical}\n  no: {}\n")
             catalog = generator._load_catalog(path)
-            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("on", 1, False)])
-            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("no", 1, False)])
+            self.assertEqual(generator.jobs_at_level(catalog, "critical"), [("on", 1, False, False)])
+            self.assertEqual(generator.jobs_at_level(catalog, "warning"), [("no", 1, False, False)])
 
     def test_job_names_are_quoted_safely(self):
-        self.assertIn("ARRAY['it''s']::text[]", generator._job_attempts([("it's", 1, False)]))
+        self.assertIn("ARRAY['it''s']::text[]", generator._job_attempts([("it's", 1, False, False)]))
 
     def test_rendered_sql_names_the_level_jobs(self):
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "critical"))
@@ -68,6 +68,13 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
         self.assertIn("j.event_covered", sql)
         self.assertIn("IN ('overlap', 'expired')", sql)
 
+    def test_service_jobs_are_marked_and_their_scheduled_overlap_is_quiet(self):
+        catalog = {"jobs": {"poller": {"class": "service"}, "sync": {"class": "batch"}}}
+        self.assertEqual(generator.jobs_at_level(catalog, "warning"),
+                         [("poller", 1, False, True), ("sync", 1, False, False)])
+        sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "warning"))
+        self.assertIn("r.trigger_type = 'schedule' AND j.service AND COALESCE(r.end_reason, '') IN ('overlap')", sql)
+
     def test_approval_skips_are_quiet(self):
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog.yaml", "warning"))
         self.assertIn("'dismissed', 'superseded'", sql)
@@ -77,7 +84,7 @@ class GenerateLauncherAlertsTest(unittest.TestCase):
         catalog = generator._load_catalog(ROOT / "tests/fixtures/job-catalog-event-only.yaml")
         self.assertEqual(
             generator.jobs_at_level(catalog, "warning"),
-            [("chained", 1, True), ("event-only", 1, False), ("scheduled", 1, True)],
+            [("chained", 1, True, False), ("event-only", 1, False, False), ("scheduled", 1, True, False)],
         )
         sql = rule_sql(generator.render(ROOT / "tests/fixtures/job-catalog-event-only.yaml", "warning"))
         self.assertIn("ARRAY[true, false, true]::boolean[]", sql)

@@ -2,7 +2,7 @@
 version: 1
 # Active KEDA browser worker Jobs count toward max_concurrent_pods, so both share one pod budget.
 # Service jobs (the draft listener and room connector) are cap-exempt and get their own deadline cap.
-global: {max_concurrent_pods: 2, counted_k8s_jobs: ["scaledjob.keda.sh/name=fantasy-browser-worker-scaler"], max_deadline: 2h, max_service_deadline: 8h, start_timeout: 10m, manual_queue_ttl: 30m}
+global: {max_concurrent_pods: 2, counted_k8s_jobs: ["scaledjob.keda.sh/name=fantasy-browser-worker-scaler"], max_deadline: 2h, max_service_deadline: 16h, start_timeout: 10m, manual_queue_ttl: 30m}
 # NFL regular-season weeks; the scheduler maps them to game dates. The calendar reads only
 # regular-season games, so there is no playoffs window.
 seasons:
@@ -103,23 +103,40 @@ jobs:
     alert: none
     resources: *connector-resources
     health: *practice-health
-  # Keeps the live game snapshot in Redis for the matchup page. The poller ends its own window
-  # once no game is live or due within 30 minutes, so the schedule only has to start it: Thursday
-  # night, Sunday morning (international games end before the early slate) and 15:30 (restarts it
-  # if the poller left in the gap before the late games), and Monday night. Its heartbeat is rewritten every tick, failed ones included, with a 10-minute TTL.
+  # Keeps the live game snapshot in Redis for the matchup page. The poller ends its own run unless
+  # a game is live or kicks off within 30 minutes, so each slot sits in the 30 minutes before a
+  # usual kickoff (Central time). A slot that finds a run still going is skipped (overlap), which
+  # is fine: from then on that run stays up for the kickoff. A slot on a day without games starts
+  # a run that exits at once. Back-to-back games keep one run up from a London morning through the
+  # night game, so the deadline spans that day; a hung run is caught sooner by its heartbeat,
+  # rewritten every tick, failed ones included, with a 10-minute TTL.
   live-games:
     class: service
     profile: core
     command: [python, -m, src.ingestion.live_games]
-    deadline: 8h
+    deadline: 16h
     health: {key: 'live:health', grace: 10m}
     schedules:
-      - {cron: '30 18 * * 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      # Thanksgiving's midday and afternoon games. Other November Thursdays start an empty window that exits at once.
-      - {cron: '30 10 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '0 15 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '30 8,15 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
-      - {cron: '30 17 * * 1', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Thursday and Monday night.
+      - {cron: '0 19 * * 1,4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Sunday: international morning games, the noon slate, the afternoon slate and the night game.
+      - {cron: '15 8 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '45 11 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '0 15,19 * * 0', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Thanksgiving's midday and afternoon games; its night game has the Thursday slot. Cron can't
+      # name the fourth Thursday, so every November Thursday starts these.
+      - {cron: '45 11 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '15 15 * 11 4', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Black Friday. It's the fourth or fifth Friday, so every November Friday starts it.
+      - {cron: '45 13 * 11 5', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Late-season Saturdays: noon, mid-afternoon and night.
+      - {cron: '45 11 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '30 15 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '0 19 * 12,1 6', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      # Christmas on any weekday. The weekday stays `*`: restricting it too would fire on either.
+      - {cron: '45 11 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '15 15 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
+      - {cron: '0 19 25 12 *', tz: America/Chicago, catch_up: 0s, seasons: [regular]}
   espn-session-healthcheck:
     profile: worker-session-check
     command: [node, src/bots/check_espn_session.js]

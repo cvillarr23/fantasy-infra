@@ -2,9 +2,9 @@
 # One series per job. Fires once per run_log row that ended failure or timeout on its last attempt,
 # or was skipped for a reason that needs a person (not a pause, or a skip the chain's own timeout
 # or cancel already alerts on, or the overlap or expired skip of an event run of a job its
-# schedule or chain covers, or a person's dismissal, a replacement or the expiry of an approval
-# run). A failure the watcher will still retry doesn't alert, nor does a
-# fan-out parent's (its failed child alerts). Level `warning`.
+# schedule or chain covers, or the overlap skip of a service job's scheduled start, or a person's
+# dismissal, a replacement or the expiry of an approval run). A failure the watcher will still
+# retry doesn't alert, nor does a fan-out parent's (its failed child alerts). Level `warning`.
 # Runbook: docs/cronjob-alerts.md#launcher-run-failed
 apiVersion: v1
 kind: ConfigMap
@@ -46,7 +46,7 @@ data:
             rawSql: |-
               SELECT r.job_name, COUNT(*)::double precision AS value
               FROM run_log r
-              JOIN unnest(ARRAY['espn-ownership-sync', 'espn-session-healthcheck', 'live-games', 'metrics-extractor', 'projections-refresh', 'rapid-status-syncer', 'rumor-action-trigger', 'rumor-digest-bot', 'rumor-syncer', 'sync-actual-scores', 'sync-league', 'trade-candidates', 'trade-inbox', 'trade-scan', 'trade-submit']::text[], ARRAY[2, 2, 1, 2, 1, 2, 3, 2, 2, 2, 2, 1, 1, 1, 1]::int[], ARRAY[true, true, true, true, true, true, true, true, true, true, true, true, true, true, false]::boolean[]) AS j(job_name, max_attempts, event_covered) ON j.job_name = r.job_name
+              JOIN unnest(ARRAY['espn-ownership-sync', 'espn-session-healthcheck', 'live-games', 'metrics-extractor', 'projections-refresh', 'rapid-status-syncer', 'rumor-action-trigger', 'rumor-digest-bot', 'rumor-syncer', 'sync-actual-scores', 'sync-league', 'trade-candidates', 'trade-inbox', 'trade-scan', 'trade-submit']::text[], ARRAY[2, 2, 1, 2, 1, 2, 3, 2, 2, 2, 2, 1, 1, 1, 1]::int[], ARRAY[true, true, true, true, true, true, true, true, true, true, true, true, true, true, false]::boolean[], ARRAY[false, false, true, false, false, false, false, false, false, false, false, false, false, false, false]::boolean[]) AS j(job_name, max_attempts, event_covered, service) ON j.job_name = r.job_name
               WHERE r.finished_at > now() - interval '10 minutes'
                 AND (
                   (
@@ -62,6 +62,7 @@ data:
                     r.status = 'skipped'
                     AND COALESCE(r.end_reason, '') NOT IN ('paused', 'chain_step', 'max_duration', 'chain_ended', 'fan_out_ended', 'dismissed', 'superseded')
                     AND NOT (r.trigger_type = 'event' AND j.event_covered AND COALESCE(r.end_reason, '') IN ('overlap', 'expired'))
+                    AND NOT (r.trigger_type = 'schedule' AND j.service AND COALESCE(r.end_reason, '') IN ('overlap'))
                     AND NOT (r.executor = 'approval' AND COALESCE(r.end_reason, '') IN ('expired'))
                   )
                 )
