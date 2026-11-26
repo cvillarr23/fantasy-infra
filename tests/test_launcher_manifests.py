@@ -222,8 +222,6 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertNotIn("schedules", job)
         self.assertEqual(job["kickoffs"], {"lead": "20m", "catch_up": "3h", "seasons": ["regular"],
                                            "fallback_every": "30m"})
-        # Back-to-back games keep one run up from a London morning through the night game.
-        self.assertEqual(job["deadline"], "16h")
 
     def test_gateway_only_reads_jobs_and_pods(self):
         # The launcher creates and deletes draft Jobs now; the gateway reads their phase and logs.

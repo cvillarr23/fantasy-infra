@@ -154,6 +154,8 @@ kubectl logs -n default -l fantasy.job=<job> --tail=200
 
 Removing a rule's file does not remove the rule: Grafana keeps a provisioned rule until a `deleteRules` entry names its UID. List the UID in `charts/fantasy/files/telemetry/delete-orphaned-alert-rules.yaml` in the same PR that drops the rule, or it keeps firing on no data.
 
+The `Job catalog` workflow replays `live-games` inside the pinned core image: core's scheduler and the poller's exit rule over the season in `tests/fixtures/nfl-schedule-2026.csv`. It fails on a game not watched from kickoff, a start on a day without games, a gap while a kickoff time is unknown, or a run that reaches its deadline. The fixture is a snapshot, so a flexed game doesn't change it; rewrite it for a new season with the command in `scripts/replay-live-games.py`, which also has the local run command.
+
 `./tests/launcher_alerts/run.sh` loads the committed SQL into a disposable `postgres:16` and asserts fire and no-fire cases for every rule, including the generated ones rendered from a fixture catalog. `python3 -m unittest tests.test_generate_launcher_alerts` checks the committed rules match the catalog.
 
 To add a job:
