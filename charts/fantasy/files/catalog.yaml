@@ -216,6 +216,17 @@ jobs:
       - {cron: '45 21 * * *', tz: America/Chicago, catch_up: 1h}
     on_event:
       - {key: rumor.signal_created, debounce: 30m}
+  # ESPN's public injuries feed (no ESPN credentials), the only source of expected return dates
+  # for trade scoring (fantasy-core-pipeline #330). Each run replaces player_injuries, so it runs
+  # 15 minutes ahead of every trade-candidates slot. A failed fetch keeps the previous snapshot.
+  injury-sync:
+    profile: core
+    command: [python, -m, src.ingestion.sync_injuries]
+    deadline: 5m
+    max_attempts: 2
+    schedules:
+      - {cron: '45 6 * * *', tz: America/Chicago, catch_up: 1h}
+      - {cron: '15 12 * * 3,5', tz: America/Chicago, catch_up: 2m}
   # The trade jobs stay at one attempt: never auto-retry them.
   # Daily after the evening refresh, and again before the Wed/Fri scan. The 12:30 slot's two-minute
   # window plus the deadline keep even a late run clear of the 13:00 scan. The expensive
