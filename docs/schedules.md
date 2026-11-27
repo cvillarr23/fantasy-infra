@@ -18,6 +18,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `draft-listener` | — | `python -m src.optimization.draft_matrix` |
 | `espn-ownership-sync` | `45 17 * * *` (America/Chicago) | `python -m src.ingestion.sync_espn_ownership` |
 | `espn-session-healthcheck` | `0 6 * * 1` (UTC) | `node src/bots/check_espn_session.js` |
+| `injury-sync` | `45 6 * * *` (America/Chicago)<br/>`15 12 * * 3,5` (America/Chicago) | `python -m src.ingestion.sync_injuries` |
 | `lineup-optimizer` | — | `python -m src.optimization.lineup_solver` |
 | `live-games` | 20m before each regular-season kickoff (every 30m while a time is unknown) | `python -m src.ingestion.live_games` |
 | `metrics-extractor` | — | `python -m src.ingestion.metrics_extractor` |

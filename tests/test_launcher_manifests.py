@@ -75,7 +75,7 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
         jobs = catalog(docs)["jobs"]
         self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer",
-                                     "espn-session-healthcheck", "rumor-digest-bot", *TUESDAY_STEPS, *TRADE_JOBS,
+                                     "espn-session-healthcheck", "rumor-digest-bot", "injury-sync", *TUESDAY_STEPS, *TRADE_JOBS,
                                      *DRAFT_JOBS, "live-games"})
         self.assertEqual(set(catalog(docs)["chains"]), {"tuesday-weekly"})
 
