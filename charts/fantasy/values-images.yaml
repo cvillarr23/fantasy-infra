@@ -4,7 +4,7 @@
 images:
   core:
     repository: ghcr.io/cvillarr23/fantasy-core-pipeline
-    tag: latest@sha256:89abdbaffa50399b70cbb203566823fc326693dd16efeedf6f7f39d3973f70ff
+    tag: latest@sha256:4818d129e1a12868b1a2d3dff408c45f43ee0c0c3779d0fc74b717358ae8f3a3
   worker:
     repository: ghcr.io/cvillarr23/fantasy-browser-worker
     tag: latest@sha256:37a18d0cd3f44c016f7fc40436c9fba72fca5b7a6da35a7af4f905bed7173712
