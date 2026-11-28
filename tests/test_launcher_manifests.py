@@ -75,7 +75,7 @@ class LauncherManifestTest(unittest.TestCase):
         self.assertEqual(mount["mountPath"], "/etc/fantasy-job-catalog")
         jobs = catalog(docs)["jobs"]
         self.assertEqual(set(jobs), {"rumor-syncer", "rapid-status-syncer",
-                                     "espn-session-healthcheck", "rumor-digest-bot", "injury-sync", *TUESDAY_STEPS, *TRADE_JOBS,
+                                     "espn-session-healthcheck", "rumor-digest-bot", "injury-sync", "ros-projections-refresh", *TUESDAY_STEPS, *TRADE_JOBS,
                                      *DRAFT_JOBS, "live-games"})
         self.assertEqual(set(catalog(docs)["chains"]), {"tuesday-weekly"})
 
@@ -186,6 +186,17 @@ class LauncherManifestTest(unittest.TestCase):
         catalog = yaml.safe_load(one(docs, "ConfigMap", volume["configMap"]["name"])["data"]["catalog.yaml"])
         for bundle in ("db", "espn", "redis", "trigger-api", "amqp", "league-config"):
             self.assertIn(bundle, catalog["profiles"]["core"]["secrets"])
+
+    def test_ros_refresh_runs_core_in_rest_of_season_mode_with_the_league_id(self):
+        # The mode exits 1 without ESPN_LEAGUE_ID, which the core profile's espn bundle carries.
+        for environment, docs in self.rendered.items():
+            with self.subTest(environment=environment):
+                cat = catalog(docs)
+                job = cat["jobs"]["ros-projections-refresh"]
+                self.assertEqual(job["command"], ["python", "-m", "src.jobs.draft_prep_refresh", "--rest-of-season"])
+                self.assertEqual(job["profile"], "core")
+                self.assertIn("espn", cat["profiles"]["core"]["secrets"])
+                self.assertNotIn("fan_out", job)
 
     def test_draft_jobs_are_cap_exempt_services_and_practice_runs_retire_on_a_lapsed_heartbeat(self):
         content = catalog(self.rendered["production"])

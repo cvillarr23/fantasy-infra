@@ -50,6 +50,7 @@ def job_slot(catalog, name, cron):
 def schedule_slots(catalog):
     return {
         "projections-refresh": job_slot(catalog, "projections-refresh", "0 18 * * *"),
+        "ros-refresh": job_slot(catalog, "ros-projections-refresh", "30 4 * * *"),
         "reconcile": job_slot(catalog, "sync-actual-scores", "0 10 * * 5"),
         "trade-candidates": job_slot(catalog, "trade-candidates", "0 7 * * *"),
         "trade-candidates-prescan": job_slot(catalog, "trade-candidates", "30 12 * * 3,5"),
@@ -148,6 +149,18 @@ class WeeklyScheduleTest(unittest.TestCase):
                     self.assertGreater(daily, slots["projections-refresh"].latest_finish(refresh))
                     self.assertLess(slots["trade-candidates-prescan"].latest_finish(prescan),
                                     self.scheduled_time(slots["trade-scan"], day, "3,5"))
+
+    def test_ros_refresh_follows_the_evening_refresh_and_precedes_trade_candidates(self):
+        for environment, slots in self.environments.items():
+            for date in ((2026, 10, 14), (2026, 11, 4), (2026, 11, 6)):
+                with self.subTest(environment=environment, date=date):
+                    day = datetime(*date, tzinfo=CENTRAL)
+                    ros = slots["ros-refresh"]
+                    start = self.scheduled_time(ros, day, "*")
+                    refresh = self.scheduled_time(slots["projections-refresh"], day - timedelta(days=1), "*")
+                    self.assertGreater(start, slots["projections-refresh"].latest_finish(refresh))
+                    self.assertLess(ros.latest_finish(start),
+                                    self.scheduled_time(slots["trade-candidates"], day, "*"))
 
     def test_score_reconcile_keeps_its_limits_and_env(self):
         for environment, catalog in self.catalogs.items():
