@@ -20,7 +20,7 @@ SCAN_RESOURCES = {'requests': {'cpu': '50m', 'memory': '1Gi'},
 # Bundles k8s.BUNDLES in core turns into env; none of them sets a trade arming variable.
 BROWSER_BUNDLES = {'db', 'espn', 'notify', 'league-config'}
 # The inbox publishes trade.offer_received; amqp sets only AMQP_URL.
-INBOX_BUNDLES = BROWSER_BUNDLES | {'amqp'}
+INBOX_BUNDLES = BROWSER_BUNDLES | {'amqp', 'trigger-api'}
 
 
 def launcher_catalog(docs):
@@ -139,6 +139,14 @@ class WorkerTriggerTest(unittest.TestCase):
                 image = {e['name']: e.get('value') for e in launcher['env']}['WORKER_IMAGE']
                 self.assertEqual(image, scaler_worker(docs)['image'])
                 self.assertIn('@sha256:', image)
+
+    def test_scaled_job_gets_the_trigger_key_from_the_shared_secret(self):
+        for environment, docs in self.environments.items():
+            with self.subTest(environment=environment):
+                (entry,) = [e for e in scaler_worker(docs)['env'] if e['name'] == 'TRIGGER_API_KEY']
+                # A secretKeyRef, never a literal value; core and web-ui read the same secret.
+                self.assertEqual(entry, {'name': 'TRIGGER_API_KEY', 'valueFrom': {
+                    'secretKeyRef': {'name': 'trigger-api-key', 'key': 'trigger-api-key'}}})
 
     def test_trade_arming_stays_on_the_scaled_job(self):
         for environment, docs in self.environments.items():
