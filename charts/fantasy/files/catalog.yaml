@@ -11,8 +11,9 @@ profiles:
   core: {image: CORE_IMAGE, secrets: [db, espn, redis, trigger-api, amqp, league-config]}
   # Browser bots: stored ESPN session state and the browser-worker SA. Only the scan gets LLM keys.
   # amqp lets the inbox publish trade.offer_received to job_events. core-url points the trade bots
-  # at the core API (the worker's built-in default only fits the default namespace).
-  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp, core-url], volumes: [espn-session-state]}
+  # at the core API (the worker's built-in default only fits the default namespace). trigger-api
+  # carries TRIGGER_API_KEY, which the inbox sends to core when it reports offer resolutions.
+  worker: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, amqp, trigger-api, core-url], volumes: [espn-session-state]}
   worker-scan: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, llm, core-url], volumes: [espn-session-state]}
   # The trade send: the scan's browser bundles without the LLM keys, which the builder never reads.
   worker-submit: {image: WORKER_IMAGE, serviceAccount: fantasy-browser-worker, secrets: [db, espn, notify, league-config, trade-arming, core-url], volumes: [espn-session-state]}

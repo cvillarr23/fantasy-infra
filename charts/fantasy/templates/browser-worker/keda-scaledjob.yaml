@@ -94,6 +94,12 @@ spec:
               # The trade bots call core here; the worker's built-in default assumes namespace `default`.
               - name: CORE_PIPELINE_URL
                 value: "http://{{ include "fantasy.coreApiHost" . }}"
+              # X-API-Key for core's /v1/trigger/* routes (offer resolution reports); same secret as core.
+              - name: TRIGGER_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: trigger-api-key
+                    key: trigger-api-key
               # Full stored login (fantasy-infra#129): auth.js prefers this over the cookie pair
               # above. If the secret is absent the file is missing and auth falls back to cookies.
               - name: ESPN_SESSION_STATE_FILE
