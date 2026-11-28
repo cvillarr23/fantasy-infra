@@ -183,14 +183,14 @@ jobs:
       - {cron: '0 18 * * *', tz: America/Chicago, catch_up: 1h}
   # Fills every week from W+4 (past the 4-week fan-out above) through the last fantasy playoff
   # week, for trade value. The weeks run in sequence, up to 13 of them at the start of the season,
-  # so the deadline is 1h30m. The mode needs ESPN_LEAGUE_ID (the core profile's espn secret) and
+  # so the deadline is 90m. The mode needs ESPN_LEAGUE_ID (the core profile's espn secret) and
   # exits 1 without it; until sync-league has stored playoff_settings it logs and exits 0. 04:30
   # follows the evening refresh; with the 30m catch_up and the deadline a run ends by 06:30 at
   # the latest, ahead of the 07:00 trade-candidates. One attempt: the next daily run repeats it.
   ros-projections-refresh:
     profile: core
     command: [python, -m, src.jobs.draft_prep_refresh, --rest-of-season]
-    deadline: 1h30m
+    deadline: 90m
     schedules:
       - {cron: '30 4 * * *', tz: America/Chicago, catch_up: 30m}
   # Retrying lineup, waivers and rumor actions is safe: each publish dedupes on an idempotency
