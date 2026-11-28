@@ -26,7 +26,7 @@ America/Chicago jobs follow daylight saving time, so their UTC time shifts twice
 | `practice-draft-listener` | — | `python -m src.optimization.draft_matrix` |
 | `projections-refresh` | `0 18 * * *` (America/Chicago) | `python -m src.jobs.draft_prep_refresh` |
 | `rapid-status-syncer` | `*/10 * * * 4,0,1` (America/Chicago) | `python -m src.ingestion.sync_players` |
-| `ros-projections-refresh` | `30 5 * * *` (America/Chicago) | `python -m src.jobs.draft_prep_refresh --rest-of-season` |
+| `ros-projections-refresh` | `30 4 * * *` (America/Chicago) | `python -m src.jobs.draft_prep_refresh --rest-of-season` |
 | `rumor-action-trigger` | `45 21 * * *` (America/Chicago)<br/>on `rumor.signal_created` (debounce 30m) | `python -m src.services.rumor_action_service --team-id $(ESPN_TEAM_ID) --season $(CURRENT_YEAR)` |
 | `rumor-digest-bot` | `0 11 * * *` (America/Chicago) | `node src/bots/rumor_digest_bot.js` |
 | `rumor-syncer` | `*/30 * * * *` (America/Chicago) | `python -m src.ingestion.sync_rumors` |

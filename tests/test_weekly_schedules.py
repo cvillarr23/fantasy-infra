@@ -50,7 +50,7 @@ def job_slot(catalog, name, cron):
 def schedule_slots(catalog):
     return {
         "projections-refresh": job_slot(catalog, "projections-refresh", "0 18 * * *"),
-        "ros-refresh": job_slot(catalog, "ros-projections-refresh", "30 5 * * *"),
+        "ros-refresh": job_slot(catalog, "ros-projections-refresh", "30 4 * * *"),
         "reconcile": job_slot(catalog, "sync-actual-scores", "0 10 * * 5"),
         "trade-candidates": job_slot(catalog, "trade-candidates", "0 7 * * *"),
         "trade-candidates-prescan": job_slot(catalog, "trade-candidates", "30 12 * * 3,5"),
